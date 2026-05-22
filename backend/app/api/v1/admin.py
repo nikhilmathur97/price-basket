@@ -21,6 +21,39 @@ from app.schemas import PlatformOut
 router = APIRouter()
 
 
+# ── Bootstrap (one-time admin creation) ──────────────────────────────────────
+
+class BootstrapRequest(BaseModel):
+    setup_key: str
+    email: str
+    password: str
+    full_name: str = "Admin"
+
+
+@router.post("/bootstrap", status_code=201)
+async def bootstrap_admin(body: BootstrapRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Create the first admin user. Requires ADMIN_SETUP_KEY env var to match.
+    Disable after first use by clearing ADMIN_SETUP_KEY in Render env vars.
+    """
+    from app.config import settings
+    from app.services.auth_service import create_user, get_user_by_email
+
+    if not settings.ADMIN_SETUP_KEY or body.setup_key != settings.ADMIN_SETUP_KEY:
+        raise HTTPException(status_code=403, detail="Invalid setup key")
+
+    existing = await get_user_by_email(db, body.email)
+    if existing:
+        existing.is_admin = True
+        await db.commit()
+        return {"status": "promoted", "email": existing.email, "id": str(existing.id)}
+
+    user = await create_user(db, body.email, body.password, body.full_name)
+    user.is_admin = True
+    await db.commit()
+    return {"status": "created", "email": user.email, "id": str(user.id)}
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class PlatformCreate(BaseModel):

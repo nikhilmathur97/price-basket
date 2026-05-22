@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     BLINKIT_LAT: str = "28.4511202"
     BLINKIT_LON: str = "77.0965147"
 
+    # ── Admin bootstrap ───────────────────────────────────────────────────────
+    # Set this in Render env vars to allow one-time admin creation via POST /admin/bootstrap
+    ADMIN_SETUP_KEY: str = ""
+
     # ── Monitoring ────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
     PROMETHEUS_ENABLED: bool = True
