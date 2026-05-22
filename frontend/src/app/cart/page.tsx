@@ -1,0 +1,584 @@
+"use client";
+
+import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
+import { api } from "@/services/api";
+import { MOCK_PRODUCTS } from "@/lib/mockData";
+import type { ProductWithPrices, CartItem, PlatformPrice } from "@/types";
+import { ShoppingBag, ExternalLink, Clock, ArrowRight, Minus, Plus } from "lucide-react";
+import toast from "react-hot-toast";
+
+// ── Platform visual config ────────────────────────────────────────────────────
+const PLATFORM_STYLE: Record<string, {
+  bg: string;
+  text: string;
+  initials: string;
+  homeUrl: string;
+  searchUrl: (q: string) => string;
+}> = {
+  blinkit: {
+    bg: "#F8C920", text: "#1a1a1a", initials: "BL",
+    homeUrl: "https://blinkit.com",
+    searchUrl: (q) => `https://blinkit.com/search?q=${encodeURIComponent(q)}`,
+  },
+  zepto: {
+    bg: "#8B5CF6", text: "#ffffff", initials: "ZP",
+    homeUrl: "https://www.zeptonow.com",
+    searchUrl: (q) => `https://www.zeptonow.com/search?query=${encodeURIComponent(q)}`,
+  },
+  instamart: {
+    bg: "#FC8019", text: "#ffffff", initials: "IM",
+    homeUrl: "https://www.swiggy.com/instamart",
+    searchUrl: (q) => `https://www.swiggy.com/instamart/search?query=${encodeURIComponent(q)}`,
+  },
+  bigbasket: {
+    bg: "#84CC16", text: "#1a1a1a", initials: "BB",
+    homeUrl: "https://www.bigbasket.com",
+    searchUrl: (q) => `https://www.bigbasket.com/ps/?q=${encodeURIComponent(q)}`,
+  },
+};
+
+// ── Platform logo badge ───────────────────────────────────────────────────────
+function PlatformLogo({
+  slug,
+  color,
+  size = "md",
+}: {
+  slug: string;
+  color?: string | null;
+  size?: "sm" | "md" | "lg";
+}) {
+  const style = PLATFORM_STYLE[slug];
+  const bg = style?.bg ?? color ?? "#888";
+  const textColor = style?.text ?? "#fff";
+  const initials = style?.initials ?? slug.slice(0, 2).toUpperCase();
+  const sizeClass = {
+    sm: "w-6 h-6 text-[9px]",
+    md: "w-8 h-8 text-[11px]",
+    lg: "w-11 h-11 text-sm",
+  }[size];
+
+  return (
+    <div
+      className={`${sizeClass} rounded-xl flex items-center justify-center font-black flex-shrink-0 shadow-sm`}
+      style={{ backgroundColor: bg, color: textColor }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+// ── Per-item platform price grid ──────────────────────────────────────────────
+function ItemPlatformPrices({
+  productName,
+  platformPrices,
+}: {
+  productName: string;
+  platformPrices: PlatformPrice[];
+}) {
+  const sorted = [...platformPrices].sort((a, b) => a.price - b.price);
+  const cheapestId = sorted[0]?.platform.id;
+
+  return (
+    <div className="px-4 pb-4 border-t border-surface-50 pt-3">
+      <p className="text-[10px] font-black text-surface-400 uppercase tracking-widest mb-2.5">
+        Price on all platforms
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {sorted.map((pp) => {
+          const style = PLATFORM_STYLE[pp.platform.slug];
+          const isCheapest = pp.platform.id === cheapestId;
+          const href = style?.searchUrl(productName) ?? "#";
+
+          return (
+            <a
+              key={pp.platform.id}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`relative flex flex-col gap-1.5 rounded-xl p-3 border-2 transition-all duration-200 hover:shadow-lg group ${
+                isCheapest
+                  ? "border-brand-400 bg-brand-50"
+                  : "border-surface-100 bg-white hover:border-surface-200"
+              }`}
+            >
+              {/* Best price label */}
+              {isCheapest && (
+                <span className="absolute -top-2.5 left-2 text-[9px] font-black bg-brand-500 text-white px-2 py-0.5 rounded-full tracking-wide whitespace-nowrap">
+                  BEST PRICE
+                </span>
+              )}
+
+              {/* Platform name row */}
+              <div className="flex items-center gap-1.5">
+                <PlatformLogo
+                  slug={pp.platform.slug}
+                  color={pp.platform.color_hex}
+                  size="sm"
+                />
+                <span className="text-xs font-bold text-surface-800 truncate flex-1">
+                  {pp.platform.name}
+                </span>
+                <ExternalLink className="w-2.5 h-2.5 text-surface-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
+              </div>
+
+              {/* Price */}
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black text-surface-900">
+                  ₹{pp.price}
+                </span>
+                {pp.original_price && pp.original_price > pp.price && (
+                  <span className="text-[10px] text-surface-400 line-through">
+                    ₹{pp.original_price}
+                  </span>
+                )}
+              </div>
+
+              {/* Delivery time */}
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3 text-surface-400" />
+                <span className="text-[11px] text-surface-500 font-medium">
+                  {pp.delivery_time_minutes ?? pp.platform.avg_delivery_minutes} min
+                </span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Cart Item Row ─────────────────────────────────────────────────────────────
+function CartItemRow({ item }: { item: CartItem }) {
+  const { updateItem, removeItem } = useCartStore();
+  const isReal = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    item.product.id
+  );
+
+  const { data: productData } = useQuery<ProductWithPrices>({
+    queryKey: ["product-with-prices", item.product.id],
+    queryFn: async () => {
+      const { data } = await api.getProduct(item.product.id);
+      return data;
+    },
+    enabled: isReal,
+    staleTime: 5 * 60_000,
+  });
+
+  const mockProduct = !isReal
+    ? MOCK_PRODUCTS.find((p) => p.id === item.product.id)
+    : undefined;
+
+  const platformPrices: PlatformPrice[] =
+    (productData ?? mockProduct)?.platform_prices ?? [];
+
+  async function handleQty(delta: number) {
+    const next = item.quantity + delta;
+    try {
+      if (next <= 0) await removeItem(item.id);
+      else await updateItem(item.id, next);
+    } catch {
+      toast.error("Update failed");
+    }
+  }
+
+  const imgSrc = item.product.thumbnail_url ?? item.product.image_url ?? null;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -30 }}
+      className="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden"
+    >
+      {/* Product + qty */}
+      <div className="flex gap-3 p-4 items-start">
+        <div className="w-16 h-16 bg-surface-50 rounded-xl flex-shrink-0 border overflow-hidden">
+          {imgSrc ? (
+            <Image
+              src={imgSrc}
+              alt={item.product.name}
+              width={64}
+              height={64}
+              className="object-contain w-full h-full p-1"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {item.product.brand && (
+            <p className="text-xs text-surface-400 truncate">{item.product.brand}</p>
+          )}
+          <p className="text-sm font-semibold text-surface-900 line-clamp-2 leading-snug">
+            {item.product.name}
+          </p>
+          {item.product.unit && (
+            <p className="text-xs text-surface-400">{item.product.unit}</p>
+          )}
+          {item.snapshot_price && (
+            <p className="text-xs text-surface-400 mt-0.5">
+              ₹{item.snapshot_price} each
+            </p>
+          )}
+        </div>
+
+        {/* Qty pill */}
+        <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-8 flex-shrink-0">
+          <button
+            onClick={() => handleQty(-1)}
+            className="w-8 h-8 flex items-center justify-center text-white hover:bg-brand-700 transition-colors"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-white font-bold text-sm w-6 text-center">
+            {item.quantity}
+          </span>
+          <button
+            onClick={() => handleQty(1)}
+            className="w-8 h-8 flex items-center justify-center text-white hover:bg-brand-700 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Platform price comparison */}
+      {platformPrices.length > 0 && (
+        <ItemPlatformPrices
+          productName={item.product.name}
+          platformPrices={platformPrices}
+        />
+      )}
+    </motion.div>
+  );
+}
+
+// ── Platform total summary card (sidebar) ─────────────────────────────────────
+function PlatformTotalCard({
+  slug,
+  name,
+  color,
+  subtotal,
+  deliveryFee,
+  avgDelivery,
+  isCheapest,
+  isFastest,
+}: {
+  slug: string;
+  name: string;
+  color: string;
+  subtotal: number;
+  deliveryFee: number;
+  avgDelivery: number;
+  isCheapest: boolean;
+  isFastest: boolean;
+}) {
+  const style = PLATFORM_STYLE[slug];
+  const grandTotal = subtotal + deliveryFee;
+
+  return (
+    <motion.a
+      href={style?.homeUrl ?? "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className={`block rounded-2xl border-2 p-4 transition-all cursor-pointer group ${
+        isCheapest
+          ? "border-brand-400 shadow-lg bg-gradient-to-br from-brand-50 to-white"
+          : "border-surface-100 bg-white hover:shadow-md hover:border-surface-200"
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3">
+        <PlatformLogo slug={slug} color={color} size="lg" />
+        <div className="flex-1">
+          <p className="font-bold text-surface-900">{name}</p>
+          <div className="flex items-center gap-1 text-xs text-surface-400">
+            <Clock className="w-3 h-3" />
+            {avgDelivery} min avg delivery
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {isCheapest && (
+            <span className="text-[9px] font-black bg-brand-500 text-white px-2 py-0.5 rounded-full tracking-wide">
+              CHEAPEST
+            </span>
+          )}
+          {isFastest && (
+            <span className="text-[9px] font-black bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full tracking-wide">
+              FASTEST
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Price breakdown */}
+      <div className="space-y-1 text-sm border-t border-surface-100 pt-2 mb-3">
+        <div className="flex justify-between text-surface-500">
+          <span>Subtotal</span>
+          <span>₹{subtotal}</span>
+        </div>
+        <div className="flex justify-between text-xs text-surface-400">
+          <span>Delivery</span>
+          <span className={deliveryFee === 0 ? "text-brand-600 font-semibold" : ""}>
+            {deliveryFee === 0 ? "FREE" : `₹${deliveryFee}`}
+          </span>
+        </div>
+        <div className="flex justify-between font-black text-surface-900 text-base">
+          <span>Total</span>
+          <span>₹{grandTotal}</span>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-opacity group-hover:opacity-90"
+        style={{ backgroundColor: color, color: style?.text ?? "#fff" }}
+      >
+        Shop on {name}
+        <ArrowRight className="w-4 h-4" />
+      </div>
+    </motion.a>
+  );
+}
+
+// ── Main Cart Page ────────────────────────────────────────────────────────────
+export default function CartPage() {
+  const router = useRouter();
+  const { hasHydrated, isAuthenticated } = useAuthStore();
+  const { cart, isLoading, fetchCart, _hasHydrated: cartHydrated } = useCartStore();
+  const productIds = cart?.items.map((i) => i.product.id) ?? [];
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (hasHydrated && !isAuthenticated) {
+      router.replace("/auth/login?next=/cart");
+    }
+  }, [hasHydrated, isAuthenticated, router]);
+
+  // Fetch cart on mount — wait for BOTH stores to rehydrate from localStorage
+  // so persisted mock items are restored before we decide to call the API.
+  useEffect(() => {
+    if (hasHydrated && cartHydrated && isAuthenticated && !cart) {
+      fetchCart();
+    }
+  }, [hasHydrated, cartHydrated, isAuthenticated, cart, fetchCart]);
+
+  // ── ALL hooks must be called before any conditional return ──────────────────
+  // Fetch all product prices for the platform comparison sidebar
+  const { data: productsMap } = useQuery<Record<string, ProductWithPrices>>({
+    queryKey: ["cart-all-prices", ...productIds],
+    queryFn: async () => {
+      const pairs = await Promise.all(
+        productIds.map(async (id) => {
+          const isReal =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          if (!isReal) {
+            return [id, MOCK_PRODUCTS.find((p) => p.id === id)] as const;
+          }
+          try {
+            const { data } = await api.getProduct(id);
+            return [id, data] as const;
+          } catch {
+            return [id, undefined] as const;
+          }
+        })
+      );
+      return Object.fromEntries(
+        pairs.filter(([, v]) => v !== undefined)
+      ) as Record<string, ProductWithPrices>;
+    },
+    enabled: productIds.length > 0,
+    staleTime: 5 * 60_000,
+  });
+
+  // Compute totals per platform across all cart items
+  const platformSummaries = useMemo(() => {
+    if (!cart || !productsMap) return [];
+
+    const map = new Map<
+      string,
+      {
+        id: string;
+        slug: string;
+        name: string;
+        color_hex: string | null;
+        avg_delivery_minutes: number;
+        delivery_fee: number;
+        free_delivery_threshold: number | null;
+        subtotal: number;
+      }
+    >();
+
+    for (const item of cart.items) {
+      const pw = productsMap[item.product.id];
+      if (!pw) continue;
+      for (const pp of pw.platform_prices) {
+        const existing = map.get(pp.platform.id);
+        if (existing) {
+          existing.subtotal += pp.price * item.quantity;
+        } else {
+          map.set(pp.platform.id, {
+            id: pp.platform.id,
+            slug: pp.platform.slug,
+            name: pp.platform.name,
+            color_hex: pp.platform.color_hex,
+            avg_delivery_minutes: pp.platform.avg_delivery_minutes,
+            delivery_fee: pp.platform.delivery_fee,
+            free_delivery_threshold: pp.platform.free_delivery_threshold,
+            subtotal: pp.price * item.quantity,
+          });
+        }
+      }
+    }
+
+    return Array.from(map.values())
+      .map((p) => ({
+        ...p,
+        deliveryFee:
+          p.subtotal >= (p.free_delivery_threshold ?? Infinity)
+            ? 0
+            : p.delivery_fee,
+      }))
+      .sort(
+        (a, b) => a.subtotal + a.deliveryFee - (b.subtotal + b.deliveryFee)
+      );
+  }, [cart, productsMap]);
+
+  const cheapestId = platformSummaries[0]?.id ?? "";
+  const fastestId = platformSummaries.length
+    ? platformSummaries.reduce((f, p) =>
+        p.avg_delivery_minutes < f.avg_delivery_minutes ? p : f
+      ).id
+    : "";
+
+  // ── Guard: wait for auth hydration (all hooks above, safe to return now) ───
+  if (!hasHydrated || !isAuthenticated) {
+    return <div className="max-w-5xl mx-auto px-4 py-10" />;
+  }
+
+  // ── Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton h-44 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  // ── Empty state
+  if (!cart?.items.length) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-24 text-center">
+        <div className="text-8xl mb-6">🛒</div>
+        <h1 className="text-2xl font-bold text-surface-900 mb-3">
+          Your cart is empty
+        </h1>
+        <p className="text-surface-500 mb-8 max-w-sm mx-auto">
+          Add products and instantly compare prices across Blinkit, Zepto,
+          Instamart &amp; BigBasket
+        </p>
+        <Link
+          href="/"
+          className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-base"
+        >
+          <ShoppingBag className="w-5 h-5" />
+          Start Shopping
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Savings callout
+  const maxTotal = Math.max(
+    ...platformSummaries.map((p) => p.subtotal + p.deliveryFee),
+    0
+  );
+  const minTotal = platformSummaries.length
+    ? platformSummaries[0].subtotal + platformSummaries[0].deliveryFee
+    : 0;
+  const savings = maxTotal - minTotal;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <h1 className="text-2xl font-bold text-surface-900">My Cart</h1>
+        <span className="bg-brand-100 text-brand-700 text-sm font-semibold px-3 py-1 rounded-full">
+          {cart.total_items} items
+        </span>
+      </div>
+
+      {/* Savings banner */}
+      {savings > 0 && (
+        <div className="mb-6 flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 text-sm font-semibold px-4 py-2.5 rounded-xl">
+          <span className="text-lg">💰</span>
+          You can save up to{" "}
+          <span className="font-black">₹{savings}</span> by choosing the
+          cheapest platform!
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-5 gap-6">
+        {/* Left: Cart items with per-item platform comparison */}
+        <div className="lg:col-span-3 space-y-4">
+          <p className="text-xs font-bold text-surface-400 uppercase tracking-widest">
+            Items &amp; Platform Prices
+          </p>
+          <AnimatePresence mode="popLayout">
+            {cart.items.map((item) => (
+              <CartItemRow key={item.id} item={item} />
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* Right: Platform totals + Go buttons */}
+        <div className="lg:col-span-2">
+          <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-3">
+            Where to Buy — Full Cart
+          </p>
+
+          {platformSummaries.length === 0 ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="skeleton h-36 rounded-2xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {platformSummaries.map((p) => {
+                const style = PLATFORM_STYLE[p.slug];
+                return (
+                  <PlatformTotalCard
+                    key={p.id}
+                    slug={p.slug}
+                    name={p.name}
+                    color={p.color_hex ?? style?.bg ?? "#888"}
+                    subtotal={p.subtotal}
+                    deliveryFee={p.deliveryFee}
+                    avgDelivery={p.avg_delivery_minutes}
+                    isCheapest={p.id === cheapestId}
+                    isFastest={p.id === fastestId}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

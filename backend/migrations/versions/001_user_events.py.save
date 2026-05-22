@@ -1,0 +1,37 @@
+Revision ID: 001_user_events Revises: Create Date: 2026-05-20 """ from alembic import op import sqlalchemy as sa from sqlalchemy.dialects import postgresql
+
+# revision identifiers
+revision = "001_user_events" down_revision = None branch_labels = None depends_on = None
+
+
+def upgrade() -> None:
+    # Create the enum type first
+    user_event_type = postgresql.ENUM( "product_view", "cart_add", "cart_remove", "platform_redirect", "search", "checkout_start", name="user_event_type_enum", create_type=True, ) 
+    user_event_type.create(op.get_bind(), checkfirst=True)
+
+    op.create_table( "user_events", sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False), sa.Column( "event_type", sa.Enum( "product_view", "cart_add", "cart_remove", 
+                "platform_redirect", "search", "checkout_start", name="user_event_type_enum", create_type=False,
+            ), nullable=False, ),
+        # Identity
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True), sa.Column("client_id", sa.String(64), nullable=False), sa.Column("session_id", 
+        sa.String(128), nullable=True),
+        # What was interacted with
+        sa.Column("product_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("products.id", ondelete="SET NULL"), nullable=True), sa.Column("platform_id", postgresql.UUID(as_uuid=True), 
+        sa.ForeignKey("platforms.id", ondelete="SET NULL"), nullable=True),
+        # Event payload
+        sa.Column("price_shown", sa.Numeric(10, 2), nullable=True), sa.Column("cart_item_count", sa.Integer, nullable=True), sa.Column("search_query", sa.String(500), nullable=True), 
+        sa.Column("referrer_page", sa.String(100), nullable=True), sa.Column("redirect_url", sa.Text, nullable=True),
+        # Request metadata
+        sa.Column("ip_hash", sa.String(64), nullable=True), sa.Column("country_code", sa.String(2), nullable=True),
+        # Timestamp
+        sa.Column( "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False, ), )
+
+    # Indexes for fast analytics queries
+    op.create_index("ix_user_events_event_type", "user_events", ["event_type"]) op.create_index("ix_user_events_user_id", "user_events", ["user_id"]) op.create_index("ix_user_events_client_id", 
+    "user_events", ["client_id"]) op.create_index("ix_user_events_product_id", "user_events", ["product_id"]) op.create_index("ix_user_events_platform_id", "user_events", ["platform_id"]) 
+    op.create_index("ix_user_events_created_at", "user_events", ["created_at"])
+
+
+def downgrade() -> None: op.drop_index("ix_user_events_created_at", "user_events") op.drop_index("ix_user_events_platform_id", "user_events") op.drop_index("ix_user_events_product_id", "user_events") 
+    op.drop_index("ix_user_events_client_id", "user_events") op.drop_index("ix_user_events_user_id", "user_events") op.drop_index("ix_user_events_event_type", "user_events") op.drop_table("user_events") 
+    postgresql.ENUM(name="user_event_type_enum").drop(op.get_bind(), checkfirst=True)
