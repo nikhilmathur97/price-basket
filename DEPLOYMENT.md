@@ -191,24 +191,64 @@ echo "wss://api.test2.pricebasket.in"   | gh secret set WS_URL  --repo nikhilmat
 
 Pipeline file: `.github/workflows/deploy.yml`
 
+### Branch Strategy
+
+```
+developer
+    │
+    ├── writes code on feature/price-basket
+    │         │
+    │         └── git push origin feature/price-basket
+    │                   (no auto-deploy — staging/review only)
+    │
+    └── opens Pull Request → feature/price-basket → main
+                  │
+                  └── merge to main
+                            │
+                            └── GitHub Actions auto-fires
+                                      │
+                                      └── deploys to PRODUCTION
+```
+
+**Production always deploys from `main` only.**
+
+### Trigger Methods
+
+| Method | How | When to use |
+|---|---|---|
+| **Automatic** | Push or merge to `main` | Normal release flow |
+| **Manual (Console)** | GitHub Actions tab → Run workflow | Hotfix, re-deploy, selective deploy |
+
+### Manual Deploy from GitHub Console
+
+1. Go to `github.com/nikhilmathur97/price-basket/actions`
+2. Click **"Deploy Price Basket"** in the left sidebar
+3. Click **"Run workflow"** (top right)
+4. Choose options:
+   - **Branch to deploy from** — `main` or `feature/price-basket`
+   - **Target environment** — `production` or `preview`
+   - **Skip backend deployment?** — `true` to deploy frontend only
+5. Click **"Run workflow"**
+
 ### Pipeline Flow
 
 ```
-git push → GitHub Actions triggered
+Trigger (push to main OR manual)
                │
                ├─ Job 1: Deploy Frontend → Vercel
-               │    ├── Checkout code
+               │    ├── Checkout selected branch
                │    ├── Setup Node.js 20
                │    ├── Install Vercel CLI
-               │    ├── vercel pull (fetch env vars from Vercel)
-               │    ├── vercel build --prod  (build in frontend/ dir)
-               │    └── vercel deploy --prebuilt --prod
+               │    ├── vercel pull (fetch env from Vercel)
+               │    ├── vercel build --prod / --preview
+               │    └── vercel deploy --prebuilt --prod / preview
                │
-               └─ Job 2: Deploy Backend → Server (runs after Job 1)
+               └─ Job 2: Deploy Backend → Server (after Job 1)
+                    ├── Skip if "Skip backend" = true
                     ├── SSH into VPS
-                    ├── git pull latest code
+                    ├── git pull selected branch
                     ├── pip install -r requirements.txt
-                    ├── alembic upgrade head (run DB migrations)
+                    ├── alembic upgrade head (DB migrations)
                     ├── pm2 restart pricebasket-api
                     └── pm2 restart pricebasket-worker
 ```
