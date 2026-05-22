@@ -1,18 +1,58 @@
 name: Deploy Price Basket
 
+# ── Triggers ───────────────────────────────────────────────────────────────────
 on:
+  # 1. Auto-deploy: only when code is merged/pushed to main
   push:
     branches:
-      - feature/price-basket
       - main
 
+  # 2. Manual deploy: trigger from GitHub Actions console
+  #    → Go to Actions tab → "Deploy Price Basket" → "Run workflow"
+  #    → Pick any branch and click "Run workflow"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy from"
+        required: true
+        default: "main"
+        type: choice
+        options:
+          - main
+          - feature/price-basket
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - preview
+      skip_backend:
+        description: "Skip backend deployment?"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+# ── Resolve branch & env for both auto and manual runs ────────────────────────
+env:
+  DEPLOY_BRANCH: ${{ github.event.inputs.branch || 'main' }}
+  DEPLOY_ENV: ${{ github.event.inputs.environment || 'production' }}
+  SKIP_BACKEND: ${{ github.event.inputs.skip_backend || 'false' }}
+
 jobs:
-  # ── Deploy Next.js Frontend → Vercel ────────────────────────────────────────
+  # ── 1. Deploy Next.js Frontend → Vercel ──────────────────────────────────────
   deploy-frontend:
-    name: Deploy Frontend → Vercel
+    name: "Deploy Frontend → Vercel (${{ github.event.inputs.environment || 'production' }})"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -25,32 +65,51 @@ jobs:
 
       - name: Pull Vercel environment
         working-directory: frontend
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
+            vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          fi
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build
         working-directory: frontend
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          fi
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to Vercel
         working-directory: frontend
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
+            vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+          fi
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # ── Deploy FastAPI Backend → Server via SSH ──────────────────────────────────
+  # ── 2. Deploy FastAPI Backend → Server via SSH ────────────────────────────────
   deploy-backend:
-    name: Deploy Backend → Server (SSH)
+    name: "Deploy Backend → Server (${{ github.event.inputs.environment || 'production' }})"
     runs-on: ubuntu-latest
     needs: deploy-frontend
+    if: ${{ github.event.inputs.skip_backend != 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -61,18 +120,32 @@ jobs:
           port: 22
           script: |
             cd /opt/price-basket
-            git pull origin feature/price-basket
+
+            # Pull from the selected branch
+            git fetch --all
+            git checkout ${{ env.DEPLOY_BRANCH }}
+            git pull origin ${{ env.DEPLOY_BRANCH }}
+
+            # Install any new Python dependencies
             source backend/.venv/bin/activate
             pip install -q -r backend/requirements.txt
+
+            # Run database migrations
             cd backend && alembic upgrade head && cd ..
+
+            # Restart API server
             pm2 restart pricebasket-api || pm2 start \
               "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2" \
               --name pricebasket-api \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
+
+            # Restart Celery worker
             pm2 restart pricebasket-worker || pm2 start \
               "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2" \
               --name pricebasket-worker \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
+
             pm2 save
+            echo "✅ Backend deployed from branch: ${{ env.DEPLOY_BRANCH }}"
