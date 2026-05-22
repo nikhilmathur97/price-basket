@@ -12,64 +12,44 @@ import { api } from "@/services/api";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductWithPrices, CartItem, PlatformPrice } from "@/types";
 import { ShoppingBag, ExternalLink, Clock, ArrowRight, Minus, Plus } from "lucide-react";
+import { PlatformLogo } from "@/components/PlatformLogo";
 import toast from "react-hot-toast";
 
-// ── Platform visual config ────────────────────────────────────────────────────
-const PLATFORM_STYLE: Record<string, {
-  bg: string;
-  text: string;
-  initials: string;
+// ── Platform config — all 10 platforms ───────────────────────────────────────
+const PLATFORM_META: Record<string, {
+  color: string;
+  textColor: string;
   homeUrl: string;
   searchUrl: (q: string) => string;
 }> = {
-  blinkit: {
-    bg: "#F8C920", text: "#1a1a1a", initials: "BL",
-    homeUrl: "https://blinkit.com",
-    searchUrl: (q) => `https://blinkit.com/search?q=${encodeURIComponent(q)}`,
-  },
-  zepto: {
-    bg: "#8B5CF6", text: "#ffffff", initials: "ZP",
-    homeUrl: "https://www.zeptonow.com",
-    searchUrl: (q) => `https://www.zeptonow.com/search?query=${encodeURIComponent(q)}`,
-  },
-  instamart: {
-    bg: "#FC8019", text: "#ffffff", initials: "IM",
-    homeUrl: "https://www.swiggy.com/instamart",
-    searchUrl: (q) => `https://www.swiggy.com/instamart/search?query=${encodeURIComponent(q)}`,
-  },
-  bigbasket: {
-    bg: "#84CC16", text: "#1a1a1a", initials: "BB",
-    homeUrl: "https://www.bigbasket.com",
-    searchUrl: (q) => `https://www.bigbasket.com/ps/?q=${encodeURIComponent(q)}`,
-  },
+  blinkit:   { color: "#0C831F", textColor: "#ffffff", homeUrl: "https://blinkit.com",                  searchUrl: (q) => `https://blinkit.com/search?q=${encodeURIComponent(q)}` },
+  zepto:     { color: "#8025FB", textColor: "#ffffff", homeUrl: "https://www.zeptonow.com",              searchUrl: (q) => `https://www.zeptonow.com/search?query=${encodeURIComponent(q)}` },
+  instamart: { color: "#FC8019", textColor: "#ffffff", homeUrl: "https://www.swiggy.com/instamart",      searchUrl: (q) => `https://www.swiggy.com/instamart/search?query=${encodeURIComponent(q)}` },
+  bigbasket: { color: "#84C225", textColor: "#1a1a1a", homeUrl: "https://www.bigbasket.com",             searchUrl: (q) => `https://www.bigbasket.com/ps/?q=${encodeURIComponent(q)}` },
+  flipkart:  { color: "#2874F0", textColor: "#ffffff", homeUrl: "https://www.flipkart.com",              searchUrl: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}` },
+  amazon:    { color: "#FF9900", textColor: "#1a1a1a", homeUrl: "https://www.amazon.in",                 searchUrl: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
+  jiomart:   { color: "#0046D5", textColor: "#ffffff", homeUrl: "https://www.jiomart.com",               searchUrl: (q) => `https://www.jiomart.com/search#query=${encodeURIComponent(q)}` },
+  myntra:    { color: "#FF3F6C", textColor: "#ffffff", homeUrl: "https://www.myntra.com",                searchUrl: (q) => `https://www.myntra.com/search?rawQuery=${encodeURIComponent(q)}` },
+  nykaa:     { color: "#FC2779", textColor: "#ffffff", homeUrl: "https://www.nykaa.com",                 searchUrl: (q) => `https://www.nykaa.com/search/result/?q=${encodeURIComponent(q)}` },
+  dunzo:     { color: "#00D290", textColor: "#1a1a1a", homeUrl: "https://www.dunzo.com",                 searchUrl: (q) => `https://www.dunzo.com/search?q=${encodeURIComponent(q)}` },
 };
 
-// ── Platform logo badge ───────────────────────────────────────────────────────
-function PlatformLogo({
-  slug,
-  color,
-  size = "md",
-}: {
-  slug: string;
-  color?: string | null;
-  size?: "sm" | "md" | "lg";
-}) {
-  const style = PLATFORM_STYLE[slug];
-  const bg = style?.bg ?? color ?? "#888";
-  const textColor = style?.text ?? "#fff";
-  const initials = style?.initials ?? slug.slice(0, 2).toUpperCase();
-  const sizeClass = {
-    sm: "w-6 h-6 text-[9px]",
-    md: "w-8 h-8 text-[11px]",
-    lg: "w-11 h-11 text-sm",
-  }[size];
-
+// ── Branded logo container ────────────────────────────────────────────────────
+function PlatformLogoBox({
+  slug, name, colorHex, size,
+}: { slug: string; name: string; colorHex?: string | null; size: number }) {
+  const hex = colorHex ?? PLATFORM_META[slug]?.color ?? "#888";
   return (
     <div
-      className={`${sizeClass} rounded-xl flex items-center justify-center font-black flex-shrink-0 shadow-sm`}
-      style={{ backgroundColor: bg, color: textColor }}
+      className="rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0"
+      style={{
+        width: size + 8,
+        height: size + 8,
+        backgroundColor: hex + "20",
+        border: `1.5px solid ${hex}45`,
+      }}
     >
-      {initials}
+      <PlatformLogo slug={slug} name={name} colorHex={colorHex} size={size} />
     </div>
   );
 }
@@ -92,9 +72,9 @@ function ItemPlatformPrices({
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {sorted.map((pp) => {
-          const style = PLATFORM_STYLE[pp.platform.slug];
+          const meta = PLATFORM_META[pp.platform.slug];
           const isCheapest = pp.platform.id === cheapestId;
-          const href = style?.searchUrl(productName) ?? "#";
+          const href = meta?.searchUrl(productName) ?? `https://www.google.com/search?q=${encodeURIComponent(pp.platform.name + " " + productName)}`;
 
           return (
             <a
@@ -117,10 +97,11 @@ function ItemPlatformPrices({
 
               {/* Platform name row */}
               <div className="flex items-center gap-1.5">
-                <PlatformLogo
+                <PlatformLogoBox
                   slug={pp.platform.slug}
-                  color={pp.platform.color_hex}
-                  size="sm"
+                  name={pp.platform.name}
+                  colorHex={pp.platform.color_hex}
+                  size={18}
                 />
                 <span className="text-xs font-bold text-surface-800 truncate flex-1">
                   {pp.platform.name}
@@ -283,12 +264,12 @@ function PlatformTotalCard({
   isCheapest: boolean;
   isFastest: boolean;
 }) {
-  const style = PLATFORM_STYLE[slug];
+  const meta = PLATFORM_META[slug];
   const grandTotal = subtotal + deliveryFee;
 
   return (
     <motion.a
-      href={style?.homeUrl ?? "#"}
+      href={meta?.homeUrl ?? `https://www.google.com/search?q=${encodeURIComponent(name)}`}
       target="_blank"
       rel="noopener noreferrer"
       whileHover={{ scale: 1.02 }}
@@ -301,7 +282,7 @@ function PlatformTotalCard({
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <PlatformLogo slug={slug} color={color} size="lg" />
+        <PlatformLogoBox slug={slug} name={name} colorHex={color} size={32} />
         <div className="flex-1">
           <p className="font-bold text-surface-900">{name}</p>
           <div className="flex items-center gap-1 text-xs text-surface-400">
@@ -344,7 +325,10 @@ function PlatformTotalCard({
       {/* CTA */}
       <div
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-opacity group-hover:opacity-90"
-        style={{ backgroundColor: color, color: style?.text ?? "#fff" }}
+        style={{
+          backgroundColor: color ?? meta?.color ?? "#888",
+          color: meta?.textColor ?? "#ffffff",
+        }}
       >
         Shop on {name}
         <ArrowRight className="w-4 h-4" />
@@ -489,7 +473,7 @@ export default function CartPage() {
         </h1>
         <p className="text-surface-500 mb-8 max-w-sm mx-auto">
           Add products and instantly compare prices across Blinkit, Zepto,
-          Instamart &amp; BigBasket
+          Instamart, BigBasket, Flipkart, Amazon &amp; more
         </p>
         <Link
           href="/"
@@ -560,13 +544,12 @@ export default function CartPage() {
           ) : (
             <div className="space-y-3">
               {platformSummaries.map((p) => {
-                const style = PLATFORM_STYLE[p.slug];
                 return (
                   <PlatformTotalCard
                     key={p.id}
                     slug={p.slug}
                     name={p.name}
-                    color={p.color_hex ?? style?.bg ?? "#888"}
+                    color={p.color_hex ?? PLATFORM_META[p.slug]?.color ?? "#888"}
                     subtotal={p.subtotal}
                     deliveryFee={p.deliveryFee}
                     avgDelivery={p.avg_delivery_minutes}
