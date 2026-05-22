@@ -5,7 +5,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND = process.env.BACKEND_URL ?? process.env.API_URL ?? "http://localhost:8000";
+// BACKEND_URL is set in Vercel project env for production; falls back to Render URL.
+const BACKEND =
+  process.env.BACKEND_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://pricebasket-api.onrender.com"
+    : "http://localhost:8000");
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
