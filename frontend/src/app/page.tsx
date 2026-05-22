@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
