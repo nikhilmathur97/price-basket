@@ -44,10 +44,13 @@ export function PriceComparison({
               !pp.is_available && "opacity-50 pointer-events-none"
             )}
           >
-            {/* Platform logo / color chip */}
+            {/* Platform logo */}
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: pp.platform.color_hex ?? "#e5e7eb" }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+              style={{
+                backgroundColor: (pp.platform.color_hex ?? "#e5e7eb") + "22",
+                border: `1.5px solid ${pp.platform.color_hex ?? "#e5e7eb"}55`,
+              }}
             >
               {pp.platform.logo_url ? (
                 <Image
@@ -55,10 +58,11 @@ export function PriceComparison({
                   alt={pp.platform.name}
                   width={28}
                   height={28}
-                  className="rounded"
+                  className="object-contain w-7 h-7"
+                  unoptimized
                 />
               ) : (
-                <span className="text-white text-xs font-bold">
+                <span className="text-xs font-bold" style={{ color: pp.platform.color_hex ?? "#6b7280" }}>
                   {pp.platform.name[0]}
                 </span>
               )}

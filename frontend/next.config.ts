@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
       { hostname: "media-assets.swiggy.com" },
       { hostname: "pricebasket-assets.s3.ap-south-1.amazonaws.com" },
       { hostname: "test.pricebasket.in" },
+      { hostname: "logo.clearbit.com" },
+      { hostname: "images.pexels.com" },
+      { hostname: "picsum.photos" },
+      { hostname: "assets.myntassets.com" },
+      { hostname: "adn-static1.nykaa.com" },
+      { hostname: "static-assets-web.flixcart.com" },
     ],
   },
   experimental: {

@@ -24,7 +24,7 @@ export function HeroSection() {
           <span className="text-brand-200">Save every time.</span>
         </h1>
         <p className="text-white/80 text-sm sm:text-base mb-8">
-          Search any product and instantly see prices from Blinkit, Zepto, BigBasket &amp; Swiggy Instamart.
+          Search any product and instantly compare prices from Blinkit, Zepto, Instamart, BigBasket, Flipkart Minutes, Amazon Now, JioMart &amp; more.
         </p>
 
         {/* Search bar */}
@@ -38,7 +38,7 @@ export function HeroSection() {
         <div className="flex justify-center gap-6 mt-8 text-white/80 text-xs sm:text-sm">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-brand-200" />
-            4 platforms
+            10 platforms
           </div>
           <div className="flex items-center gap-1.5">
             <TrendingDown className="w-4 h-4 text-brand-200" />

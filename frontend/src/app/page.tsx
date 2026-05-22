@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { MOCK_CATEGORIES } from "@/lib/mockData";
+import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { HomeProductSections } from "@/components/HomeProductSections";
 
 // ── Category card colour accents ────────────────────────────────────────────
@@ -35,7 +35,7 @@ export default function HomePage() {
                 <span className="text-yellow-300">Basket</span>
               </h1>
               <p className="text-orange-100 text-[12px] font-medium mt-1 leading-tight">
-                Compare Blinkit · Zepto · Instamart · BigBasket — always pay less
+                Compare 10 platforms — Blinkit · Zepto · Instamart · Flipkart · Amazon · more
               </p>
             </div>
             <Link href="/auth/signup"
@@ -50,7 +50,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
             {[
               { icon: "⚡", text: "10-min delivery" },
-              { icon: "🏪", text: "4 platforms" },
+              { icon: "🏪", text: "10 platforms" },
               { icon: "💰", text: "Save up to 40%" },
               { icon: "🔄", text: "Live prices" },
             ].map((chip) => (
@@ -69,28 +69,33 @@ export default function HomePage() {
       <div className="max-w-screen-xl mx-auto px-4">
 
         {/* ── Platform logos strip ── */}
-        <div className="flex items-center gap-3 py-3 overflow-x-auto scrollbar-hide">
-          {[
-            { name: "Blinkit",   color: "#F8C920", textColor: "#7a5f00", abbr: "B" },
-            { name: "Zepto",     color: "#8B5CF6", textColor: "#fff",    abbr: "Z" },
-            { name: "Instamart", color: "#FF6600", textColor: "#fff",    abbr: "I" },
-            { name: "BigBasket", color: "#84CC16", textColor: "#2d5016", abbr: "BB" },
-          ].map((p) => (
-            <div key={p.name}
+        <div className="flex items-center gap-2 py-3 overflow-x-auto scrollbar-hide">
+          {MOCK_PLATFORMS.map((p) => (
+            <div key={p.slug}
               className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
                          px-3 py-2 border border-surface-100 shadow-sm
                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
-              <div className="w-6 h-6 rounded-lg flex items-center justify-center
-                              text-[10px] font-extrabold flex-shrink-0"
-                style={{ backgroundColor: p.color, color: p.textColor }}>
-                {p.abbr}
+              <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
+                style={{ backgroundColor: p.color_hex + "22" }}>
+                {p.logo_url ? (
+                  <Image
+                    src={p.logo_url}
+                    alt={p.name}
+                    width={24}
+                    height={24}
+                    className="object-contain w-6 h-6"
+                    unoptimized
+                  />
+                ) : (
+                  <span className="text-[10px] font-extrabold"
+                    style={{ color: p.color_hex }}>
+                    {p.name[0]}
+                  </span>
+                )}
               </div>
-              <span className="text-[12px] font-semibold text-surface-700">{p.name}</span>
+              <span className="text-[12px] font-semibold text-surface-700 whitespace-nowrap">{p.name}</span>
             </div>
           ))}
-          <div className="flex-shrink-0 text-[11px] font-bold text-brand-600 whitespace-nowrap px-2">
-            All in one place →
-          </div>
         </div>
 
         {/* ── Category grid ── */}

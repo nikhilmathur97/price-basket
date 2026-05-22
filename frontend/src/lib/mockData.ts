@@ -58,37 +58,43 @@ function foodImg(seed: string): string {
 }
 
 // ── Discount profiles ─────────────────────────────────────────────────────
-// Each tuple is [Blinkit%, Zepto%, BigBasket%, Instamart%] off MRP.
-// BigBasket offers deepest discounts (bulk-focused, slower).
-// Blinkit/Zepto are convenience-priced with minimal discounts.
+// [Blinkit, Zepto, BigBasket, Instamart, Flipkart, Amazon, JioMart, Myntra, Nykaa]
+// 0 = not available on this platform for this category
 const D = {
-  produce:  [5, 6, 10, 4],   // fresh fruits & veggies
-  dairy:    [3, 5,  8, 4],   // milk, curd, paneer, eggs
-  staples:  [5, 7, 12, 6],   // atta, rice, dal, salt, sugar
-  oils:     [4, 6, 10, 5],   // cooking oil, ghee
-  spices:   [4, 5,  9, 4],   // turmeric, chilli, masala
-  bev:      [5, 7, 10, 5],   // cold drinks, juices
-  snacks:   [0, 0,  5, 0],   // chips, biscuits (MRP-linked packs)
-  brkfst:   [4, 6, 10, 5],   // cereals, oats, coffee, tea, health drinks
-  noodles:  [2, 3,  6, 2],   // instant noodles, pasta
-  pcare:    [5, 8, 15, 7],   // toothpaste, shampoo, soap
-  house:    [6, 8, 12, 7],   // detergent, dishwash, cleaners
+  produce:  [5, 6, 10, 4, 4, 8, 7, 0, 0],
+  dairy:    [3, 5,  8, 4, 3, 7, 6, 0, 0],
+  staples:  [5, 7, 12, 6, 5, 9, 8, 0, 0],
+  oils:     [4, 6, 10, 5, 4, 8, 7, 0, 0],
+  spices:   [4, 5,  9, 4, 4, 7, 6, 0, 0],
+  bev:      [5, 7, 10, 5, 5, 9, 7, 0, 0],
+  snacks:   [0, 0,  5, 0, 2, 5, 4, 0, 0],
+  brkfst:   [4, 6, 10, 5, 5, 8, 7, 0, 0],
+  noodles:  [2, 3,  6, 2, 3, 6, 5, 0, 0],
+  pcare:    [5, 8, 15, 7, 8,12,10,10,18],
+  house:    [6, 8, 12, 7, 7,10, 9, 0, 0],
 } as const;
 
-type DiscProfile = readonly [number, number, number, number];
+type DiscProfile = readonly [number,number,number,number,number,number,number,number,number];
 
-/** Build 4-platform price array from MRP + discount profile. */
+/** Build price entries. A discount of 0 means not available on that platform. */
 function pp(
   mrp: number,
   disc: DiscProfile,
-): Array<{ id: string; price: number; mins: number }> {
+): Array<{ id: string; price: number; mins: number; available: boolean }> {
   const r = (n: number) => Math.max(1, Math.round(n));
-  return [
-    { id: "blinkit",   price: r(mrp * (1 - disc[0] / 100)), mins: 10 },
-    { id: "zepto",     price: r(mrp * (1 - disc[1] / 100)), mins: 10 },
-    { id: "bigbasket", price: r(mrp * (1 - disc[2] / 100)), mins: 120 },
-    { id: "instamart", price: r(mrp * (1 - disc[3] / 100)), mins: 20 },
+  const entries = [
+    { id: "blinkit",   price: r(mrp * (1 - disc[0] / 100)), mins: 10,  available: disc[0] > 0 },
+    { id: "zepto",     price: r(mrp * (1 - disc[1] / 100)), mins: 8,   available: disc[1] > 0 },
+    { id: "bigbasket", price: r(mrp * (1 - disc[2] / 100)), mins: 30,  available: disc[2] > 0 },
+    { id: "instamart", price: r(mrp * (1 - disc[3] / 100)), mins: 15,  available: disc[3] > 0 },
+    { id: "flipkart",  price: r(mrp * (1 - disc[4] / 100)), mins: 10,  available: disc[4] > 0 },
+    { id: "amazon",    price: r(mrp * (1 - disc[5] / 100)), mins: 120, available: disc[5] > 0 },
+    { id: "jiomart",   price: r(mrp * (1 - disc[6] / 100)), mins: 30,  available: disc[6] > 0 },
+    { id: "myntra",    price: r(mrp * (1 - disc[7] / 100)), mins: 30,  available: disc[7] > 0 },
+    { id: "nykaa",     price: r(mrp * (1 - disc[8] / 100)), mins: 60,  available: disc[8] > 0 },
   ];
+  // Return mrp as price when discount is 0 so PriceData still has a value, just unavailable
+  return entries;
 }
 
 // ── Platforms ──────────────────────────────────────────────────────────────
@@ -97,8 +103,8 @@ export const MOCK_PLATFORMS: Platform[] = [
     id: "blinkit",
     slug: "blinkit",
     name: "Blinkit",
-    logo_url: null,
-    color_hex: "#F8C920",
+    logo_url: "https://logo.clearbit.com/blinkit.com",
+    color_hex: "#0C831F",
     avg_delivery_minutes: 10,
     min_order_amount: 0,
     delivery_fee: 25,
@@ -109,36 +115,96 @@ export const MOCK_PLATFORMS: Platform[] = [
     id: "zepto",
     slug: "zepto",
     name: "Zepto",
-    logo_url: null,
-    color_hex: "#8B5CF6",
-    avg_delivery_minutes: 10,
+    logo_url: "https://logo.clearbit.com/zeptonow.com",
+    color_hex: "#8025FB",
+    avg_delivery_minutes: 8,
     min_order_amount: 0,
     delivery_fee: 20,
     free_delivery_threshold: 149,
     is_active: true,
   },
   {
+    id: "instamart",
+    slug: "instamart",
+    name: "Swiggy Instamart",
+    logo_url: "https://logo.clearbit.com/swiggy.com",
+    color_hex: "#FC8019",
+    avg_delivery_minutes: 15,
+    min_order_amount: 0,
+    delivery_fee: 25,
+    free_delivery_threshold: 199,
+    is_active: true,
+  },
+  {
     id: "bigbasket",
     slug: "bigbasket",
     name: "BigBasket",
-    logo_url: null,
-    color_hex: "#84CC16",
-    avg_delivery_minutes: 120,
-    min_order_amount: 0,
-    delivery_fee: 40,
+    logo_url: "https://logo.clearbit.com/bigbasket.com",
+    color_hex: "#84C225",
+    avg_delivery_minutes: 30,
+    min_order_amount: 200,
+    delivery_fee: 30,
     free_delivery_threshold: 500,
     is_active: true,
   },
   {
-    id: "instamart",
-    slug: "instamart",
-    name: "Instamart",
-    logo_url: null,
-    color_hex: "#FF6600",
-    avg_delivery_minutes: 15,
+    id: "flipkart",
+    slug: "flipkart",
+    name: "Flipkart Minutes",
+    logo_url: "https://logo.clearbit.com/flipkart.com",
+    color_hex: "#2874F0",
+    avg_delivery_minutes: 10,
     min_order_amount: 0,
-    delivery_fee: 30,
-    free_delivery_threshold: 299,
+    delivery_fee: 20,
+    free_delivery_threshold: 199,
+    is_active: true,
+  },
+  {
+    id: "amazon",
+    slug: "amazon",
+    name: "Amazon Now",
+    logo_url: "https://logo.clearbit.com/amazon.com",
+    color_hex: "#FF9900",
+    avg_delivery_minutes: 120,
+    min_order_amount: 0,
+    delivery_fee: 40,
+    free_delivery_threshold: 499,
+    is_active: true,
+  },
+  {
+    id: "jiomart",
+    slug: "jiomart",
+    name: "JioMart Express",
+    logo_url: "https://logo.clearbit.com/jiomart.com",
+    color_hex: "#0046D5",
+    avg_delivery_minutes: 30,
+    min_order_amount: 0,
+    delivery_fee: 35,
+    free_delivery_threshold: 399,
+    is_active: true,
+  },
+  {
+    id: "myntra",
+    slug: "myntra",
+    name: "Myntra M-Now",
+    logo_url: "https://logo.clearbit.com/myntra.com",
+    color_hex: "#FF3F6C",
+    avg_delivery_minutes: 30,
+    min_order_amount: 0,
+    delivery_fee: 0,
+    free_delivery_threshold: null,
+    is_active: true,
+  },
+  {
+    id: "nykaa",
+    slug: "nykaa",
+    name: "Nykaa Now",
+    logo_url: "https://logo.clearbit.com/nykaa.com",
+    color_hex: "#FC2779",
+    avg_delivery_minutes: 60,
+    min_order_amount: 500,
+    delivery_fee: 50,
+    free_delivery_threshold: 999,
     is_active: true,
   },
 ];
@@ -166,23 +232,27 @@ export const MOCK_CATEGORIES: Category[] = [
 function makePrices(
   base: number,
   mrp: number,
-  platforms: Array<{ id: string; price: number; mins: number }>
+  platforms: Array<{ id: string; price: number; mins: number; available: boolean }>
 ): ProductWithPrices["platform_prices"] {
-  return platforms.map(({ id, price, mins }) => {
-    const pl = MOCK_PLATFORMS.find((p) => p.id === id)!;
-    return {
-      platform: pl,
-      price,
-      original_price: mrp,
-      discount_percent: Math.round(((mrp - price) / mrp) * 100),
-      discount_label: null,
-      is_available: true as const,
-      delivery_time_minutes: mins,
-      platform_product_url: null,
-      buy_url: null,
-      last_updated: new Date().toISOString(),
-    };
-  });
+  return platforms
+    .filter(({ available }) => available)
+    .map(({ id, price, mins }) => {
+      const pl = MOCK_PLATFORMS.find((p) => p.id === id)!;
+      if (!pl) return null;
+      return {
+        platform: pl,
+        price,
+        original_price: mrp,
+        discount_percent: Math.round(((mrp - price) / mrp) * 100),
+        discount_label: null,
+        is_available: true as const,
+        delivery_time_minutes: mins,
+        platform_product_url: null,
+        buy_url: null,
+        last_updated: new Date().toISOString(),
+      };
+    })
+    .filter(Boolean) as ProductWithPrices["platform_prices"];
 }
 
 function makeProduct(
