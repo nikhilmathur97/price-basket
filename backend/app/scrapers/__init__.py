@@ -11,12 +11,24 @@ def _build_registry() -> dict[str, BaseScraper]:
     from app.scrapers.zepto_scraper import ZeptoScraper
     from app.scrapers.bigbasket_scraper import BigBasketScraper
     from app.scrapers.instamart_scraper import InstamartScraper
+    from app.scrapers.flipkart_scraper import FlipkartScraper
+    from app.scrapers.amazon_scraper import AmazonScraper
+    from app.scrapers.jiomart_scraper import JioMartScraper
+    from app.scrapers.dunzo_scraper import DunzoScraper
+    from app.scrapers.myntra_scraper import MyntraScraper
+    from app.scrapers.nykaa_scraper import NykaaScraper
 
     return {
         "blinkit": BlinkitScraper(),
         "zepto": ZeptoScraper(),
         "bigbasket": BigBasketScraper(),
         "instamart": InstamartScraper(),
+        "flipkart": FlipkartScraper(),
+        "amazon": AmazonScraper(),
+        "jiomart": JioMartScraper(),
+        "dunzo": DunzoScraper(),
+        "myntra": MyntraScraper(),
+        "nykaa": NykaaScraper(),
     }
 
 

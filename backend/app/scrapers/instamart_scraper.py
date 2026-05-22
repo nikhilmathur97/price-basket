@@ -16,10 +16,11 @@ class InstamartScraper(BaseScraper):
     SEARCH_API = "https://www.swiggy.com/mapi/instamart/home"
 
     async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
+        query = product_name or str(product_id)
         try:
             response = await self._get(
-                f"https://www.swiggy.com/mapi/instamart/search",
-                params={"pageNumber": 0, "searchResultsOffset": 0, "query": str(product_id)},
+                "https://www.swiggy.com/mapi/instamart/search",
+                params={"pageNumber": 0, "searchResultsOffset": 0, "query": query},
                 headers={
                     "User-Agent": "Mozilla/5.0",
                     "_tid": "d7c5bc3f-49f8-4a4b-8f3c-b1c4b9f13a2b",

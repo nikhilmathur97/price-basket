@@ -16,11 +16,12 @@ class ZeptoScraper(BaseScraper):
     SEARCH_API = "https://api.zeptonow.com/api/v3/search"
 
     async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
+        query = product_name or str(product_id)
         try:
             response = await self._post(
                 self.SEARCH_API,
                 json={
-                    "query": str(product_id),
+                    "query": query,
                     "pageNumber": 0,
                     "pageSize": 1,
                     "mode": "PRODUCT_SEARCH",
