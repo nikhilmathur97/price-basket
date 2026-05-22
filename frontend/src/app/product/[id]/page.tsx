@@ -18,17 +18,10 @@ import { useAuthStore } from "@/store/authStore";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
+import { PlatformLogo } from "@/components/PlatformLogo";
 
 // ── UUID guard ─────────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// ── Platform emoji map ─────────────────────────────────────────────────────
-const PLATFORM_EMOJI: Record<string, string> = {
-  blinkit:   "⚡",
-  zepto:     "🚀",
-  bigbasket: "🛒",
-  instamart: "🛵",
-};
 
 // ── Category meta: shelf-life, highlight tags, star rating ─────────────────
 const CATEGORY_META: Record<string, {
@@ -486,14 +479,13 @@ export default function ProductPage() {
         <section className="mb-4">
           <h2 className="text-sm font-extrabold text-surface-800 mb-3 flex items-center gap-2 px-1">
             <Tag className="w-4 h-4 text-brand-600" />
-            Best Prices Across 4 Platforms
+            Best Prices Across Platforms
           </h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {sortedPrices.map((pp, idx) => {
               const isCheapest = idx === 0 && pp.price === cheapestPrice;
               const isFastest  = pp.platform.id === product.fastest_platform?.id;
               const isSelected = selectedPlatformId === pp.platform.id;
-              const emoji      = PLATFORM_EMOJI[pp.platform.id] ?? "🏪";
               const discPct    = mrp > 0
                 ? Math.round(((mrp - pp.price) / mrp) * 100)
                 : pp.discount_percent;
@@ -517,13 +509,18 @@ export default function ProductPage() {
                     <div className="flex items-center gap-2.5">
                       <div
                         className="w-10 h-10 rounded-2xl flex items-center justify-center
-                                   text-xl flex-shrink-0"
+                                   flex-shrink-0 overflow-hidden"
                         style={{
-                          backgroundColor: (pp.platform.color_hex ?? "#e5e7eb") + "30",
-                          border: `2px solid ${pp.platform.color_hex ?? "#e5e7eb"}40`,
+                          backgroundColor: (pp.platform.color_hex ?? "#e5e7eb") + "18",
+                          border: `2px solid ${pp.platform.color_hex ?? "#e5e7eb"}35`,
                         }}
                       >
-                        {emoji}
+                        <PlatformLogo
+                          slug={pp.platform.slug}
+                          name={pp.platform.name}
+                          colorHex={pp.platform.color_hex}
+                          size={26}
+                        />
                       </div>
                       <div>
                         <p className="font-extrabold text-surface-900 text-sm leading-tight">

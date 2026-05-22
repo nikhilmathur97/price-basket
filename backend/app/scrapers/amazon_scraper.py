@@ -1,4 +1,8 @@
-"""Amazon Fresh / Now scraper — uses Amazon's internal search API."""
+"""
+Amazon Fresh / Now scraper.
+Uses Amazon's search page + multiple regex patterns to extract price.
+Falls back gracefully — Amazon's HTML structure changes frequently.
+"""
 import re
 import uuid
 from typing import Optional
@@ -10,70 +14,78 @@ from app.services.price_engine import PriceData
 
 log = structlog.get_logger(__name__)
 
-_PRICE_RE = re.compile(r"[\d,]+(?:\.\d+)?")
+# Ordered by reliability: JSON data islands first, then HTML fallbacks
+_PRICE_PATTERNS = [
+    re.compile(r'"priceAmount"\s*:\s*"([\d.]+)"'),
+    re.compile(r'"buyingPrice"\s*:\s*"([\d.]+)"'),
+    re.compile(r'"displayPrice"\s*:\s*"₹\s*([\d,]+)"'),
+    re.compile(r'class="a-price-whole"[^>]*>\s*([\d,]+)'),
+    re.compile(r'"price"\s*:\s*"₹\s*([\d,]+(?:\.\d+)?)"'),
+]
+_MRP_PATTERNS = [
+    re.compile(r'"priceStrikethroughAmount"\s*:\s*"([\d.]+)"'),
+    re.compile(r'"listPrice"\s*:\s*"₹\s*([\d,]+)"'),
+    re.compile(r'class="a-price a-text-price"[^>]*>.*?₹\s*([\d,]+)', re.DOTALL),
+]
+_ASIN_RE = re.compile(r'"asin"\s*:\s*"([A-Z0-9]{10})"')
+_TITLE_RE = re.compile(r'"title"\s*:\s*"([^"]{5,120})"')
 
 
-def _parse_price(raw: str) -> float:
-    raw = raw.replace(",", "").strip()
-    m = _PRICE_RE.search(raw)
-    return float(m.group()) if m else 0.0
+def _extract(patterns: list, html: str) -> Optional[float]:
+    for pat in patterns:
+        m = pat.search(html)
+        if m:
+            try:
+                return float(m.group(1).replace(",", ""))
+            except (ValueError, IndexError):
+                continue
+    return None
 
 
 class AmazonScraper(BaseScraper):
     platform_slug = "amazon"
     BASE_URL = "https://www.amazon.in"
-    SEARCH_API = "https://www.amazon.in/s"
+    SEARCH_URL = "https://www.amazon.in/s"
 
     async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
         query = product_name or str(product_id)
         try:
             response = await self._get(
-                self.SEARCH_API,
+                self.SEARCH_URL,
                 params={
                     "k": query,
-                    "rh": "p_85:10440599031",  # Amazon.in Fresh node
-                    "i": "nowstore",
+                    "i": "nowstore",          # Amazon Fresh / Now store
                     "ref": "nb_sb_noss",
                 },
                 headers={
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "en-IN,en;q=0.9",
                     "Cache-Control": "no-cache",
+                    "Upgrade-Insecure-Requests": "1",
                 },
             )
             html = response.text
 
-            # Extract first product's price from the search result HTML
-            # Amazon returns inline JSON data islands we can parse cheaply
-            # Pattern: "priceAmount":"199.00" or data-a-color="price" span containing ₹
-            price_match = re.search(r'"priceAmount"\s*:\s*"([\d.]+)"', html)
-            asin_match = re.search(r'"asin"\s*:\s*"([A-Z0-9]{10})"', html)
+            price = _extract(_PRICE_PATTERNS, html)
+            if price is None or price <= 0:
+                return None
 
-            if not price_match:
-                # Fallback: grab the first price span
-                price_match = re.search(r'class="a-price-whole"[^>]*>([\d,]+)', html)
-                if not price_match:
-                    return None
-
-            price = float(price_match.group(1).replace(",", ""))
-            asin = asin_match.group(1) if asin_match else ""
-
-            # Try to extract MRP
-            mrp_match = re.search(r'"priceStrikethroughAmount"\s*:\s*"([\d.]+)"', html)
-            mrp = float(mrp_match.group(1)) if mrp_match else price
+            mrp = _extract(_MRP_PATTERNS, html) or price
+            asin = _ASIN_RE.search(html)
+            asin_str = asin.group(1) if asin else ""
 
             return PriceData(
                 platform_id="",
                 platform_slug=self.platform_slug,
                 price=price,
-                original_price=mrp if mrp != price else None,
+                original_price=mrp if mrp > price else None,
                 discount_percent=round((mrp - price) / mrp * 100, 1) if mrp > price else 0,
                 is_available=True,
-                delivery_time_minutes=120,  # Amazon Fresh: 2-hour delivery
-                platform_product_id=asin,
-                platform_product_url=f"{self.BASE_URL}/dp/{asin}" if asin else self.BASE_URL,
+                delivery_time_minutes=120,
+                platform_product_id=asin_str,
+                platform_product_url=f"{self.BASE_URL}/dp/{asin_str}" if asin_str else self.BASE_URL,
                 source="scrape",
             )
         except Exception as exc:
-            log.warning("amazon_scrape_error", error=str(exc))
+            log.warning("amazon_scrape_error", query=query, error=str(exc))
             raise ScraperError(str(exc)) from exc

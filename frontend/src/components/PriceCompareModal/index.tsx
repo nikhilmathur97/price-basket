@@ -12,6 +12,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { cn } from "@/lib/utils";
 import { trackEvent, extractApiError } from "@/services/api";
+import { PlatformLogo } from "@/components/PlatformLogo";
 
 interface PriceCompareModalProps {
   product: ProductWithPrices | null;
@@ -195,23 +196,18 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
                     <div className="flex items-center gap-3 mb-3">
                       {/* Logo */}
                       <div
-                        className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center shadow-sm overflow-hidden"
-                        style={{ backgroundColor: (pp.platform.color_hex ?? "#94a3b8") + "22", border: `1.5px solid ${pp.platform.color_hex ?? "#e5e7eb"}44` }}
+                        className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden"
+                        style={{
+                          backgroundColor: (pp.platform.color_hex ?? "#94a3b8") + "18",
+                          border: `1.5px solid ${pp.platform.color_hex ?? "#e5e7eb"}35`,
+                        }}
                       >
-                        {pp.platform.logo_url ? (
-                          <Image
-                            src={pp.platform.logo_url}
-                            alt={pp.platform.name}
-                            width={32}
-                            height={32}
-                            className="object-contain w-8 h-8"
-                            unoptimized
-                          />
-                        ) : (
-                          <span className="font-extrabold text-base" style={{ color: pp.platform.color_hex ?? "#94a3b8" }}>
-                            {pp.platform.name.charAt(0)}
-                          </span>
-                        )}
+                        <PlatformLogo
+                          slug={pp.platform.slug}
+                          name={pp.platform.name}
+                          colorHex={pp.platform.color_hex}
+                          size={30}
+                        />
                       </div>
 
                       {/* Name + badges + delivery */}

@@ -1,4 +1,4 @@
-"""JioMart Express scraper — uses JioMart's product search API."""
+"""JioMart Express scraper — uses JioMart's JSON search API."""
 import uuid
 from typing import Optional
 
@@ -13,7 +13,6 @@ log = structlog.get_logger(__name__)
 class JioMartScraper(BaseScraper):
     platform_slug = "jiomart"
     BASE_URL = "https://www.jiomart.com"
-    # JioMart's internal search endpoint (JSON)
     SEARCH_API = "https://www.jiomart.com/catalog/product/get_json_data"
 
     async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
@@ -25,41 +24,62 @@ class JioMartScraper(BaseScraper):
                     "q": query,
                     "cat_id": "",
                     "page_no": 1,
-                    "page_size": 1,
-                    "sort_by": "popularity",
+                    "page_size": 5,
+                    "sort_by": "relevance",
                     "channel": "web",
                 },
                 headers={
                     "Accept": "application/json, text/plain, */*",
                     "Referer": f"{self.BASE_URL}/search#query={query}",
                     "x-channel": "web",
+                    "Origin": self.BASE_URL,
                 },
             )
             data = response.json()
-            products = data.get("data", {}).get("products", [])
+
+            # Handle multiple response shapes
+            products = (
+                data.get("data", {}).get("products")
+                or data.get("products")
+                or data.get("items")
+                or []
+            )
             if not products:
                 return None
 
             item = products[0]
-            price = float(item.get("price", {}).get("final_price", 0))
-            mrp = float(item.get("price", {}).get("old_price", price))
-            in_stock = item.get("stock_status") == "instock"
-            pid = str(item.get("id", ""))
-            url_key = item.get("url_key", "")
+            price_data = item.get("price") or {}
+
+            if isinstance(price_data, dict):
+                price = float(price_data.get("final_price") or price_data.get("special_price") or 0)
+                mrp = float(price_data.get("old_price") or price_data.get("regular_price") or price)
+            else:
+                price = float(price_data or item.get("final_price") or 0)
+                mrp = float(item.get("mrp") or item.get("old_price") or price)
+
+            if price <= 0:
+                return None
+
+            in_stock = str(item.get("stock_status") or item.get("is_in_stock") or "instock").lower() in (
+                "instock", "in_stock", "1", "true"
+            )
+            pid = str(item.get("id") or item.get("product_id") or "")
+            url_key = item.get("url_key") or item.get("slug") or ""
+            image_url = item.get("image_url") or item.get("thumbnail")
 
             return PriceData(
                 platform_id="",
                 platform_slug=self.platform_slug,
                 price=price,
-                original_price=mrp if mrp != price else None,
+                original_price=mrp if mrp > price else None,
                 discount_percent=round((mrp - price) / mrp * 100, 1) if mrp > price else 0,
                 is_available=in_stock,
                 delivery_time_minutes=30,
                 platform_product_id=pid,
                 platform_product_url=f"{self.BASE_URL}/{url_key}" if url_key else self.BASE_URL,
-                platform_image_url=item.get("image_url"),
+                platform_image_url=image_url,
                 source="scrape",
             )
         except Exception as exc:
-            log.warning("jiomart_scrape_error", error=str(exc))
+            log.warning("jiomart_scrape_error", query=query, error=str(exc))
             raise ScraperError(str(exc)) from exc

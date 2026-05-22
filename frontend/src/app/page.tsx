@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
+import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
 
 // ── Category card colour accents ────────────────────────────────────────────
@@ -75,23 +75,9 @@ export default function HomePage() {
               className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
                          px-3 py-2 border border-surface-100 shadow-sm
                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
-              <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
-                style={{ backgroundColor: p.color_hex + "22" }}>
-                {p.logo_url ? (
-                  <Image
-                    src={p.logo_url}
-                    alt={p.name}
-                    width={24}
-                    height={24}
-                    className="object-contain w-6 h-6"
-                    unoptimized
-                  />
-                ) : (
-                  <span className="text-[10px] font-extrabold"
-                    style={{ color: p.color_hex }}>
-                    {p.name[0]}
-                  </span>
-                )}
+              <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
+                style={{ backgroundColor: (p.color_hex ?? "#e5e7eb") + "18", border: `1.5px solid ${p.color_hex ?? "#e5e7eb"}35` }}>
+                <PlatformLogo slug={p.slug} name={p.name} colorHex={p.color_hex} size={22} />
               </div>
               <span className="text-[12px] font-semibold text-surface-700 whitespace-nowrap">{p.name}</span>
             </div>
