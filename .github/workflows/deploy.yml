@@ -7,16 +7,14 @@ on:
       - main
 
 jobs:
-  # ── 1. Deploy Next.js Frontend → Vercel ─────────────────────────────────────
+  # ── Deploy Next.js Frontend → Vercel ────────────────────────────────────────
   deploy-frontend:
     name: Deploy Frontend → Vercel
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -27,23 +25,31 @@ jobs:
 
       - name: Pull Vercel environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Build project
+      - name: Build
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to Vercel
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # ── 2. Deploy FastAPI Backend → Server via SSH ───────────────────────────────
+  # ── Deploy FastAPI Backend → Server via SSH ──────────────────────────────────
   deploy-backend:
     name: Deploy Backend → Server (SSH)
     runs-on: ubuntu-latest
     needs: deploy-frontend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Deploy backend via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -53,24 +59,17 @@ jobs:
           script: |
             cd /opt/price-basket
             git pull origin feature/price-basket
-
             source backend/.venv/bin/activate
             pip install -q -r backend/requirements.txt
-
-            cd backend
-            alembic upgrade head
-            cd ..
-
+            cd backend && alembic upgrade head && cd ..
             pm2 restart pricebasket-api || pm2 start \
               "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2" \
               --name pricebasket-api \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
-
             pm2 restart pricebasket-worker || pm2 start \
               "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2" \
               --name pricebasket-worker \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
-
             pm2 save
