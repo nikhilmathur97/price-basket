@@ -3,6 +3,8 @@ import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
+import { HeroAuthButton } from "@/components/HeroAuthButton";
+import { LocationBar } from "@/components/LocationBar";
 
 // ── Category card colour accents ────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; ring: string; text: string }> = {
@@ -28,8 +30,8 @@ export default function HomePage() {
       {/* ── Hero / Branding strip ── */}
       <div className="bg-gradient-to-r from-brand-700 via-brand-600 to-orange-500 px-4 pt-5 pb-4">
         <div className="max-w-screen-xl mx-auto">
-          {/* Brand name */}
-          <div className="flex items-end justify-between mb-3">
+          {/* Brand name + auth button */}
+          <div className="flex items-end justify-between mb-2">
             <div>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
                 <span className="text-white">Price</span>
@@ -39,12 +41,12 @@ export default function HomePage() {
                 Compare 10 platforms — Blinkit · Zepto · Instamart · Flipkart · Amazon · more
               </p>
             </div>
-            <Link href="/auth/signup"
-              className="flex-shrink-0 text-[12px] font-extrabold bg-white text-brand-700
-                         px-4 py-2 rounded-xl hover:bg-yellow-50 hover:scale-105
-                         active:scale-[0.97] transition-all shadow-md">
-              Sign up free
-            </Link>
+            <HeroAuthButton />
+          </div>
+
+          {/* Location bar */}
+          <div className="mb-2.5">
+            <LocationBar variant="hero" />
           </div>
 
           {/* Trust chips */}

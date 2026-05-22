@@ -8,6 +8,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { SearchBar } from "@/components/SearchBar";
+import { LocationBar } from "@/components/LocationBar";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -64,10 +65,13 @@ export function Header() {
                 Price<span className="text-brand-600">Basket</span>
               </p>
               <p className="text-[10px] text-surface-400 font-medium leading-none mt-0.5">
-                Compare 4 platforms
+                Compare 10 platforms
               </p>
             </div>
           </Link>
+
+          {/* Location picker — all screen sizes */}
+          <LocationBar variant="header" />
 
           {/* Search bar — desktop only (md+) */}
           <div className="flex-1 hidden md:flex items-center max-w-2xl mx-4">
