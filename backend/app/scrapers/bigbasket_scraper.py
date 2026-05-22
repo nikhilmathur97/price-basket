@@ -16,10 +16,11 @@ class BigBasketScraper(BaseScraper):
     SEARCH_API = "https://www.bigbasket.com/product/get-products/"
 
     async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
+        query = product_name or str(product_id)
         try:
             response = await self._get(
                 self.SEARCH_API,
-                params={"slug": str(product_id), "page": 1},
+                params={"slug": query, "page": 1},
                 headers={"x-channel": "BB-WEB"},
             )
             data = response.json()

@@ -290,3 +290,64 @@ async def query_overview(
         "items": [],
         "note": "Support queries module not yet integrated in backend models.",
     }
+
+
+# ── Seed ──────────────────────────────────────────────────────────────────────
+
+@router.post("/seed", status_code=200)
+async def run_seed(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Upsert all 10 platforms, categories, and sample products. Safe to run multiple times."""
+    from scripts.seed_platforms import PLATFORMS, CATEGORIES, PRODUCTS
+
+    created = {"platforms": [], "categories": [], "products": []}
+    updated = {"platforms": [], "categories": [], "products": []}
+
+    # Platforms
+    for p in PLATFORMS:
+        result = await db.execute(select(Platform).where(Platform.slug == p["slug"]))
+        existing = result.scalar_one_or_none()
+        if existing:
+            for k, v in p.items():
+                setattr(existing, k, v)
+            updated["platforms"].append(p["slug"])
+        else:
+            db.add(Platform(**p))
+            created["platforms"].append(p["slug"])
+    await db.flush()
+
+    # Categories
+    cat_map: dict[str, Category] = {}
+    for c in CATEGORIES:
+        result = await db.execute(select(Category).where(Category.slug == c["slug"]))
+        existing = result.scalar_one_or_none()
+        if existing:
+            cat_map[c["slug"]] = existing
+            updated["categories"].append(c["slug"])
+        else:
+            cat = Category(**c)
+            db.add(cat)
+            await db.flush()
+            cat_map[c["slug"]] = cat
+            created["categories"].append(c["slug"])
+
+    # Products
+    for p in list(PRODUCTS):
+        p = dict(p)
+        cat_slug = p.pop("category_slug", None)
+        cat = cat_map.get(cat_slug) if cat_slug else None
+        p["category_id"] = cat.id if cat else None
+        result = await db.execute(select(Product).where(Product.slug == p["slug"]))
+        existing = result.scalar_one_or_none()
+        if existing:
+            for k, v in p.items():
+                setattr(existing, k, v)
+            updated["products"].append(p["slug"])
+        else:
+            db.add(Product(**p))
+            created["products"].append(p["slug"])
+
+    await db.commit()
+    return {"created": created, "updated": updated}
