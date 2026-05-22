@@ -262,7 +262,7 @@ function makeProduct(
   unit: string,
   categorySlug: string,
   imageSeed: string,
-  prices: Array<{ id: string; price: number; mins: number }>,
+  prices: Array<{ id: string; price: number; mins: number; available: boolean }>,
   mrp: number
 ): ProductWithPrices {
   const cat = MOCK_CATEGORIES.find((c) => c.slug === categorySlug)!;
