@@ -1,0 +1,168 @@
+name: Vercel Token Health & Rotation
+
+on:
+  # ── Auto health-check every Monday at 9 AM IST (3:30 AM UTC) ──
+  schedule:
+    - cron: "30 3 * * 1"
+
+  # ── Manual trigger: health-check OR rotate with a new token ──
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        required: true
+        default: "check"
+        type: choice
+        options:
+          - check          # just validate the current token
+          - rotate         # replace with a new token you provide below
+      new_token:
+        description: "New Vercel token (only needed when action = rotate)"
+        required: false
+        default: ""
+
+jobs:
+  # ── 1. Validate current token ────────────────────────────────────────────
+  health-check:
+    name: "Validate VERCEL_TOKEN"
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.check.outputs.healthy }}
+    steps:
+      - name: Check token against Vercel API
+        id: check
+        run: |
+          HTTP=$(curl -s -o /tmp/vercel_resp.json -w "%{http_code}" \
+            "https://api.vercel.com/www/user" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}")
+          echo "HTTP status: $HTTP"
+          if [ "$HTTP" = "200" ]; then
+            USERNAME=$(python3 -c "import json; d=json.load(open('/tmp/vercel_resp.json')); print(d['user']['username'])" 2>/dev/null)
+            echo "healthy=true" >> $GITHUB_OUTPUT
+            echo "✅ Token is valid — authenticated as: $USERNAME"
+          else
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "❌ Token is INVALID (HTTP $HTTP)"
+            cat /tmp/vercel_resp.json
+          fi
+
+  # ── 2. Open a GitHub issue if token is broken ────────────────────────────
+  alert-on-failure:
+    name: "Open issue if token invalid"
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: needs.health-check.outputs.healthy == 'false'
+    permissions:
+      issues: write
+    steps:
+      - name: Create alert issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ci-token-expired',
+              state: 'open',
+            });
+            if (existing.data.length > 0) {
+              console.log('Alert issue already open, skipping.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 VERCEL_TOKEN is invalid — deploys will fail',
+              labels: ['ci-token-expired'],
+              body: [
+                '## Vercel token health check failed',
+                '',
+                'The weekly token validator found that `VERCEL_TOKEN` is no longer valid.',
+                '',
+                '### Fix in 60 seconds',
+                '1. Go to [vercel.com/account/tokens](https://vercel.com/account/tokens)',
+                '2. Create a new token — **No Expiration** — scope: `nikhilmathur428-3892s-projects`',
+                '3. Come back to **Actions → Vercel Token Health & Rotation → Run workflow**',
+                '4. Set action = `rotate`, paste the new token → click **Run workflow**',
+                '',
+                `> Auto-detected at: ${new Date().toISOString()}`,
+              ].join('\n'),
+            });
+
+  # ── 3. Rotate: update the secret with the provided new token ─────────────
+  rotate-token:
+    name: "Rotate VERCEL_TOKEN"
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: github.event.inputs.action == 'rotate' && github.event.inputs.new_token != ''
+    permissions:
+      secrets: write
+      issues: write
+    steps:
+      - name: Validate new token before saving
+        id: validate
+        run: |
+          HTTP=$(curl -s -o /tmp/new_resp.json -w "%{http_code}" \
+            "https://api.vercel.com/www/user" \
+            -H "Authorization: Bearer ${{ github.event.inputs.new_token }}")
+          if [ "$HTTP" != "200" ]; then
+            echo "❌ New token is also invalid (HTTP $HTTP). Aborting."
+            exit 1
+          fi
+          USERNAME=$(python3 -c "import json; d=json.load(open('/tmp/new_resp.json')); print(d['user']['username'])" 2>/dev/null)
+          echo "✅ New token valid — authenticated as: $USERNAME"
+
+      - name: Update VERCEL_TOKEN secret
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sodium = require('libsodium-wrappers');
+            await sodium.ready;
+            const { data: keyData } = await github.rest.actions.getRepoPublicKey({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const key = sodium.from_base64(keyData.key, sodium.base64_variants.ORIGINAL);
+            const secretValue = sodium.from_string('${{ github.event.inputs.new_token }}');
+            const encryptedBytes = sodium.crypto_box_seal(secretValue, key);
+            const encrypted = sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'VERCEL_TOKEN',
+              encrypted_value: encrypted,
+              key_id: keyData.key_id,
+            });
+            console.log('✅ VERCEL_TOKEN updated successfully');
+
+      - name: Close any open token-expired issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ci-token-expired',
+              state: 'open',
+            });
+            for (const issue of issues.data) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+              console.log(`Closed issue #${issue.number}`);
+            }
+
+      - name: Trigger a fresh deploy to confirm rotation worked
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run deploy.yml \
+            --repo ${{ github.repository }} \
+            --field branch=main \
+            --field environment=production \
+            --field skip_backend=true
+          echo "✅ Deploy triggered with new token"
