@@ -4,12 +4,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 
-// Use relative URL so all calls go through the Next.js proxy (/api/* → localhost:8000).
-// This means only port 3000 needs to be open externally.
-const BASE_URL = "";
+// Direct calls to the backend — no Next.js proxy needed.
+// NEXT_PUBLIC_API_URL is baked in at build time (set in Vercel project env).
+// Falls back to localhost for local dev.
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export const apiClient = axios.create({
-  baseURL: `/api/v1`,
+  baseURL: `${BACKEND}/api/v1`,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -51,7 +52,7 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
       try {
         const { data } = await axios.post(
-          `/api/v1/auth/refresh`,
+          `${BACKEND}/api/v1/auth/refresh`,
           {},
           { withCredentials: true }
         );

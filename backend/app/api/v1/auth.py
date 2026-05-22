@@ -29,7 +29,9 @@ REFRESH_COOKIE = "pb_refresh_token"
 COOKIE_KWARGS = {
     "httponly": True,
     "secure": settings.is_production,
-    "samesite": "lax",
+    # none required for cross-origin cookie (frontend on test2.pricebasket.in,
+    # backend on pricebasket-api.onrender.com / api.test2.pricebasket.in)
+    "samesite": "none" if settings.is_production else "lax",
     "max_age": settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
 }
 
