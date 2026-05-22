@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 0
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def _fix_db_scheme(cls, v: str) -> str:
+        # Render (and some cloud providers) inject postgresql:// but asyncpg needs postgresql+asyncpg://
+        if v.startswith("postgresql://") or v.startswith("postgres://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1).replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
+
     # ── Redis ─────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_TTL: int = 300
