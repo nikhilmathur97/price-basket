@@ -11,15 +11,6 @@ const nextConfig: NextConfig = {
       { hostname: "test.pricebasket.in" },
     ],
   },
-  async rewrites() {
-    const backendUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
-  },
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
