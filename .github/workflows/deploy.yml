@@ -5,14 +5,11 @@ on:
     branches:
       - feature/price-basket
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
-  # ── 1. Deploy Next.js Frontend to Firebase Hosting ──────────────────────────
+  # ── 1. Deploy Next.js Frontend → Vercel ─────────────────────────────────────
   deploy-frontend:
-    name: Deploy Frontend → Firebase
+    name: Deploy Frontend → Vercel
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,29 +22,19 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
 
-      - name: Create .env.production
-        working-directory: frontend
-        run: |
-          echo "NEXT_PUBLIC_API_URL=${{ secrets.API_URL }}" >> .env.production
-          echo "NEXT_PUBLIC_WS_URL=${{ secrets.WS_URL }}" >> .env.production
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Build Next.js app
-        working-directory: frontend
-        run: npm run build
+      - name: Build project
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
-          channelId: live
+      - name: Deploy to Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
-  # ── 2. Deploy FastAPI Backend via SSH ───────────────────────────────────────
+  # ── 2. Deploy FastAPI Backend → Server via SSH ───────────────────────────────
   deploy-backend:
     name: Deploy Backend → Server (SSH)
     runs-on: ubuntu-latest
@@ -65,27 +52,23 @@ jobs:
           port: 22
           script: |
             cd /opt/price-basket
-
-            # Pull latest code
             git pull origin feature/price-basket
 
-            # Activate venv and install any new dependencies
             source backend/.venv/bin/activate
             pip install -q -r backend/requirements.txt
 
-            # Run Alembic migrations
             cd backend
             alembic upgrade head
             cd ..
 
-            # Restart FastAPI via PM2
-            pm2 restart pricebasket-api || pm2 start "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2" \
+            pm2 restart pricebasket-api || pm2 start \
+              "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2" \
               --name pricebasket-api \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
 
-            # Restart Celery worker via PM2
-            pm2 restart pricebasket-worker || pm2 start "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2" \
+            pm2 restart pricebasket-worker || pm2 start \
+              "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2" \
               --name pricebasket-worker \
               --cwd /opt/price-basket/backend \
               --interpreter /opt/price-basket/backend/.venv/bin/python
