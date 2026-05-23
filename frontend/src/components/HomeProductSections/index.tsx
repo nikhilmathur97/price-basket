@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
+import { PageLoader } from "@/components/PageLoader";
 import { CATEGORY_SECTIONS } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
 import Link from "next/link";
@@ -145,17 +146,22 @@ export function HomeProductSections() {
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
-      const { data } = await api.getFeatured(60);
+      const { data } = await api.getFeatured(20);
       return data ?? [];
     },
     staleTime: 300_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,
-    retry: 2,
+    retry: 1,
   });
 
+  // Show full branded loader while fetching for the first time (no cache)
+  if (isLoading) {
+    return <PageLoader message="Fetching live prices" />;
+  }
+
   const products: ProductWithPrices[] = apiProducts ?? [];
-  const isFromAPI = products.length > 0 && !isLoading;
+  const isFromAPI = products.length > 0;
 
   // Derive sections
   const trendingNow = products.slice(0, 10);
@@ -174,7 +180,7 @@ export function HomeProductSections() {
     .sort((a, b) => b.intelligence.price_spread_percent - a.intelligence.price_spread_percent)
     .slice(0, 10);
 
-  if (!isLoading && products.length === 0) {
+  if (products.length === 0) {
     return <EmptyState />;
   }
 
@@ -201,11 +207,11 @@ export function HomeProductSections() {
           href="/search"
           live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={trendingNow} loading={isFetching} />}
+        {<ProductRow products={trendingNow} loading={isFetching} />}
       </div>
 
       {/* Best Deals */}
-      {(isLoading || bestDeals.length > 0) && (
+      {(bestDeals.length > 0) && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <SectionHeader
             icon={<Flame className="w-4 h-4 text-orange-500" />}
@@ -214,7 +220,7 @@ export function HomeProductSections() {
             href="/search?sort=discount"
             live={isFromAPI}
           />
-          {isLoading ? <SkeletonRow /> : <ProductRow products={bestDeals} loading={isFetching} />}
+          {<ProductRow products={bestDeals} loading={isFetching} />}
         </div>
       )}
 
@@ -227,7 +233,7 @@ export function HomeProductSections() {
           href="/search?sort=fastest"
           live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={fastestDelivery} loading={isFetching} />}
+        {<ProductRow products={fastestDelivery} loading={isFetching} />}
       </div>
 
       {/* Highly Recommended */}
@@ -239,7 +245,7 @@ export function HomeProductSections() {
           href="/search"
           live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={highlyRecommended} loading={isFetching} />}
+        {<ProductRow products={highlyRecommended} loading={isFetching} />}
       </div>
 
       {/* Shop by Category divider */}
@@ -257,7 +263,7 @@ export function HomeProductSections() {
           .filter((p) => p.category?.slug === slug)
           .slice(0, 10);
 
-        if (categoryProducts.length === 0 && !isLoading) return null;
+        if (categoryProducts.length === 0) return null;
 
         const [emoji, ...words] = label.split(" ");
         const colors = CAT_COLORS[slug] ?? { bg: "#f5f5f5", text: "#525252" };
@@ -276,10 +282,7 @@ export function HomeProductSections() {
               title={words.join(" ")}
               href={`/search?category=${slug}`}
             />
-            {isLoading
-              ? <SkeletonRow />
-              : <ProductRow products={categoryProducts} loading={isFetching} />
-            }
+            <ProductRow products={categoryProducts} loading={isFetching} />
           </div>
         );
       })}
