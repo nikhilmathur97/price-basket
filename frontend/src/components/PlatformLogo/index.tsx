@@ -2,18 +2,18 @@
 
 import Image from "next/image";
 
-// Local SVG logos served from /public/logos/ — no external dependencies
+// Logos served from /public/logos/ — mix of downloaded originals and brand-accurate SVGs
 const LOCAL_LOGOS: Record<string, string> = {
-  blinkit:   "/logos/blinkit.svg",
-  zepto:     "/logos/zepto.svg",
-  instamart: "/logos/instamart.svg",
-  bigbasket: "/logos/bigbasket.svg",
-  flipkart:  "/logos/flipkart.svg",
-  amazon:    "/logos/amazon.svg",
-  jiomart:   "/logos/jiomart.svg",
-  dunzo:     "/logos/dunzo.svg",
-  myntra:    "/logos/myntra.svg",
-  nykaa:     "/logos/nykaa.svg",
+  blinkit:   "/logos/blinkit.svg",   // yellow lightning bolt brand icon
+  zepto:     "/logos/zepto.svg",     // purple brand icon
+  instamart: "/logos/instamart.png", // original 192×192 Swiggy Instamart app icon
+  bigbasket: "/logos/bigbasket.svg", // green bb brand icon
+  flipkart:  "/logos/flipkart.svg",  // blue F brand icon
+  amazon:    "/logos/amazon.svg",    // amazon brand icon
+  jiomart:   "/logos/jiomart.png",   // original 64×64 JioMart app icon
+  dunzo:     "/logos/dunzo.svg",     // teal D brand icon
+  myntra:    "/logos/myntra.png",    // original 180×180 Myntra apple-touch-icon
+  nykaa:     "/logos/nykaa.svg",     // pink N brand icon
 };
 
 // Brand colors for the text-initial fallback (only shown if slug is unknown)

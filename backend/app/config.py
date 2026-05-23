@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     # ── Admin bootstrap ───────────────────────────────────────────────────────
     # Set this in Render env vars to allow one-time admin creation via POST /admin/bootstrap
     ADMIN_SETUP_KEY: str = ""
+    SEED_SECRET: str = ""
 
     # ── Monitoring ────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
