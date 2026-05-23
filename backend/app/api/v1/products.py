@@ -252,6 +252,20 @@ async def get_product(
     except Exception:
         pass
 
+    # Re-fetch with eager loading after price engine (which may have committed the
+    # session and expired our previously-loaded relationships).
+    result2 = await db.execute(
+        select(Product)
+        .where(Product.id == product_id)
+        .options(
+            selectinload(Product.category),
+            selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
+        )
+    )
+    product = result2.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
     return _enrich(product, product.platform_prices)
 
 
