@@ -71,6 +71,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
+        # Covers all *.pricebasket.in subdomains + Vercel preview URLs
+        allow_origin_regex=r"https?://(localhost:\d+|[\w-]+\.pricebasket\.in|[\w-]+-[\w-]+-projects\.vercel\.app|[\w-]+\.vercel\.app)",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
