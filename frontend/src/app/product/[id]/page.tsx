@@ -130,7 +130,7 @@ export default function ProductPage() {
   );
 
   // ── API fetch for real UUID products ──────────────────────────────────
-  const { data: apiProduct, isLoading, isError } = useQuery<ProductWithPrices>({
+  const { data: apiProduct, isLoading, isError, error: queryError } = useQuery<ProductWithPrices>({
     queryKey: ["product", id],
     queryFn: async () => {
       const { data } = await api.getProduct(id);
@@ -138,8 +138,11 @@ export default function ProductPage() {
     },
     enabled: isUUID,
     staleTime: 60_000,
-    retry: 1,
+    retry: 0,
   });
+
+  const apiErrorStatus: number | null =
+    (queryError as any)?.response?.status ?? null;
 
   // Unified product reference
   const product: ProductWithPrices | null = isUUID ? (apiProduct ?? null) : mockProduct;
@@ -237,23 +240,39 @@ export default function ProductPage() {
   // ── Loading ────────────────────────────────────────────────────────────
   if (isUUID && isLoading) return <ProductSkeleton />;
 
-  // ── Not found ──────────────────────────────────────────────────────────
+  // ── Error state ────────────────────────────────────────────────────────
   if ((isUUID && (isError || !apiProduct)) || (!isUUID && !mockProduct)) {
+    const isServerError = apiErrorStatus !== null && apiErrorStatus >= 500;
     return (
       <div className="max-w-lg mx-auto px-4 py-24 text-center">
-        <div className="text-7xl mb-5">😕</div>
-        <h2 className="text-xl font-bold text-surface-900 mb-2">Product not found</h2>
+        <div className="text-7xl mb-5">{isServerError ? "⚠️" : "😕"}</div>
+        <h2 className="text-xl font-bold text-surface-900 mb-2">
+          {isServerError ? "Temporarily unavailable" : "Product not found"}
+        </h2>
         <p className="text-sm text-surface-500 mb-8">
-          This product may have been removed or the link is broken.
+          {isServerError
+            ? "We're having trouble loading this product right now. Please try again in a moment."
+            : "This product may have been removed or the link is broken."}
         </p>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-brand-600
-                     hover:bg-brand-700 text-white rounded-xl text-sm font-semibold transition"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Back to Home
-        </Link>
+        <div className="flex gap-3 justify-center">
+          {isServerError && (
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-brand-600
+                         hover:bg-brand-700 text-white rounded-xl text-sm font-semibold transition"
+            >
+              Try again
+            </button>
+          )}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-6 py-3 border border-surface-300
+                       hover:bg-surface-50 text-surface-700 rounded-xl text-sm font-semibold transition"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
       </div>
     );
   }
