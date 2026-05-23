@@ -1,16 +1,8 @@
 name: Deploy Price Basket
 
-# ── Branch → Domain mapping ────────────────────────────────────────────────────
-#
-#   dev  branch  →  Preview deploy  →  dev.pricebasket.in   (test here first)
-#   main branch  →  Production deploy  →  pricebasket.in    (stable, live users)
-#
-# Workflow:
-#   1. Make changes on dev branch
-#   2. Push dev  → auto-deploys to dev.pricebasket.in
-#   3. Test on dev.pricebasket.in
-#   4. Merge dev → main  → auto-deploys to pricebasket.in
-#
+#   dev  branch  →  Preview deploy  →  dev.pricebasket.in
+#   main branch  →  Production      →  pricebasket.in
+
 on:
   push:
     branches:
@@ -53,10 +45,11 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      # ── PRODUCTION deploy (main → pricebasket.in) ───────────────────────────
+      # vercel.json has rootDirectory: "frontend" so all vercel commands run from repo root
+
+      # ── PRODUCTION (main → pricebasket.in) ──────────────────────────────────
       - name: "[PROD] Pull Vercel env"
         if: env.DEPLOY_BRANCH == 'main'
-        working-directory: frontend
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -64,7 +57,6 @@ jobs:
 
       - name: "[PROD] Build"
         if: env.DEPLOY_BRANCH == 'main'
-        working-directory: frontend
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -75,7 +67,6 @@ jobs:
       - name: "[PROD] Deploy → pricebasket.in"
         if: env.DEPLOY_BRANCH == 'main'
         id: deploy-prod
-        working-directory: frontend
         run: |
           URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
@@ -84,10 +75,9 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── DEV deploy (dev → dev.pricebasket.in) ───────────────────────────────
+      # ── DEV (dev → dev.pricebasket.in) ──────────────────────────────────────
       - name: "[DEV] Pull Vercel env"
         if: env.DEPLOY_BRANCH == 'dev'
-        working-directory: frontend
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -95,7 +85,6 @@ jobs:
 
       - name: "[DEV] Build"
         if: env.DEPLOY_BRANCH == 'dev'
-        working-directory: frontend
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -106,14 +95,13 @@ jobs:
       - name: "[DEV] Deploy → dev.pricebasket.in"
         if: env.DEPLOY_BRANCH == 'dev'
         id: deploy-dev
-        working-directory: frontend
         run: |
           URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           vercel alias set "$URL" dev.pricebasket.in \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --scope=${{ secrets.VERCEL_ORG_ID }}
-          echo "✅ Dev preview: $URL  →  dev.pricebasket.in"
+          echo "✅ Dev: $URL → dev.pricebasket.in"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -123,7 +111,6 @@ jobs:
         run: |
           echo "url=${{ steps.deploy-prod.outputs.url || steps.deploy-dev.outputs.url }}" >> $GITHUB_OUTPUT
 
-  # ── Job summary ───────────────────────────────────────────────────────────────
   summary:
     name: "Deployment summary"
     runs-on: ubuntu-latest
@@ -137,7 +124,7 @@ jobs:
           if [ "$BRANCH" = "main" ]; then
             echo "### ✅ Production deployed → pricebasket.in" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### 🔧 Dev deployed → dev.pricebasket.in"    >> $GITHUB_STEP_SUMMARY
+            echo "### Dev deployed → dev.pricebasket.in"       >> $GITHUB_STEP_SUMMARY
           fi
           echo "- Branch : \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
           echo "- URL    : $URL"        >> $GITHUB_STEP_SUMMARY

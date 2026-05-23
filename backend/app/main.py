@@ -6,6 +6,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import func, select, update
+
 import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request, status
@@ -16,11 +18,28 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.cache.redis_client import close_redis, init_redis
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, AsyncSessionLocal
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.api.v1 import auth, products, cart, prices, users, admin, websocket, analytics, setup
+from app.models.product import Product
 
 log = structlog.get_logger(__name__)
+
+
+async def _auto_mark_featured() -> None:
+    """If no products have is_featured=True, mark the first 60 active ones so the homepage always shows products."""
+    try:
+        async with AsyncSessionLocal() as db:
+            featured_count = await db.scalar(
+                select(func.count()).select_from(Product).where(Product.is_featured.is_(True))
+            )
+            if featured_count == 0:
+                subq = select(Product.id).where(Product.is_active.is_(True)).order_by(Product.created_at.desc()).limit(60).scalar_subquery()
+                await db.execute(update(Product).where(Product.id.in_(subq)).values(is_featured=True))
+                await db.commit()
+                log.info("Auto-marked active products as featured for homepage")
+    except Exception:
+        log.warning("_auto_mark_featured failed — non-fatal, continuing startup")
 
 
 # ── Sentry (production only) ─────────────────────────────────────────────────
@@ -44,6 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await conn.run_sync(Base.metadata.create_all)
 
     await init_redis()
+    await _auto_mark_featured()
 
     yield
 

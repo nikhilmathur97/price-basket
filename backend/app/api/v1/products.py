@@ -153,6 +153,21 @@ async def featured_products(
         .limit(limit)
     )
     products = result.scalars().all()
+
+    # Fall back to any active products when none are marked featured
+    if not products:
+        result = await db.execute(
+            select(Product)
+            .where(Product.is_active == True)  # noqa: E712
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
+            )
+            .order_by(Product.created_at.desc())
+            .limit(limit)
+        )
+        products = result.scalars().all()
+
     enriched = [_enrich(p, p.platform_prices) for p in products]
     out = [e.model_dump(mode="json") for e in enriched]
     # Cache for 5 minutes
