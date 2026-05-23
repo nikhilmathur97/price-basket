@@ -196,7 +196,7 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
                     <div className="flex items-center gap-3 mb-3">
                       {/* Logo */}
                       <div
-                        className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden"
+                        className="h-11 min-w-[2.75rem] max-w-[6.5rem] rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden px-1.5"
                         style={{
                           backgroundColor: (pp.platform.color_hex ?? "#94a3b8") + "18",
                           border: `1.5px solid ${pp.platform.color_hex ?? "#e5e7eb"}35`,

@@ -2,19 +2,22 @@
 
 import Image from "next/image";
 
-// Logos served from /public/logos/ — mix of downloaded originals and brand-accurate SVGs
+// Real logos downloaded from official CDNs and Wikipedia/Wikimedia Commons
 const LOCAL_LOGOS: Record<string, string> = {
-  blinkit:   "/logos/blinkit.svg",   // yellow lightning bolt brand icon
-  zepto:     "/logos/zepto.svg",     // purple brand icon
-  instamart: "/logos/instamart.png", // original 192×192 Swiggy Instamart app icon
-  bigbasket: "/logos/bigbasket.svg", // green bb brand icon
-  flipkart:  "/logos/flipkart.svg",  // blue F brand icon
-  amazon:    "/logos/amazon.svg",    // amazon brand icon
-  jiomart:   "/logos/jiomart.png",   // original 64×64 JioMart app icon
-  dunzo:     "/logos/dunzo.svg",     // teal D brand icon
-  myntra:    "/logos/myntra.png",    // original 180×180 Myntra apple-touch-icon
-  nykaa:     "/logos/nykaa.svg",     // pink N brand icon
+  blinkit:   "/logos/blinkit.svg",   // 3500×3500 square app icon (Wikimedia Commons)
+  zepto:     "/logos/zepto.svg",     // 90×30 wide wordmark
+  instamart: "/logos/instamart.png", // 192×192 square app icon (Swiggy CDN)
+  bigbasket: "/logos/bigbasket.svg", // 91×34 wide wordmark (en.wikipedia)
+  flipkart:  "/logos/flipkart.svg",  // wide vector logo (en.wikipedia)
+  amazon:    "/logos/amazon.svg",    // wide wordmark (Wikimedia Commons)
+  jiomart:   "/logos/jiomart.svg",   // 384×384 square logo (en.wikipedia)
+  dunzo:     "/logos/dunzo.svg",     // wide wordmark (en.wikipedia)
+  myntra:    "/logos/myntra.png",    // 180×180 square app icon (myntra.com)
+  nykaa:     "/logos/nykaa.svg",     // wide wordmark (en.wikipedia)
 };
+
+// Logos that are wide wordmarks — rendered at fixed height, auto width
+const WIDE_LOGOS = new Set(["zepto", "bigbasket", "flipkart", "amazon", "dunzo", "nykaa"]);
 
 // Brand colors for the text-initial fallback (only shown if slug is unknown)
 const BRAND_COLORS: Record<string, string> = {
@@ -48,6 +51,23 @@ export function PlatformLogo({
   const src = LOCAL_LOGOS[slug];
 
   if (src) {
+    if (WIDE_LOGOS.has(slug)) {
+      // Wide wordmark logos: render at full height, let width be natural
+      // Parent container must have overflow:hidden or min-width to fit
+      return (
+        <Image
+          src={src}
+          alt={name}
+          width={size * 4}
+          height={size}
+          className={className}
+          style={{ objectFit: "contain", height: size, width: "auto", maxWidth: size * 4 }}
+          unoptimized={src.endsWith(".svg")}
+        />
+      );
+    }
+
+    // Square logos: render at size × size
     return (
       <Image
         src={src}
@@ -56,6 +76,7 @@ export function PlatformLogo({
         height={size}
         className={className}
         style={{ objectFit: "contain", width: size, height: size }}
+        unoptimized={src.endsWith(".svg")}
       />
     );
   }

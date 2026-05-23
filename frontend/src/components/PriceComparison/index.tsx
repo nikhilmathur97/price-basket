@@ -46,7 +46,7 @@ export function PriceComparison({
           >
             {/* Platform logo */}
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+              className="h-10 min-w-[2.5rem] max-w-[6rem] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden px-1.5"
               style={{
                 backgroundColor: (pp.platform.color_hex ?? "#e5e7eb") + "18",
                 border: `1.5px solid ${pp.platform.color_hex ?? "#e5e7eb"}35`,

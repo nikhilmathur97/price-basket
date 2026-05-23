@@ -78,7 +78,7 @@ export default function HomePage() {
               className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
                          px-3 py-2 border border-surface-100 shadow-sm
                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
+              <div className="h-8 min-w-[2rem] max-w-[5rem] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center px-1"
                 style={{ backgroundColor: (p.color_hex ?? "#e5e7eb") + "18", border: `1.5px solid ${p.color_hex ?? "#e5e7eb"}35` }}>
                 <PlatformLogo slug={p.slug} name={p.name} colorHex={p.color_hex} size={22} />
               </div>

@@ -41,9 +41,10 @@ function PlatformLogoBox({
   const hex = colorHex ?? PLATFORM_META[slug]?.color ?? "#888";
   return (
     <div
-      className="rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0"
+      className="rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 px-1"
       style={{
-        width: size + 8,
+        minWidth: size + 8,
+        maxWidth: (size + 8) * 3,
         height: size + 8,
         backgroundColor: hex + "20",
         border: `1.5px solid ${hex}45`,
