@@ -68,11 +68,21 @@ def create_app() -> FastAPI:
 
     # ── Middleware stack (order matters) ─────────────────────────────────────
     app.add_middleware(GZipMiddleware, minimum_size=1000)
+    # Merge env-configured origins with hardcoded production domains so CORS
+    # works even if the Render env var is missing or incomplete.
+    _BASE_ORIGINS = [
+        "https://pricebasket.in",
+        "https://www.pricebasket.in",
+        "https://dev.pricebasket.in",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ]
+    _allowed_origins = list(dict.fromkeys(_BASE_ORIGINS + list(settings.ALLOWED_ORIGINS)))
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
-        # Covers pricebasket.in + all subdomains + Vercel preview URLs
-        allow_origin_regex=r"https?://(localhost(:\d+)?|([\w-]+\.)?pricebasket\.in|[\w-]+\.vercel\.app)",
+        allow_origins=_allowed_origins,
+        # Catches all subdomains + Vercel preview URLs
+        allow_origin_regex=r"https?://(?:[\w-]+\.)?pricebasket\.in|https?://[\w-]+\.vercel\.app|http://localhost(?::\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
