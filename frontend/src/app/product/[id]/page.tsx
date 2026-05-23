@@ -19,6 +19,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
 import { PlatformLogo } from "@/components/PlatformLogo";
+import { PageLoader } from "@/components/PageLoader";
 
 // ── UUID guard ─────────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -256,7 +257,7 @@ export default function ProductPage() {
   }
 
   // ── Loading ────────────────────────────────────────────────────────────
-  if (isUUID && isLoading) return <ProductSkeleton />;
+  if (isUUID && isLoading) return <PageLoader message="Fetching prices" />;
 
   // ── Error state ────────────────────────────────────────────────────────
   if ((isUUID && (isError || !apiProduct)) || (!isUUID && !mockProduct)) {
