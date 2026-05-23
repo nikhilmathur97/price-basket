@@ -551,6 +551,143 @@ async def _upsert_price(db: AsyncSession, product_id, platform_id, d: dict):
     await db.flush()
 
 
+# ── Static price seed data ────────────────────────────────────────────────────
+
+STATIC_PRICES = {
+    "amul-gold-milk-1l": [
+        {"slug": "blinkit",   "price": 68,  "mrp": 68,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 68,  "mrp": 68,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 66,  "mrp": 68,  "disc": 2.9,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 68,  "mrp": 68,  "disc": 0,    "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 65,  "mrp": 68,  "disc": 4.4,  "mins": 120, "available": True},
+    ],
+    "amul-butter-500g": [
+        {"slug": "blinkit",   "price": 275, "mrp": 290, "disc": 5.2,  "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 275, "mrp": 290, "disc": 5.2,  "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 270, "mrp": 290, "disc": 6.9,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 279, "mrp": 290, "disc": 3.8,  "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 265, "mrp": 290, "disc": 8.6,  "mins": 120, "available": True},
+    ],
+    "britannia-bread-400g": [
+        {"slug": "blinkit",   "price": 40,  "mrp": 44,  "disc": 9.1,  "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 42,  "mrp": 44,  "disc": 4.5,  "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 40,  "mrp": 44,  "disc": 9.1,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 43,  "mrp": 44,  "disc": 2.3,  "mins": 15,  "available": True},
+        {"slug": "jiomart",   "price": 38,  "mrp": 44,  "disc": 13.6, "mins": 30,  "available": True},
+    ],
+    "lays-classic-26g": [
+        {"slug": "blinkit",   "price": 20,  "mrp": 20,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 20,  "mrp": 20,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 18,  "mrp": 20,  "disc": 10,   "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 20,  "mrp": 20,  "disc": 0,    "mins": 15,  "available": True},
+        {"slug": "jiomart",   "price": 19,  "mrp": 20,  "disc": 5,    "mins": 30,  "available": True},
+    ],
+    "haldirams-aloo-bhujia-200g": [
+        {"slug": "blinkit",   "price": 85,  "mrp": 90,  "disc": 5.6,  "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 87,  "mrp": 90,  "disc": 3.3,  "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 83,  "mrp": 90,  "disc": 7.8,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 86,  "mrp": 90,  "disc": 4.4,  "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 80,  "mrp": 90,  "disc": 11.1, "mins": 120, "available": True},
+    ],
+    "maggi-noodles-70g": [
+        {"slug": "blinkit",   "price": 14,  "mrp": 14,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 14,  "mrp": 14,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 13,  "mrp": 14,  "disc": 7.1,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 14,  "mrp": 14,  "disc": 0,    "mins": 15,  "available": True},
+        {"slug": "jiomart",   "price": 12,  "mrp": 14,  "disc": 14.3, "mins": 30,  "available": True},
+    ],
+    "coca-cola-750ml": [
+        {"slug": "blinkit",   "price": 40,  "mrp": 42,  "disc": 4.8,  "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 42,  "mrp": 42,  "disc": 0,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 38,  "mrp": 42,  "disc": 9.5,  "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 40,  "mrp": 42,  "disc": 4.8,  "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 36,  "mrp": 42,  "disc": 14.3, "mins": 120, "available": True},
+    ],
+    "tropicana-orange-1l": [
+        {"slug": "blinkit",   "price": 99,  "mrp": 120, "disc": 17.5, "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 102, "mrp": 120, "disc": 15,   "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 95,  "mrp": 120, "disc": 20.8, "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 100, "mrp": 120, "disc": 16.7, "mins": 15,  "available": True},
+        {"slug": "jiomart",   "price": 92,  "mrp": 120, "disc": 23.3, "mins": 30,  "available": True},
+    ],
+    "dove-soap-100g": [
+        {"slug": "blinkit",   "price": 55,  "mrp": 60,  "disc": 8.3,  "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 57,  "mrp": 60,  "disc": 5,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 53,  "mrp": 60,  "disc": 11.7, "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 55,  "mrp": 60,  "disc": 8.3,  "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 50,  "mrp": 60,  "disc": 16.7, "mins": 120, "available": True},
+    ],
+    "head-shoulders-shampoo-180ml": [
+        {"slug": "blinkit",   "price": 199, "mrp": 230, "disc": 13.5, "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 205, "mrp": 230, "disc": 10.9, "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 195, "mrp": 230, "disc": 15.2, "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 199, "mrp": 230, "disc": 13.5, "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 190, "mrp": 230, "disc": 17.4, "mins": 120, "available": True},
+    ],
+    "vim-dish-wash-bar-200g": [
+        {"slug": "blinkit",   "price": 22,  "mrp": 25,  "disc": 12,   "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 23,  "mrp": 25,  "disc": 8,    "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 21,  "mrp": 25,  "disc": 16,   "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 22,  "mrp": 25,  "disc": 12,   "mins": 15,  "available": True},
+        {"slug": "jiomart",   "price": 20,  "mrp": 25,  "disc": 20,   "mins": 30,  "available": True},
+    ],
+    "harpic-toilet-cleaner-500ml": [
+        {"slug": "blinkit",   "price": 89,  "mrp": 99,  "disc": 10.1, "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 90,  "mrp": 99,  "disc": 9.1,  "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 86,  "mrp": 99,  "disc": 13.1, "mins": 30,  "available": True},
+        {"slug": "instamart", "price": 88,  "mrp": 99,  "disc": 11.1, "mins": 15,  "available": True},
+        {"slug": "amazon",    "price": 84,  "mrp": 99,  "disc": 15.2, "mins": 120, "available": True},
+    ],
+    "lakme-foundation-30ml": [
+        {"slug": "blinkit",   "price": 299, "mrp": 375, "disc": 20.3, "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 310, "mrp": 375, "disc": 17.3, "mins": 10,  "available": True},
+        {"slug": "bigbasket", "price": 285, "mrp": 375, "disc": 24,   "mins": 30,  "available": True},
+        {"slug": "amazon",    "price": 275, "mrp": 375, "disc": 26.7, "mins": 120, "available": True},
+    ],
+    "maybelline-mascara-9ml": [
+        {"slug": "blinkit",   "price": 349, "mrp": 450, "disc": 22.4, "mins": 10,  "available": True},
+        {"slug": "zepto",     "price": 360, "mrp": 450, "disc": 20,   "mins": 10,  "available": True},
+        {"slug": "amazon",    "price": 330, "mrp": 450, "disc": 26.7, "mins": 120, "available": True},
+    ],
+}
+
+
+@router.post("/seed-prices")
+async def seed_static_prices(
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """Insert realistic hardcoded prices for all seeded products across platforms."""
+    from app.models.platform import Platform
+    from app.models.product import Product
+
+    r = await db.execute(select(Platform))
+    plat_map = {p.slug: p for p in r.scalars().all()}
+
+    r = await db.execute(select(Product))
+    prod_map = {p.slug: p for p in r.scalars().all()}
+
+    inserted = 0
+    for prod_slug, price_rows in STATIC_PRICES.items():
+        prod = prod_map.get(prod_slug)
+        if not prod:
+            continue
+        for row in price_rows:
+            plat = plat_map.get(row["slug"])
+            if not plat:
+                continue
+            await _upsert_price(db, prod.id, plat.id, {
+                "price": row["price"], "mrp": row["mrp"],
+                "disc": row["disc"], "available": row["available"],
+                "mins": row["mins"], "pid": None, "url": None, "image_url": None,
+            })
+            inserted += 1
+
+    await db.commit()
+    await cache_delete_pattern("featured:*")
+    return {"status": "done", "prices_inserted": inserted, "products": len(STATIC_PRICES)}
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/seed")
