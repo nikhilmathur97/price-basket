@@ -6,8 +6,9 @@
   "rootDirectory": "frontend",
   "git": {
     "deploymentEnabled": {
-      "feature/price-basket": true,
-      "main": true
+      "main": true,
+      "dev": true,
+      "feature/price-basket": true
     }
   },
   "env": {
