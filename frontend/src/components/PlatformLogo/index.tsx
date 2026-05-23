@@ -1,51 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
 
-// Reliable logo URLs per platform slug — tried in order until one loads
-const LOGO_SOURCES: Record<string, string[]> = {
-  blinkit:   [
-    "https://blinkit.com/apple-touch-icon.png",
-    "https://logo.clearbit.com/blinkit.com",
-    "https://www.google.com/s2/favicons?domain=blinkit.com&sz=64",
-  ],
-  zepto:     [
-    "https://cdn.zeptonow.com/production/assets/images/pdp/zepto-logo.svg",
-    "https://logo.clearbit.com/zeptonow.com",
-    "https://www.google.com/s2/favicons?domain=zeptonow.com&sz=64",
-  ],
-  instamart: [
-    "https://logo.clearbit.com/swiggy.com",
-    "https://www.google.com/s2/favicons?domain=swiggy.com&sz=64",
-  ],
-  bigbasket: [
-    "https://logo.clearbit.com/bigbasket.com",
-    "https://www.google.com/s2/favicons?domain=bigbasket.com&sz=64",
-  ],
-  flipkart:  [
-    "https://logo.clearbit.com/flipkart.com",
-    "https://www.google.com/s2/favicons?domain=flipkart.com&sz=64",
-  ],
-  amazon:    [
-    "https://logo.clearbit.com/amazon.com",
-    "https://www.google.com/s2/favicons?domain=amazon.com&sz=64",
-  ],
-  jiomart:   [
-    "https://logo.clearbit.com/jiomart.com",
-    "https://www.google.com/s2/favicons?domain=jiomart.com&sz=64",
-  ],
-  dunzo:     [
-    "https://logo.clearbit.com/dunzo.com",
-    "https://www.google.com/s2/favicons?domain=dunzo.com&sz=64",
-  ],
-  myntra:    [
-    "https://logo.clearbit.com/myntra.com",
-    "https://www.google.com/s2/favicons?domain=myntra.com&sz=64",
-  ],
-  nykaa:     [
-    "https://logo.clearbit.com/nykaa.com",
-    "https://www.google.com/s2/favicons?domain=nykaa.com&sz=64",
-  ],
+// Local SVG logos served from /public/logos/ — no external dependencies
+const LOCAL_LOGOS: Record<string, string> = {
+  blinkit:   "/logos/blinkit.svg",
+  zepto:     "/logos/zepto.svg",
+  instamart: "/logos/instamart.svg",
+  bigbasket: "/logos/bigbasket.svg",
+  flipkart:  "/logos/flipkart.svg",
+  amazon:    "/logos/amazon.svg",
+  jiomart:   "/logos/jiomart.svg",
+  dunzo:     "/logos/dunzo.svg",
+  myntra:    "/logos/myntra.svg",
+  nykaa:     "/logos/nykaa.svg",
+};
+
+// Brand colors for the text-initial fallback (only shown if slug is unknown)
+const BRAND_COLORS: Record<string, string> = {
+  blinkit:   "#F8C300",
+  zepto:     "#6D3FD8",
+  instamart: "#FC8019",
+  bigbasket: "#84C225",
+  flipkart:  "#2874F0",
+  amazon:    "#FF9900",
+  jiomart:   "#0057A8",
+  dunzo:     "#00D290",
+  myntra:    "#FF3366",
+  nykaa:     "#FC2779",
 };
 
 interface PlatformLogoProps {
@@ -63,34 +45,32 @@ export function PlatformLogo({
   size = 28,
   className = "",
 }: PlatformLogoProps) {
-  const sources = LOGO_SOURCES[slug] ?? [];
-  const [idx, setIdx] = useState(0);
+  const src = LOCAL_LOGOS[slug];
 
-  if (idx < sources.length) {
+  if (src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={sources[idx]}
+      <Image
+        src={src}
         alt={name}
         width={size}
         height={size}
-        onError={() => setIdx((i) => i + 1)}
         className={className}
         style={{ objectFit: "contain", width: size, height: size }}
       />
     );
   }
 
-  // All sources failed — render a professional initial badge
-  const color = colorHex ?? "#6b7280";
+  // Unknown platform — render a branded initial badge
+  const color = colorHex ?? BRAND_COLORS[slug] ?? "#6b7280";
   const initial = name.charAt(0).toUpperCase();
   return (
     <span
-      className={`flex items-center justify-center font-black select-none ${className}`}
+      className={`flex items-center justify-center font-black select-none rounded-lg ${className}`}
       style={{
         width: size,
         height: size,
         fontSize: size * 0.45,
+        backgroundColor: color + "22",
         color,
         lineHeight: 1,
       }}

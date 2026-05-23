@@ -132,6 +132,7 @@ export const api = {
   getAdminPlatforms: () => apiClient.get("/admin/platforms"),
   setAdminPlatformActive: (platformId: string, isActive: boolean) =>
     apiClient.patch(`/admin/platforms/${platformId}?is_active=${isActive}`),
+  getAdminDbOverview: () => apiClient.get("/admin/db-overview"),
 
   // Analytics (admin)
   getAnalyticsStats: (days = 7) => apiClient.get(`/analytics/stats?days=${days}`),

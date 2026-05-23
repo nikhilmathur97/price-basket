@@ -17,9 +17,10 @@ from app.cache.redis_client import cache_delete_pattern
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import require_admin
-from app.models.cart import Cart, CartItem
+from app.models.analytics import UserEvent
+from app.models.cart import Cart, CartItem, Wishlist, WishlistItem, RefreshToken
 from app.models.platform import Platform
-from app.models.price import PlatformPrice
+from app.models.price import PlatformPrice, PriceHistory, PriceAlert
 from app.models.product import Category, Product
 from app.models.user import User
 from app.schemas import PlatformOut
@@ -187,6 +188,212 @@ async def dashboard_stats(
         "total_users": user_count,
         "active_platforms": platform_count,
         "active_carts": active_cart_count,
+    }
+
+
+@router.get("/db-overview")
+async def db_overview(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Full database snapshot — every table, counts, and key aggregates."""
+
+    async def scalar(stmt):
+        return (await db.execute(stmt)).scalar() or 0
+
+    # ── Users ────────────────────────────────────────────────────────────────
+    total_users       = await scalar(select(func.count()).select_from(User))
+    active_users      = await scalar(select(func.count()).select_from(User).where(User.is_active.is_(True)))
+    verified_users    = await scalar(select(func.count()).select_from(User).where(User.is_verified.is_(True)))
+    admin_users       = await scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True)))
+    oauth_users       = await scalar(select(func.count()).select_from(User).where(User.oauth_provider.is_not(None)))
+
+    # signups per day last 30 days
+    signup_trend_rows = (await db.execute(
+        select(func.date(User.created_at).label("day"), func.count(User.id).label("count"))
+        .where(User.created_at >= datetime.now(UTC) - timedelta(days=30))
+        .group_by(func.date(User.created_at))
+        .order_by(func.date(User.created_at))
+    )).all()
+    signup_trend = [{"day": str(r.day), "count": int(r.count)} for r in signup_trend_rows]
+
+    # ── Products ─────────────────────────────────────────────────────────────
+    total_products   = await scalar(select(func.count()).select_from(Product))
+    active_products  = await scalar(select(func.count()).select_from(Product).where(Product.is_active.is_(True)))
+    featured_products= await scalar(select(func.count()).select_from(Product).where(Product.is_featured.is_(True)))
+    with_images      = await scalar(select(func.count()).select_from(Product).where(Product.image_url.is_not(None)))
+
+    by_category_rows = (await db.execute(
+        select(Category.name, func.count(Product.id).label("count"))
+        .join(Product, Product.category_id == Category.id, isouter=True)
+        .group_by(Category.id, Category.name)
+        .order_by(func.count(Product.id).desc())
+    )).all()
+    by_category = [{"category": r.name, "count": int(r.count)} for r in by_category_rows]
+
+    top_brands_rows = (await db.execute(
+        select(Product.brand, func.count(Product.id).label("count"))
+        .where(Product.brand.is_not(None))
+        .group_by(Product.brand)
+        .order_by(func.count(Product.id).desc())
+        .limit(10)
+    )).all()
+    top_brands = [{"brand": r.brand, "count": int(r.count)} for r in top_brands_rows]
+
+    # ── Categories ───────────────────────────────────────────────────────────
+    total_categories  = await scalar(select(func.count()).select_from(Category))
+    active_categories = await scalar(select(func.count()).select_from(Category).where(Category.is_active.is_(True)))
+
+    category_rows = (await db.execute(
+        select(Category.slug, Category.name, Category.icon,
+               func.count(Product.id).label("product_count"))
+        .join(Product, Product.category_id == Category.id, isouter=True)
+        .group_by(Category.id, Category.slug, Category.name, Category.icon)
+        .order_by(Category.display_order)
+    )).all()
+    categories_detail = [
+        {"slug": r.slug, "name": r.name, "icon": r.icon, "product_count": int(r.product_count)}
+        for r in category_rows
+    ]
+
+    # ── Platforms ────────────────────────────────────────────────────────────
+    total_platforms  = await scalar(select(func.count()).select_from(Platform))
+    active_platforms = await scalar(select(func.count()).select_from(Platform).where(Platform.is_active.is_(True)))
+
+    platform_rows = (await db.execute(
+        select(Platform.slug, Platform.name, Platform.is_active, Platform.color_hex,
+               Platform.scraping_enabled, Platform.scrape_failure_count,
+               Platform.last_successful_scrape,
+               func.count(PlatformPrice.id).label("price_entries"))
+        .join(PlatformPrice, PlatformPrice.platform_id == Platform.id, isouter=True)
+        .group_by(Platform.id, Platform.slug, Platform.name, Platform.is_active,
+                  Platform.color_hex, Platform.scraping_enabled,
+                  Platform.scrape_failure_count, Platform.last_successful_scrape)
+        .order_by(Platform.name)
+    )).all()
+    platforms_detail = [
+        {
+            "slug": r.slug, "name": r.name, "is_active": r.is_active,
+            "color_hex": r.color_hex, "scraping_enabled": r.scraping_enabled,
+            "scrape_failure_count": int(r.scrape_failure_count or 0),
+            "last_successful_scrape": r.last_successful_scrape.isoformat() if r.last_successful_scrape else None,
+            "price_entries": int(r.price_entries),
+        }
+        for r in platform_rows
+    ]
+
+    # ── Platform Prices ──────────────────────────────────────────────────────
+    total_prices     = await scalar(select(func.count()).select_from(PlatformPrice))
+    avail_prices     = await scalar(select(func.count()).select_from(PlatformPrice).where(PlatformPrice.is_available.is_(True)))
+    avg_discount     = (await db.execute(
+        select(func.avg(PlatformPrice.discount_percent)).where(PlatformPrice.discount_percent > 0)
+    )).scalar() or 0
+
+    prices_by_plat_rows = (await db.execute(
+        select(Platform.name, Platform.slug,
+               func.count(PlatformPrice.id).label("count"),
+               func.avg(PlatformPrice.price).label("avg_price"),
+               func.min(PlatformPrice.price).label("min_price"),
+               func.max(PlatformPrice.price).label("max_price"))
+        .join(Platform, Platform.id == PlatformPrice.platform_id)
+        .group_by(Platform.id, Platform.name, Platform.slug)
+        .order_by(func.count(PlatformPrice.id).desc())
+    )).all()
+    prices_by_platform = [
+        {
+            "name": r.name, "slug": r.slug, "count": int(r.count),
+            "avg_price": round(float(r.avg_price or 0), 2),
+            "min_price": round(float(r.min_price or 0), 2),
+            "max_price": round(float(r.max_price or 0), 2),
+        }
+        for r in prices_by_plat_rows
+    ]
+
+    # ── Price History ────────────────────────────────────────────────────────
+    total_price_history = await scalar(select(func.count()).select_from(PriceHistory))
+
+    # ── Price Alerts ─────────────────────────────────────────────────────────
+    total_alerts     = await scalar(select(func.count()).select_from(PriceAlert))
+    active_alerts    = await scalar(select(func.count()).select_from(PriceAlert).where(PriceAlert.is_active.is_(True)))
+    triggered_alerts = await scalar(select(func.count()).select_from(PriceAlert).where(PriceAlert.triggered_at.is_not(None)))
+
+    # ── Carts ────────────────────────────────────────────────────────────────
+    total_carts      = await scalar(select(func.count()).select_from(Cart))
+    active_carts     = await scalar(select(func.count()).select_from(Cart).where(Cart.is_active.is_(True)))
+    guest_carts      = await scalar(select(func.count()).select_from(Cart).where(Cart.user_id.is_(None)))
+    total_cart_items = await scalar(select(func.count()).select_from(CartItem))
+    total_cart_value = (await db.execute(
+        select(func.sum(CartItem.quantity * func.coalesce(CartItem.snapshot_price, 0)))
+    )).scalar() or 0
+
+    # ── Wishlists ────────────────────────────────────────────────────────────
+    total_wishlists      = await scalar(select(func.count()).select_from(Wishlist))
+    total_wishlist_items = await scalar(select(func.count()).select_from(WishlistItem))
+
+    # ── Refresh Tokens ───────────────────────────────────────────────────────
+    total_tokens  = await scalar(select(func.count()).select_from(RefreshToken))
+    active_tokens = await scalar(
+        select(func.count()).select_from(RefreshToken)
+        .where(RefreshToken.is_revoked.is_(False))
+        .where(RefreshToken.expires_at > datetime.now(UTC))
+    )
+
+    # ── User Events ──────────────────────────────────────────────────────────
+    total_events = await scalar(select(func.count()).select_from(UserEvent))
+    events_by_type_rows = (await db.execute(
+        select(UserEvent.event_type, func.count(UserEvent.id).label("count"))
+        .group_by(UserEvent.event_type)
+        .order_by(func.count(UserEvent.id).desc())
+    )).all()
+    events_by_type = [{"type": r.event_type, "count": int(r.count)} for r in events_by_type_rows]
+
+    # events per day last 14 days
+    event_trend_rows = (await db.execute(
+        select(func.date(UserEvent.created_at).label("day"), func.count(UserEvent.id).label("count"))
+        .where(UserEvent.created_at >= datetime.now(UTC) - timedelta(days=14))
+        .group_by(func.date(UserEvent.created_at))
+        .order_by(func.date(UserEvent.created_at))
+    )).all()
+    event_trend = [{"day": str(r.day), "count": int(r.count)} for r in event_trend_rows]
+
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "users": {
+            "total": total_users, "active": active_users, "verified": verified_users,
+            "admin_count": admin_users, "oauth_users": oauth_users,
+            "password_users": total_users - oauth_users,
+            "signup_trend": signup_trend,
+        },
+        "products": {
+            "total": total_products, "active": active_products, "featured": featured_products,
+            "with_images": with_images, "by_category": by_category, "top_brands": top_brands,
+        },
+        "categories": {
+            "total": total_categories, "active": active_categories, "detail": categories_detail,
+        },
+        "platforms": {
+            "total": total_platforms, "active": active_platforms, "detail": platforms_detail,
+        },
+        "prices": {
+            "total": total_prices, "available": avail_prices,
+            "unavailable": total_prices - avail_prices,
+            "avg_discount_percent": round(float(avg_discount), 1),
+            "by_platform": prices_by_platform,
+        },
+        "price_history": {"total": total_price_history},
+        "price_alerts": {
+            "total": total_alerts, "active": active_alerts, "triggered": triggered_alerts,
+        },
+        "carts": {
+            "total": total_carts, "active": active_carts, "guest": guest_carts,
+            "total_items": total_cart_items,
+            "total_value_inr": round(float(total_cart_value), 2),
+        },
+        "wishlists": {"total": total_wishlists, "total_items": total_wishlist_items},
+        "refresh_tokens": {"total": total_tokens, "active": active_tokens},
+        "user_events": {
+            "total": total_events, "by_type": events_by_type, "trend": event_trend,
+        },
     }
 
 

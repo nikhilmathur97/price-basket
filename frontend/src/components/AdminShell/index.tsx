@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home } from "lucide-react";
+import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home, Database } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/admin/queries", label: "Queries", icon: MessageSquare },
   { href: "/admin/platforms", label: "Platforms", icon: Store },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/admin/database", label: "Database", icon: Database },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
