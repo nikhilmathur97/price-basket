@@ -9,7 +9,7 @@ Product & Search API
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -228,9 +228,21 @@ async def search_products(
     return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
 
 
+async def _refresh_prices_background(product_id: uuid.UUID) -> None:
+    """Fire-and-forget price refresh — runs after response is sent."""
+    from app.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as bg_db:
+        try:
+            engine = PriceEngine(bg_db)
+            await engine.get_prices(product_id)
+        except Exception:
+            pass
+
+
 @router.get("/{product_id}", response_model=ProductWithPrices)
 async def get_product(
     product_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -245,26 +257,9 @@ async def get_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Attempt live price refresh — fail silently so product page always loads
-    try:
-        engine = PriceEngine(db)
-        await engine.get_prices(product_id)
-    except Exception:
-        pass
-
-    # Re-fetch with eager loading after price engine (which may have committed the
-    # session and expired our previously-loaded relationships).
-    result2 = await db.execute(
-        select(Product)
-        .where(Product.id == product_id)
-        .options(
-            selectinload(Product.category),
-            selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
-        )
-    )
-    product = result2.scalar_one_or_none()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    # Schedule price refresh in background so this response returns immediately
+    # with whatever prices are in the DB (seeded or previously scraped).
+    background_tasks.add_task(_refresh_prices_background, product_id)
 
     return _enrich(product, product.platform_prices)
 
