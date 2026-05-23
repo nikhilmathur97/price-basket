@@ -26,11 +26,14 @@ async def get_product_prices(
     db: AsyncSession = Depends(get_db),
 ):
     """Return current cross-platform prices for a product."""
-    engine = PriceEngine(db)
-    if force_refresh:
-        bundle = await engine.force_refresh(product_id)
-    else:
-        bundle = await engine.get_prices(product_id)
+    try:
+        engine = PriceEngine(db)
+        if force_refresh:
+            await engine.force_refresh(product_id)
+        else:
+            await engine.get_prices(product_id)
+    except Exception:
+        pass
 
     # Load full PlatformPrice objects for response serialisation
     result = await db.execute(

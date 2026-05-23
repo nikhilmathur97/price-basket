@@ -551,6 +551,25 @@ async def _upsert_price(db: AsyncSession, product_id, platform_id, d: dict):
     await db.flush()
 
 
+# ── Static image URLs for seeded products ────────────────────────────────────
+
+PRODUCT_IMAGES: dict[str, str] = {
+    "amul-gold-milk-1l":              "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&h=400&fit=crop",
+    "amul-butter-500g":               "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&h=400&fit=crop",
+    "britannia-bread-400g":           "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop",
+    "lays-classic-26g":               "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=400&fit=crop",
+    "haldirams-aloo-bhujia-200g":     "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=400&fit=crop",
+    "maggi-noodles-70g":              "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop",
+    "coca-cola-750ml":                "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=400&fit=crop",
+    "tropicana-orange-1l":            "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=400&fit=crop",
+    "dove-soap-100g":                 "https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=400&h=400&fit=crop",
+    "head-shoulders-shampoo-180ml":   "https://images.unsplash.com/photo-1585751119414-ef2636f8aede?w=400&h=400&fit=crop",
+    "vim-dish-wash-bar-200g":         "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop",
+    "harpic-toilet-cleaner-500ml":    "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=400&fit=crop",
+    "lakme-foundation-30ml":          "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop",
+    "maybelline-mascara-9ml":         "https://images.unsplash.com/photo-1631214499789-a23a7ece09c7?w=400&h=400&fit=crop",
+}
+
 # ── Static price seed data ────────────────────────────────────────────────────
 
 STATIC_PRICES = {
@@ -672,6 +691,11 @@ async def seed_static_prices(
         prod = prod_map.get(prod_slug)
         if not prod:
             continue
+        # Patch image URL if missing
+        img = PRODUCT_IMAGES.get(prod_slug)
+        if img and not prod.image_url:
+            prod.image_url = img
+            prod.thumbnail_url = img
         for row in price_rows:
             plat = plat_map.get(row["slug"])
             if not plat:
