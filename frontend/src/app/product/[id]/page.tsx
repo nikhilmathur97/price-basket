@@ -23,6 +23,24 @@ import { PlatformLogo } from "@/components/PlatformLogo";
 // ── UUID guard ─────────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Fallback images for products whose DB image_url is still null
+const SLUG_IMAGES: Record<string, string> = {
+  "amul-gold-milk-1l":             "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&h=400&fit=crop",
+  "amul-butter-500g":              "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&h=400&fit=crop",
+  "britannia-bread-400g":          "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop",
+  "lays-classic-26g":              "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=400&fit=crop",
+  "haldirams-aloo-bhujia-200g":    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=400&fit=crop",
+  "maggi-noodles-70g":             "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop",
+  "coca-cola-750ml":               "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=400&fit=crop",
+  "tropicana-orange-1l":           "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=400&fit=crop",
+  "dove-soap-100g":                "https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=400&h=400&fit=crop",
+  "head-shoulders-shampoo-180ml":  "https://images.unsplash.com/photo-1585751119414-ef2636f8aede?w=400&h=400&fit=crop",
+  "vim-dish-wash-bar-200g":        "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop",
+  "harpic-toilet-cleaner-500ml":   "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=400&fit=crop",
+  "lakme-foundation-30ml":         "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop",
+  "maybelline-mascara-9ml":        "https://images.unsplash.com/photo-1631214499789-a23a7ece09c7?w=400&h=400&fit=crop",
+};
+
 // ── Category meta: shelf-life, highlight tags, star rating ─────────────────
 const CATEGORY_META: Record<string, {
   shelf: string;
@@ -302,9 +320,9 @@ export default function ProductPage() {
                         flex items-center justify-center relative overflow-hidden"
             style={{ minHeight: 270 }}
           >
-            {product.image_url ? (
+            {(product.image_url ?? SLUG_IMAGES[product.slug]) ? (
               <Image
-                src={product.image_url}
+                src={product.image_url ?? SLUG_IMAGES[product.slug]!}
                 alt={product.name}
                 width={280}
                 height={280}
