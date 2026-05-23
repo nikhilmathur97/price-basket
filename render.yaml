@@ -41,7 +41,7 @@ services:
           name: pricebasket-redis
           property: connectionString
       - key: ALLOWED_ORIGINS
-        value: https://pricebasket.in,https://www.pricebasket.in,https://dev.pricebasket.in
+        value: https://pricebasket.in,https://www.pricebasket.in,https://dev.pricebasket.in,https://www.dev.pricebasket.in
 
   # ── Celery Worker ───────────────────────────────────────────────────────────
   - type: worker

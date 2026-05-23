@@ -1,64 +1,50 @@
 name: Deploy Price Basket
 
-# ── Triggers ───────────────────────────────────────────────────────────────────
+# ── Branch → Domain mapping ────────────────────────────────────────────────────
+#
+#   dev  branch  →  Preview deploy  →  dev.pricebasket.in   (test here first)
+#   main branch  →  Production deploy  →  pricebasket.in    (stable, live users)
+#
+# Workflow:
+#   1. Make changes on dev branch
+#   2. Push dev  → auto-deploys to dev.pricebasket.in
+#   3. Test on dev.pricebasket.in
+#   4. Merge dev → main  → auto-deploys to pricebasket.in
+#
 on:
-  # 1. Auto-deploy: only when code is merged/pushed to main
   push:
     branches:
-      - main
       - dev
-
-  # 2. Manual deploy: trigger from GitHub Actions console
+      - main
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to deploy from"
+        description: "Branch to deploy"
         required: true
-        default: "main"
+        default: "dev"
         type: choice
         options:
-          - main
           - dev
-          - feature/price-basket
-      environment:
-        description: "Target environment"
-        required: true
-        default: "production"
-        type: choice
-        options:
-          - production
-          - preview
-      skip_backend:
-        description: "Skip backend deployment?"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
+          - main
 
-# ── Resolve branch & env ───────────────────────────────────────────────────────
 env:
   DEPLOY_BRANCH: ${{ github.event.inputs.branch || github.ref_name }}
-  # Auto-detect: main branch → production, dev branch → preview
-  DEPLOY_ENV: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production' || 'preview') }}
-  SKIP_BACKEND: ${{ github.event.inputs.skip_backend || 'false' }}
 
 jobs:
-  # ── 1. Deploy Next.js Frontend → Vercel ──────────────────────────────────────
   deploy-frontend:
-    name: "Deploy Frontend → Vercel (${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production') || 'preview' }})"
+    name: "Frontend → Vercel (${{ github.event.inputs.branch || github.ref_name }})"
     runs-on: ubuntu-latest
     outputs:
-      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
-      deploy_env: ${{ steps.resolve_env.outputs.deploy_env }}
+      deployment_url: ${{ steps.set-url.outputs.url }}
+
     steps:
-      - name: Checkout branch
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref_name }}
+          ref: ${{ env.DEPLOY_BRANCH }}
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -67,124 +53,91 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Resolve deploy environment
-        id: resolve_env
-        run: |
-          BRANCH="${{ env.DEPLOY_BRANCH }}"
-          ENV="${{ env.DEPLOY_ENV }}"
-          echo "Branch: $BRANCH, Env: $ENV"
-          echo "deploy_env=$ENV" >> $GITHUB_OUTPUT
-
-      - name: Pull Vercel environment
+      # ── PRODUCTION deploy (main → pricebasket.in) ───────────────────────────
+      - name: "[PROD] Pull Vercel env"
+        if: env.DEPLOY_BRANCH == 'main'
         working-directory: frontend
-        run: |
-          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
-            vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-          else
-            vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-          fi
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Build
+      - name: "[PROD] Build"
+        if: env.DEPLOY_BRANCH == 'main'
         working-directory: frontend
-        run: |
-          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
-            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          else
-            vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          fi
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          NEXT_PUBLIC_API_URL: https://pricebasket-api.onrender.com
+          NEXT_PUBLIC_API_URL: ${{ secrets.PROD_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ secrets.PROD_WS_URL }}
 
-      - name: Deploy to Vercel
-        id: deploy
+      - name: "[PROD] Deploy → pricebasket.in"
+        if: env.DEPLOY_BRANCH == 'main'
+        id: deploy-prod
         working-directory: frontend
         run: |
-          if [ "${{ env.DEPLOY_ENV }}" = "production" ]; then
-            DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
-          else
-            DEPLOYMENT_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          fi
-          echo "Deployed to: $DEPLOYMENT_URL"
-          echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Production: $URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # Pin dev.pricebasket.in to the latest preview deployment
-      - name: Alias dev.pricebasket.in → preview deployment
-        if: env.DEPLOY_ENV == 'preview'
+      # ── DEV deploy (dev → dev.pricebasket.in) ───────────────────────────────
+      - name: "[DEV] Pull Vercel env"
+        if: env.DEPLOY_BRANCH == 'dev'
+        working-directory: frontend
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: "[DEV] Build"
+        if: env.DEPLOY_BRANCH == 'dev'
+        working-directory: frontend
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.DEV_API_URL || secrets.PROD_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ secrets.DEV_WS_URL || secrets.PROD_WS_URL }}
+
+      - name: "[DEV] Deploy → dev.pricebasket.in"
+        if: env.DEPLOY_BRANCH == 'dev'
+        id: deploy-dev
         working-directory: frontend
         run: |
-          vercel alias set ${{ steps.deploy.outputs.deployment_url }} dev.pricebasket.in \
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          vercel alias set "$URL" dev.pricebasket.in \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --scope=${{ secrets.VERCEL_ORG_ID }}
+          echo "✅ Dev preview: $URL  →  dev.pricebasket.in"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # ── 2. Deploy FastAPI Backend → Server via SSH ────────────────────────────────
-  deploy-backend:
-    name: "Deploy Backend → Server (${{ github.event.inputs.environment || (github.ref_name == 'main' && 'production') || 'preview' }})"
+      - name: Set unified URL output
+        id: set-url
+        run: |
+          echo "url=${{ steps.deploy-prod.outputs.url || steps.deploy-dev.outputs.url }}" >> $GITHUB_OUTPUT
+
+  # ── Job summary ───────────────────────────────────────────────────────────────
+  summary:
+    name: "Deployment summary"
     runs-on: ubuntu-latest
     needs: deploy-frontend
-    # Only SSH-deploy backend on production pushes (Render handles it via render.yaml)
-    if: ${{ github.event.inputs.skip_backend != 'true' && needs.deploy-frontend.outputs.deploy_env == 'production' }}
+    if: always()
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch || github.ref_name }}
-
-      - name: Check server secrets are configured
-        id: check_server
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      - name: Write summary
         run: |
-          if [ -z "$SERVER_HOST" ]; then
-            echo "⚠️  SERVER_HOST secret is not set — skipping backend deployment."
-            echo "   Add it at: github.com/nikhilmathur97/price-basket/settings/secrets/actions"
-            echo "has_server=false" >> $GITHUB_OUTPUT
+          BRANCH="${{ env.DEPLOY_BRANCH }}"
+          URL="${{ needs.deploy-frontend.outputs.deployment_url }}"
+          if [ "$BRANCH" = "main" ]; then
+            echo "### ✅ Production deployed → pricebasket.in" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ Server secrets found — proceeding with SSH deploy"
-            echo "has_server=true" >> $GITHUB_OUTPUT
+            echo "### 🔧 Dev deployed → dev.pricebasket.in"    >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Deploy via SSH
-        if: steps.check_server.outputs.has_server == 'true'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          script: |
-            cd /opt/price-basket
-
-            git fetch --all
-            git checkout ${{ env.DEPLOY_BRANCH }}
-            git pull origin ${{ env.DEPLOY_BRANCH }}
-
-            source backend/.venv/bin/activate
-            pip install -q -r backend/requirements.txt
-
-            cd backend && alembic upgrade head && cd ..
-
-            pm2 restart pricebasket-api || pm2 start \
-              "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2" \
-              --name pricebasket-api \
-              --cwd /opt/price-basket/backend \
-              --interpreter /opt/price-basket/backend/.venv/bin/python
-
-            pm2 restart pricebasket-worker || pm2 start \
-              "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2" \
-              --name pricebasket-worker \
-              --cwd /opt/price-basket/backend \
-              --interpreter /opt/price-basket/backend/.venv/bin/python
-
-            pm2 save
-            echo "✅ Backend deployed from branch: ${{ env.DEPLOY_BRANCH }}"
+          echo "- Branch : \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
+          echo "- URL    : $URL"        >> $GITHUB_STEP_SUMMARY

@@ -1,18 +1,13 @@
 {
-  "buildCommand": "cd frontend && npm ci && npm run build",
-  "outputDirectory": "frontend/.next",
-  "installCommand": "cd frontend && npm ci",
   "framework": "nextjs",
   "rootDirectory": "frontend",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm ci",
   "git": {
     "deploymentEnabled": {
       "main": true,
-      "dev": true,
-      "feature/price-basket": true
+      "dev": true
     }
-  },
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@api_url",
-    "NEXT_PUBLIC_WS_URL": "@ws_url"
   }
 }
