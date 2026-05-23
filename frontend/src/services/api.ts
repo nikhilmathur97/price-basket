@@ -4,10 +4,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 
-// Routes through the Next.js proxy (/api/v1/[...path]) when no explicit URL is set.
-// This avoids CORS entirely — the proxy calls Render server-to-server.
-// For local dev, set NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local.
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Browser calls the backend directly. CORS on the backend allows pricebasket.in and Vercel preview URLs.
+// Vercel's Edge proxy is NOT used — it fails with DNS_HOSTNAME_RESOLVED_PRIVATE for Render IPs.
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "https://pricebasket-api.onrender.com";
 
 export const apiClient = axios.create({
   baseURL: `${BACKEND}/api/v1`,
