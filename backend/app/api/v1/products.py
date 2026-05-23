@@ -245,9 +245,12 @@ async def get_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Trigger background price refresh
-    engine = PriceEngine(db)
-    fresh_bundle = await engine.get_prices(product_id)
+    # Attempt live price refresh — fail silently so product page always loads
+    try:
+        engine = PriceEngine(db)
+        await engine.get_prices(product_id)
+    except Exception:
+        pass
 
     return _enrich(product, product.platform_prices)
 
