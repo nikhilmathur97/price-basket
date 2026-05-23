@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import { TopProgressBar } from "@/components/TopProgressBar";
 import { BottomNav } from "@/components/BottomNav";
+import { Footer } from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
           {/* pb-[58px] on mobile reserves space for the fixed BottomNav */}
           <main className="min-h-[calc(100vh-56px)] pb-[58px] md:pb-0">{children}</main>
+          <Footer />
           <BottomNav />
           <CartDrawer />
           <Toaster

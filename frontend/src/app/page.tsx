@@ -134,10 +134,6 @@ export default function HomePage() {
         {/* ── Product sections (fetches from API, falls back to mock) ── */}
         <HomeProductSections />
 
-        {/* ── Footer note ── */}
-        <p className="text-center text-[11px] text-surface-400 py-8">
-          Prices update every 5 minutes · Always check platform apps for final price
-        </p>
       </div>
     </div>
   );
