@@ -1,11 +1,13 @@
 /**
  * Catch-all proxy: forwards every /api/v1/* request to the backend.
- * Runs as a Vercel serverless function — not subject to the rewrite
- * SSRF restrictions that block external hosts.
+ * Runs on Vercel Edge Runtime — avoids Lambda SSRF/DNS restrictions
+ * that block outbound calls to Render's IP range.
  */
 import { NextRequest, NextResponse } from "next/server";
 
-// BACKEND_URL is set in Vercel project env for production; falls back to Render URL.
+export const runtime = "edge";
+
+// BACKEND_URL is set in Vercel project env; falls back to Render public URL.
 const BACKEND =
   process.env.BACKEND_URL ??
   (process.env.NODE_ENV === "production"
