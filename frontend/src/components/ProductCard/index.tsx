@@ -24,6 +24,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   const [showCompare, setShowCompare] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   const cheapestPrice = product.platform_prices.length > 0
     ? Math.min(...product.platform_prices.map((p) => p.price))
@@ -108,13 +109,14 @@ export function ProductCard({ product, className }: ProductCardProps) {
         >
           {/* ── Image ── */}
           <div className="relative aspect-square bg-[#f9f9f9] overflow-hidden">
-            {product.thumbnail_url || product.image_url ? (
+            {(product.thumbnail_url || product.image_url) && !imgError ? (
               <Image
                 src={product.thumbnail_url ?? product.image_url!}
                 alt={product.name}
                 fill
                 sizes="(max-width: 640px) 50vw, 200px"
                 className="object-contain p-3 hover:scale-105 transition-transform duration-300"
+                onError={() => setImgError(true)}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-4xl select-none">🛒</div>

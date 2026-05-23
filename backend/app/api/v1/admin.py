@@ -1,14 +1,20 @@
 """Admin API — platform management, product creation, price monitoring."""
+import asyncio
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, List, Optional
+from urllib.parse import quote_plus
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cache.redis_client import cache_delete_pattern
+from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.cart import Cart, CartItem
@@ -323,6 +329,247 @@ async def query_overview(
         "items": [],
         "note": "Support queries module not yet integrated in backend models.",
     }
+
+
+# ── Blinkit bulk scraper ──────────────────────────────────────────────────────
+
+BLINKIT_SEARCH_V6 = "https://blinkit.com/v6/listing/products"
+BLINKIT_BASE = "https://blinkit.com"
+BLINKIT_DELIVERY_MINS = 10
+
+SCRAPE_CATEGORY_QUERIES = [
+    ("fruits-vegetables", ["fresh onion", "tomato", "banana", "spinach", "apple", "potato", "carrot", "capsicum", "cucumber", "mango"]),
+    ("dairy-breakfast",   ["amul milk", "amul butter", "mother dairy curd", "farm eggs", "amul paneer", "amul cheese", "epigamia greek yogurt"]),
+    ("snacks-drinks",     ["lays magic masala", "coca cola", "kurkure masala", "red bull", "haldirams bhujia", "tropicana juice", "pepsi", "doritos"]),
+    ("bakery",            ["britannia 5050 biscuit", "harvest gold bread", "oreo cream biscuit", "good day biscuit", "parle g"]),
+    ("staples",           ["aashirvaad atta", "india gate basmati rice", "toor dal", "chana dal", "moong dal", "poha", "besan"]),
+    ("oils-spices",       ["fortune sunflower oil", "saffola oil", "everest red chilli powder", "mdh masala", "turmeric powder", "salt"]),
+    ("household",         ["vim dishwash bar", "surf excel", "harpic power plus", "lizol floor cleaner", "dettol liquid", "ariel detergent"]),
+    ("personal-care",     ["dove soap", "head shoulders shampoo", "colgate toothpaste", "nivea lotion", "dettol soap", "vaseline"]),
+    ("chicken-meat",      ["licious chicken breast", "licious chicken curry cut", "brown eggs country delight"]),
+    ("frozen-foods",      ["mccain french fries", "frozen corn", "igloo ice cream"]),
+]
+
+
+def _slugify(text: str) -> str:
+    text = text.lower().strip()
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text[:200]
+
+
+def _build_blinkit_image(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    if raw.startswith("http"):
+        return raw
+    name = raw.lstrip("/")
+    if name.startswith("rsku_image/products_main/"):
+        return f"https://cdn.blinkit.com/{name}"
+    return f"https://cdn.blinkit.com/rsku_image/products_main/{name}"
+
+
+def _parse_blinkit_product(raw: dict, cat_slug: str) -> Optional[dict]:
+    price = float(raw.get("price") or 0)
+    mrp = float(raw.get("mrp") or price)
+    if price <= 0 and mrp <= 0:
+        return None
+    if price <= 0:
+        price = mrp
+
+    raw_imgs = raw.get("images") or []
+    if raw_imgs:
+        first = raw_imgs[0]
+        raw_img = first.get("name") or first.get("url") or (first if isinstance(first, str) else None)
+    else:
+        raw_img = raw.get("image_url") or raw.get("thumbnail")
+    image_url = _build_blinkit_image(raw_img)
+
+    name = (raw.get("name") or raw.get("product_name") or "").strip()
+    brand = (raw.get("brand") or raw.get("brand_name") or "").strip()
+    unit = (raw.get("unit") or raw.get("quantity") or raw.get("variant_name") or "").strip()
+    pid = str(raw.get("id") or raw.get("product_id") or raw.get("variant_id") or "")
+    slug_raw = raw.get("slug") or pid or name
+    slug = _slugify(slug_raw)
+
+    if not name or not slug:
+        return None
+
+    discount = round((mrp - price) / mrp * 100, 1) if mrp > price else 0.0
+    in_stock = bool(raw.get("in_stock") or raw.get("available") or raw.get("is_in_stock"))
+    product_url = f"{BLINKIT_BASE}/prn/{raw.get('slug') or pid}" if (raw.get("slug") or pid) else None
+
+    return {
+        "blinkit_pid": pid, "name": name, "brand": brand or None,
+        "unit": unit or None, "slug": slug, "category_slug": cat_slug,
+        "image_url": image_url, "price": price, "mrp": mrp,
+        "discount_percent": discount, "is_available": in_stock,
+        "product_url": product_url,
+        "tags": [t.lower() for t in [name, brand, cat_slug] if t],
+    }
+
+
+async def _run_blinkit_scrape(db_url: str) -> dict:
+    """Background task: scrape Blinkit and upsert into DB."""
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker as sm
+
+    lat = str(getattr(settings, "BLINKIT_LAT", "28.4511202"))
+    lon = str(getattr(settings, "BLINKIT_LON", "77.0965147"))
+
+    engine = create_async_engine(db_url, echo=False)
+    AsyncSess = sm(engine, class_=AsyncSession, expire_on_commit=False)
+
+    total_saved = 0
+    seen: set[str] = set()
+
+    async with AsyncSess() as db:
+        r = await db.execute(select(Platform).where(Platform.slug == "blinkit"))
+        platform = r.scalar_one_or_none()
+        if not platform:
+            await engine.dispose()
+            return {"error": "Blinkit platform not in DB"}
+
+        r2 = await db.execute(select(Category))
+        cat_map = {c.slug: c.id for c in r2.scalars().all()}
+
+        headers = {
+            "app_client": "consumer_web", "lat": lat, "lon": lon,
+            "rn_bundle_version": "1000033", "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-IN,en;q=0.9", "Origin": BLINKIT_BASE,
+            "web-version": "2024120401",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+        }
+
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            for cat_slug, queries in SCRAPE_CATEGORY_QUERIES:
+                for query in queries:
+                    await asyncio.sleep(0.3)
+                    try:
+                        resp = await client.get(
+                            BLINKIT_SEARCH_V6,
+                            params={"q": query, "start": 0, "limit": 20, "search_type": 8},
+                            headers={**headers, "Referer": f"{BLINKIT_BASE}/search?q={quote_plus(query)}"},
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                    except Exception:
+                        continue
+
+                    raw_list = []
+                    for obj in (data.get("objects") or []):
+                        if isinstance(obj, dict) and obj.get("type") == "PRODUCT" and "data" in obj:
+                            raw_list.append(obj["data"])
+                    if not raw_list:
+                        raw_list = data.get("products") or data.get("results") or (data if isinstance(data, list) else [])
+
+                    for raw in raw_list:
+                        item = _parse_blinkit_product(raw, cat_slug)
+                        if not item or item["slug"] in seen:
+                            continue
+                        seen.add(item["slug"])
+
+                        try:
+                            # Upsert product
+                            rp = await db.execute(select(Product).where(Product.slug == item["slug"]))
+                            product = rp.scalar_one_or_none()
+                            cat_id = cat_map.get(item["category_slug"])
+                            if product is None:
+                                product = Product(
+                                    slug=item["slug"], name=item["name"], brand=item["brand"],
+                                    unit=item["unit"], category_id=cat_id,
+                                    image_url=item["image_url"], thumbnail_url=item["image_url"],
+                                    tags=item["tags"], is_featured=True, is_active=True,
+                                    description=f"{item['name']} — available on Blinkit.",
+                                )
+                                db.add(product)
+                                await db.flush()
+                            else:
+                                if item["image_url"]:
+                                    product.image_url = item["image_url"]
+                                    product.thumbnail_url = item["image_url"]
+                                product.is_featured = True
+                                product.is_active = True
+                                await db.flush()
+
+                            # Upsert platform price
+                            rpp = await db.execute(
+                                select(PlatformPrice).where(
+                                    PlatformPrice.product_id == product.id,
+                                    PlatformPrice.platform_id == platform.id,
+                                )
+                            )
+                            pp = rpp.scalar_one_or_none()
+                            discount_label = f"{int(item['discount_percent'])}% OFF" if item["discount_percent"] > 0 else None
+                            if pp is None:
+                                pp = PlatformPrice(
+                                    product_id=product.id, platform_id=platform.id,
+                                    price=item["price"],
+                                    original_price=item["mrp"] if item["mrp"] > item["price"] else None,
+                                    discount_percent=item["discount_percent"],
+                                    discount_label=discount_label, is_available=item["is_available"],
+                                    delivery_time_minutes=BLINKIT_DELIVERY_MINS,
+                                    platform_product_id=item["blinkit_pid"] or None,
+                                    platform_product_url=item["product_url"],
+                                    platform_image_url=item["image_url"], source="scrape",
+                                )
+                                db.add(pp)
+                            else:
+                                pp.price = item["price"]
+                                pp.original_price = item["mrp"] if item["mrp"] > item["price"] else None
+                                pp.discount_percent = item["discount_percent"]
+                                pp.discount_label = discount_label
+                                pp.is_available = item["is_available"]
+                                pp.delivery_time_minutes = BLINKIT_DELIVERY_MINS
+                                if item["image_url"]:
+                                    pp.platform_image_url = item["image_url"]
+                                if item["product_url"]:
+                                    pp.platform_product_url = item["product_url"]
+                                pp.source = "scrape"
+                            await db.flush()
+                            total_saved += 1
+                        except Exception:
+                            await db.rollback()
+
+                await db.commit()
+
+    await engine.dispose()
+    # Bust the featured cache so next request gets fresh data
+    await cache_delete_pattern("featured:*")
+    return {"scraped": len(seen), "saved": total_saved}
+
+
+_scrape_status: dict = {"running": False, "last_result": None, "started_at": None}
+
+
+@router.post("/scrape-blinkit")
+async def trigger_blinkit_scrape(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Trigger a background Blinkit bulk scrape. Check status via GET /admin/scrape-status."""
+    if _scrape_status["running"]:
+        return {"status": "already_running", "started_at": _scrape_status["started_at"]}
+
+    _scrape_status["running"] = True
+    _scrape_status["started_at"] = datetime.now(UTC).isoformat()
+    _scrape_status["last_result"] = None
+
+    async def _job():
+        try:
+            result = await _run_blinkit_scrape(settings.DATABASE_URL)
+            _scrape_status["last_result"] = result
+        finally:
+            _scrape_status["running"] = False
+
+    background_tasks.add_task(_job)
+    return {"status": "started", "started_at": _scrape_status["started_at"]}
+
+
+@router.get("/scrape-status")
+async def scrape_status(_admin=Depends(require_admin)):
+    return _scrape_status
 
 
 # ── Seed ──────────────────────────────────────────────────────────────────────

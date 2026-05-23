@@ -134,9 +134,14 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 
 @router.get("/featured", response_model=List[ProductWithPrices])
 async def featured_products(
-    limit: int = Query(default=20, le=50),
+    limit: int = Query(default=60, le=100),
     db: AsyncSession = Depends(get_db),
 ):
+    cache_key = f"featured:v2:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
     result = await db.execute(
         select(Product)
         .where(Product.is_active == True, Product.is_featured == True)  # noqa: E712
@@ -144,10 +149,15 @@ async def featured_products(
             selectinload(Product.category),
             selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
         )
+        .order_by(Product.created_at.desc())
         .limit(limit)
     )
     products = result.scalars().all()
-    return [_enrich(p, p.platform_prices) for p in products]
+    enriched = [_enrich(p, p.platform_prices) for p in products]
+    out = [e.model_dump(mode="json") for e in enriched]
+    # Cache for 5 minutes
+    await cache_set(cache_key, json.dumps(out), 300)
+    return enriched
 
 
 @router.get("", response_model=ProductSearchResult)

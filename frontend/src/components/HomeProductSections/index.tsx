@@ -2,8 +2,14 @@
 
 /**
  * HomeProductSections
- * Fetches featured products from the API, then sorts into sections.
- * Falls back to MOCK_PRODUCTS only when the API returns nothing (demo/dev env).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Renders home page product rows.
+ *
+ * Loading strategy:
+ *   1. Instantly show mock data as placeholder (zero-flash UX).
+ *   2. React Query fetches real API data in background (staleTime = 5 min).
+ *   3. When API resolves, swap seamlessly — no skeleton flash.
+ *   4. Category sections only render when products exist for that category.
  */
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -11,9 +17,9 @@ import { ProductCard } from "@/components/ProductCard";
 import { MOCK_PRODUCTS, CATEGORY_SECTIONS, getProductsByCategory } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
 import Link from "next/link";
-import { Flame, Zap, Star, TrendingUp, ArrowRight } from "lucide-react";
+import { Flame, Zap, Star, TrendingUp, ArrowRight, RefreshCw } from "lucide-react";
 
-// ── Colour accents (same as page.tsx) ─────────────────────────────────────
+// ── Colour accents ─────────────────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; text: string }> = {
   "fruits-vegetables": { bg: "#FFF3E0", text: "#E65100" },
   "dairy-breakfast":   { bg: "#E3F2FD", text: "#1565C0" },
@@ -29,16 +35,20 @@ const CAT_COLORS: Record<string, { bg: string; text: string }> = {
   "oils-spices":       { bg: "#FFF3E0", text: "#BF360C" },
 };
 
+// ── Sub-components ─────────────────────────────────────────────────────────
+
 function SectionHeader({
   icon,
   title,
   subtitle,
   href,
+  live,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
   href?: string;
+  live?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between mb-3">
@@ -46,6 +56,13 @@ function SectionHeader({
         <h2 className="text-[15px] font-extrabold text-surface-900 flex items-center gap-1.5">
           {icon}
           {title}
+          {live && (
+            <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-600
+                             bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+              LIVE
+            </span>
+          )}
         </h2>
         {subtitle && <p className="text-[11px] text-surface-400 mt-0.5">{subtitle}</p>}
       </div>
@@ -63,14 +80,36 @@ function SectionHeader({
   );
 }
 
-function ProductRow({ products }: { products: ProductWithPrices[] }) {
+function ProductRow({ products, loading }: { products: ProductWithPrices[]; loading?: boolean }) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
       {products.map((p) => (
-        <div key={p.id} className="w-[160px] sm:w-[175px] flex-shrink-0 snap-start">
+        <div
+          key={p.id}
+          className={`w-[160px] sm:w-[175px] flex-shrink-0 snap-start transition-opacity duration-300 ${
+            loading ? "opacity-60" : "opacity-100"
+          }`}
+        >
           <ProductCard product={p} />
         </div>
       ))}
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="w-[160px] sm:w-[175px] flex-shrink-0 rounded-2xl overflow-hidden bg-white border border-surface-100 shadow-sm">
+      <div className="aspect-square bg-surface-100 animate-pulse" />
+      <div className="p-3 space-y-2">
+        <div className="h-3 bg-surface-100 rounded animate-pulse w-3/4" />
+        <div className="h-3 bg-surface-100 rounded animate-pulse w-full" />
+        <div className="h-3 bg-surface-100 rounded animate-pulse w-1/2" />
+        <div className="flex justify-between items-center pt-1">
+          <div className="h-5 bg-surface-100 rounded animate-pulse w-14" />
+          <div className="h-8 bg-surface-100 rounded-xl animate-pulse w-16" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -79,26 +118,36 @@ function SkeletonRow() {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="w-[160px] sm:w-[175px] flex-shrink-0 h-52 rounded-2xl skeleton" />
+        <SkeletonCard key={i} />
       ))}
     </div>
   );
 }
 
+// ── Main component ──────────────────────────────────────────────────────────
+
 export function HomeProductSections() {
-  const { data: apiProducts, isLoading } = useQuery<ProductWithPrices[]>({
+  const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
       const { data } = await api.getFeatured(60);
       return data ?? [];
     },
-    staleTime: 300_000,
+    // Show mock data immediately while loading — zero-flash
+    placeholderData: MOCK_PRODUCTS,
+    staleTime: 300_000,       // 5 min before re-fetch
+    gcTime: 600_000,          // 10 min cache in memory
+    refetchOnWindowFocus: false,
   });
 
-  // Use API products when available; fall back to mock
-  const products: ProductWithPrices[] =
-    apiProducts && apiProducts.length > 0 ? apiProducts : MOCK_PRODUCTS;
+  // Always have data — either real API data or mock placeholder
+  const products: ProductWithPrices[] = (apiProducts && apiProducts.length > 0)
+    ? apiProducts
+    : MOCK_PRODUCTS;
 
+  const isFromAPI = apiProducts && apiProducts.length > 0 && !isLoading;
+
+  // Derive sections
   const trendingNow = products.slice(0, 10);
   const bestDeals = [...products]
     .filter((p) => p.intelligence.savings_amount > 5)
@@ -112,13 +161,23 @@ export function HomeProductSections() {
     )
     .slice(0, 10);
   const highlyRecommended = [...products]
-    .sort(
-      (a, b) => b.intelligence.price_spread_percent - a.intelligence.price_spread_percent
-    )
+    .sort((a, b) => b.intelligence.price_spread_percent - a.intelligence.price_spread_percent)
     .slice(0, 10);
 
   return (
     <div className="space-y-6">
+
+      {/* Live price indicator strip */}
+      {isFromAPI && (
+        <div className="flex items-center justify-center gap-2 py-1.5 bg-green-50 rounded-xl border border-green-100">
+          <RefreshCw className={`w-3 h-3 text-green-600 ${isFetching ? "animate-spin" : ""}`} />
+          <span className="text-[11px] font-semibold text-green-700">
+            {isFetching ? "Refreshing live prices…" : `${products.length} products with live prices`}
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        </div>
+      )}
+
       {/* Trending Now */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <SectionHeader
@@ -126,8 +185,9 @@ export function HomeProductSections() {
           title="Trending Now"
           subtitle="Most searched products"
           href="/search"
+          live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={trendingNow} />}
+        {isLoading ? <SkeletonRow /> : <ProductRow products={trendingNow} loading={isFetching} />}
       </div>
 
       {/* Best Deals */}
@@ -138,8 +198,9 @@ export function HomeProductSections() {
             title="Best Deals Today"
             subtitle="Biggest savings across all platforms"
             href="/search?sort=discount"
+            live={isFromAPI}
           />
-          {isLoading ? <SkeletonRow /> : <ProductRow products={bestDeals} />}
+          {isLoading ? <SkeletonRow /> : <ProductRow products={bestDeals} loading={isFetching} />}
         </div>
       )}
 
@@ -150,8 +211,9 @@ export function HomeProductSections() {
           title="Fastest Delivery"
           subtitle="Get it in 10 minutes"
           href="/search?sort=fastest"
+          live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={fastestDelivery} />}
+        {isLoading ? <SkeletonRow /> : <ProductRow products={fastestDelivery} loading={isFetching} />}
       </div>
 
       {/* Highly Recommended */}
@@ -161,11 +223,12 @@ export function HomeProductSections() {
           title="Highly Recommended"
           subtitle="Highest savings potential when you compare"
           href="/search"
+          live={isFromAPI}
         />
-        {isLoading ? <SkeletonRow /> : <ProductRow products={highlyRecommended} />}
+        {isLoading ? <SkeletonRow /> : <ProductRow products={highlyRecommended} loading={isFetching} />}
       </div>
 
-      {/* ── Shop by Category ── */}
+      {/* Shop by Category divider */}
       <div className="flex items-center gap-3 py-2">
         <div className="flex-1 h-px bg-surface-200" />
         <span className="text-[11px] font-bold text-surface-400 uppercase tracking-widest whitespace-nowrap">
@@ -174,16 +237,14 @@ export function HomeProductSections() {
         <div className="flex-1 h-px bg-surface-200" />
       </div>
 
+      {/* Category rows */}
       {CATEGORY_SECTIONS.map(({ slug, label }) => {
-        // For API products, filter by category slug; for mock, use helper
         const categoryProducts =
           apiProducts && apiProducts.length > 0
-            ? apiProducts
-                .filter((p) => p.category?.slug === slug)
-                .slice(0, 10)
+            ? apiProducts.filter((p) => p.category?.slug === slug).slice(0, 10)
             : getProductsByCategory(slug);
 
-        if (categoryProducts.length === 0) return null;
+        if (categoryProducts.length === 0 && !isLoading) return null;
 
         const [emoji, ...words] = label.split(" ");
         const colors = CAT_COLORS[slug] ?? { bg: "#f5f5f5", text: "#525252" };
@@ -202,7 +263,10 @@ export function HomeProductSections() {
               title={words.join(" ")}
               href={`/search?category=${slug}`}
             />
-            {isLoading ? <SkeletonRow /> : <ProductRow products={categoryProducts} />}
+            {isLoading
+              ? <SkeletonRow />
+              : <ProductRow products={categoryProducts} loading={isFetching} />
+            }
           </div>
         );
       })}
