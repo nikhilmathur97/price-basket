@@ -29,8 +29,10 @@ export const metadata: Metadata = {
     locale: "en_IN",
   },
   icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icon.svg",
   },
 };
 
