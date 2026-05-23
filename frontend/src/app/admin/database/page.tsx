@@ -110,10 +110,14 @@ export default function AdminDatabasePage() {
     "overview" | "users" | "products" | "platforms" | "prices" | "carts" | "events"
   >("overview");
 
-  const { data, isLoading, refetch, isFetching } = useQuery<DbOverview>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<DbOverview>({
     queryKey: ["admin-db-overview"],
-    queryFn: async () => (await api.getAdminDbOverview()).data,
+    queryFn: async () => {
+      const res = await api.getAdminDbOverview();
+      return res.data;
+    },
     staleTime: 60_000,
+    retry: 1,
   });
 
   if (isLoading) {
@@ -122,6 +126,27 @@ export default function AdminDatabasePage() {
         {[...Array(6)].map((_, i) => (
           <div key={i} className="card p-5 h-24 animate-pulse bg-surface-50" />
         ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    const msg = (error as { response?: { data?: { detail?: string }; status?: number } })?.response?.data?.detail
+      ?? (error as Error)?.message
+      ?? "Unknown error";
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    return (
+      <div className="card p-8 text-center space-y-3">
+        <p className="text-2xl">⚠️</p>
+        <p className="font-bold text-surface-800">Failed to load database overview</p>
+        <p className="text-sm text-rose-600 font-mono bg-rose-50 rounded-lg px-4 py-2 inline-block">
+          {status ? `HTTP ${status}: ` : ""}{msg}
+        </p>
+        <div>
+          <button onClick={() => refetch()} className="btn-ghost text-sm mt-2 flex items-center gap-1.5 mx-auto">
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
       </div>
     );
   }
