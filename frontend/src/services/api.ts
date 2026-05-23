@@ -4,10 +4,10 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 
-// Direct calls to the backend — no Next.js proxy needed.
-// NEXT_PUBLIC_API_URL is baked in at build time (set in Vercel project env).
-// Falls back to localhost for local dev.
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Routes through the Next.js proxy (/api/v1/[...path]) when no explicit URL is set.
+// This avoids CORS entirely — the proxy calls Render server-to-server.
+// For local dev, set NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local.
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const apiClient = axios.create({
   baseURL: `${BACKEND}/api/v1`,
