@@ -6,7 +6,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, trackEvent } from "@/services/api";
-import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductSearchResult } from "@/types";
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -49,48 +48,27 @@ export function useSearch(initialQuery = "") {
     staleTime: 30_000,
   });
 
-  // Merge mock products into results so guests see the full catalogue.
-  // Mock products have slug IDs (never UUID) so there are no duplicate IDs.
+  // Return only real API results — no mock padding
   const results = useMemo((): ProductSearchResult | undefined => {
     if (!data) return undefined;
 
-    // Filter mock products by query (case-insensitive name / brand / category match)
-    const q = debouncedQuery.toLowerCase();
-    const filteredMocks = q
-      ? MOCK_PRODUCTS.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            (p.brand ?? "").toLowerCase().includes(q) ||
-            (p.category?.name ?? "").toLowerCase().includes(q)
-        )
-      : MOCK_PRODUCTS;
-
-    // Avoid duplicating products that already exist in the API result set
-    const apiIds = new Set(data.items.map((p) => p.id));
-    const uniqueMocks = filteredMocks.filter((p) => !apiIds.has(p.id));
-
-    // Sort merged list client-side when a sort other than "relevance" is chosen
-    const merged = [...data.items, ...uniqueMocks];
+    const items = [...data.items];
     if (sort === "price_asc") {
-      merged.sort(
+      items.sort(
         (a, b) =>
           (a.platform_prices?.[0]?.price ?? Infinity) -
           (b.platform_prices?.[0]?.price ?? Infinity)
       );
     } else if (sort === "price_desc") {
-      merged.sort(
+      items.sort(
         (a, b) =>
           (b.platform_prices?.[0]?.price ?? 0) -
           (a.platform_prices?.[0]?.price ?? 0)
       );
     }
 
-    return {
-      ...data,
-      items: merged,
-      total: data.total + uniqueMocks.length,
-    };
-  }, [data, debouncedQuery, sort]);
+    return { ...data, items };
+  }, [data, sort]);
 
   // Auto-suggestions (lighter query while typing)
   const { data: suggestions } = useQuery({

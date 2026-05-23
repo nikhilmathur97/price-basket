@@ -14,10 +14,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
-import { MOCK_PRODUCTS, CATEGORY_SECTIONS, getProductsByCategory } from "@/lib/mockData";
+import { CATEGORY_SECTIONS } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
 import Link from "next/link";
-import { Flame, Zap, Star, TrendingUp, ArrowRight, RefreshCw } from "lucide-react";
+import { Flame, Zap, Star, TrendingUp, ArrowRight, RefreshCw, PackageSearch } from "lucide-react";
 
 // ── Colour accents ─────────────────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; text: string }> = {
@@ -126,6 +126,21 @@ function SkeletonRow() {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+      <PackageSearch className="w-14 h-14 text-surface-300" />
+      <div>
+        <p className="text-base font-semibold text-surface-700">Products loading soon</p>
+        <p className="text-sm text-surface-400 mt-1">
+          Our team is scraping live prices from all platforms.<br />
+          Check back in a few minutes!
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function HomeProductSections() {
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
@@ -133,19 +148,14 @@ export function HomeProductSections() {
       const { data } = await api.getFeatured(60);
       return data ?? [];
     },
-    // Show mock data immediately while loading — zero-flash
-    placeholderData: MOCK_PRODUCTS,
-    staleTime: 300_000,       // 5 min before re-fetch
-    gcTime: 600_000,          // 10 min cache in memory
+    staleTime: 300_000,
+    gcTime: 600_000,
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 
-  // Always have data — either real API data or mock placeholder
-  const products: ProductWithPrices[] = (apiProducts && apiProducts.length > 0)
-    ? apiProducts
-    : MOCK_PRODUCTS;
-
-  const isFromAPI = apiProducts && apiProducts.length > 0 && !isLoading;
+  const products: ProductWithPrices[] = apiProducts ?? [];
+  const isFromAPI = products.length > 0 && !isLoading;
 
   // Derive sections
   const trendingNow = products.slice(0, 10);
@@ -163,6 +173,10 @@ export function HomeProductSections() {
   const highlyRecommended = [...products]
     .sort((a, b) => b.intelligence.price_spread_percent - a.intelligence.price_spread_percent)
     .slice(0, 10);
+
+  if (!isLoading && products.length === 0) {
+    return <EmptyState />;
+  }
 
   return (
     <div className="space-y-6">
@@ -239,10 +253,9 @@ export function HomeProductSections() {
 
       {/* Category rows */}
       {CATEGORY_SECTIONS.map(({ slug, label }) => {
-        const categoryProducts =
-          apiProducts && apiProducts.length > 0
-            ? apiProducts.filter((p) => p.category?.slug === slug).slice(0, 10)
-            : getProductsByCategory(slug);
+        const categoryProducts = products
+          .filter((p) => p.category?.slug === slug)
+          .slice(0, 10);
 
         if (categoryProducts.length === 0 && !isLoading) return null;
 

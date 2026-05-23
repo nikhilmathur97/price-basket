@@ -782,6 +782,69 @@ async def scrape_status(_admin=Depends(require_admin)):
     return _scrape_status
 
 
+# ── Scrape All Platforms ───────────────────────────────────────────────────────
+
+_scrape_all_status: dict = {"running": False, "last_result": None, "started_at": None, "progress": ""}
+
+
+@router.post("/scrape-all")
+async def trigger_full_scrape(
+    background_tasks: BackgroundTasks,
+    _admin=Depends(require_admin),
+):
+    """
+    Trigger a full multi-platform scrape + seed.
+    Seeds all platforms, categories, then scrapes Blinkit (primary)
+    + Zepto, BigBasket, Instamart, JioMart, Amazon for cross-platform prices.
+    Check progress via GET /admin/scrape-all-status.
+    """
+    if _scrape_all_status["running"]:
+        return {"status": "already_running", "started_at": _scrape_all_status["started_at"]}
+
+    _scrape_all_status["running"]    = True
+    _scrape_all_status["started_at"] = datetime.now(UTC).isoformat()
+    _scrape_all_status["last_result"] = None
+    _scrape_all_status["progress"]   = "starting"
+
+    async def _job():
+        try:
+            import subprocess, sys, os
+            script = os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "..", "..", "scripts", "seed_and_scrape_all.py"
+            )
+            script = os.path.abspath(script)
+            _scrape_all_status["progress"] = "running seed_and_scrape_all.py"
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=os.path.dirname(script),
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode() if stdout else ""
+            success = proc.returncode == 0
+            await cache_delete_pattern("featured:*")
+            _scrape_all_status["last_result"] = {
+                "success": success,
+                "returncode": proc.returncode,
+                "output_tail": output[-2000:] if output else "",
+            }
+            _scrape_all_status["progress"] = "done"
+        except Exception as exc:
+            _scrape_all_status["last_result"] = {"error": str(exc)}
+            _scrape_all_status["progress"] = "failed"
+        finally:
+            _scrape_all_status["running"] = False
+
+    background_tasks.add_task(_job)
+    return {"status": "started", "started_at": _scrape_all_status["started_at"]}
+
+
+@router.get("/scrape-all-status")
+async def scrape_all_status(_admin=Depends(require_admin)):
+    return _scrape_all_status
+
+
 # ── Seed ──────────────────────────────────────────────────────────────────────
 
 @router.post("/seed", status_code=200)
