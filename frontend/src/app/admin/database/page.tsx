@@ -110,7 +110,7 @@ export default function AdminDatabasePage() {
     "overview" | "users" | "products" | "platforms" | "prices" | "carts" | "events"
   >("overview");
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<DbOverview>({
+  const { data, isPending, isError, error, refetch, isFetching, status } = useQuery<DbOverview>({
     queryKey: ["admin-db-overview"],
     queryFn: async () => {
       const res = await api.getAdminDbOverview();
@@ -120,7 +120,8 @@ export default function AdminDatabasePage() {
     retry: 1,
   });
 
-  if (isLoading) {
+  // React Query v5: use isPending (not isLoading) — isLoading = isPending && isFetching
+  if (isPending) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
@@ -130,18 +131,21 @@ export default function AdminDatabasePage() {
     );
   }
 
-  if (isError) {
-    const msg = (error as { response?: { data?: { detail?: string }; status?: number } })?.response?.data?.detail
-      ?? (error as Error)?.message
-      ?? "Unknown error";
-    const status = (error as { response?: { status?: number } })?.response?.status;
+  if (isError || !data) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const errAny = error as any;
+    const httpStatus = errAny?.response?.status;
+    const detail = errAny?.response?.data?.detail ?? errAny?.message ?? "Unknown error";
+    const msg = typeof detail === "string" ? detail : JSON.stringify(detail);
+
     return (
       <div className="card p-8 text-center space-y-3">
         <p className="text-2xl">⚠️</p>
         <p className="font-bold text-surface-800">Failed to load database overview</p>
-        <p className="text-sm text-rose-600 font-mono bg-rose-50 rounded-lg px-4 py-2 inline-block">
-          {status ? `HTTP ${status}: ` : ""}{msg}
+        <p className="text-sm text-rose-600 font-mono bg-rose-50 rounded-lg px-4 py-2 inline-block max-w-md">
+          {httpStatus ? `HTTP ${httpStatus}: ` : ""}{msg}
         </p>
+        <p className="text-xs text-surface-400">Query status: <span className="font-mono">{status}</span></p>
         <div>
           <button onClick={() => refetch()} className="btn-ghost text-sm mt-2 flex items-center gap-1.5 mx-auto">
             <RefreshCw className="w-3.5 h-3.5" /> Retry
@@ -150,8 +154,6 @@ export default function AdminDatabasePage() {
       </div>
     );
   }
-
-  if (!data) return <div className="card p-10 text-center text-surface-400">No data returned.</div>;
 
   const TABS = [
     { id: "overview", label: "Overview" },
