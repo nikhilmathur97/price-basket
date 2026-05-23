@@ -17,10 +17,9 @@ from app.cache.redis_client import cache_delete_pattern
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth_middleware import require_admin
-from app.models.analytics import UserEvent
-from app.models.cart import Cart, CartItem, Wishlist, WishlistItem, RefreshToken
+from app.models.cart import Cart, CartItem
 from app.models.platform import Platform
-from app.models.price import PlatformPrice, PriceHistory, PriceAlert
+from app.models.price import PlatformPrice
 from app.models.product import Category, Product
 from app.models.user import User
 from app.schemas import PlatformOut
@@ -197,6 +196,10 @@ async def db_overview(
     _admin=Depends(require_admin),
 ):
     """Full database snapshot — every table, counts, and key aggregates."""
+    # Lazy imports so a missing model never crashes the whole admin router
+    from app.models.analytics import UserEvent
+    from app.models.cart import Wishlist, WishlistItem, RefreshToken
+    from app.models.price import PriceHistory, PriceAlert
 
     async def scalar(stmt):
         return (await db.execute(stmt)).scalar() or 0
