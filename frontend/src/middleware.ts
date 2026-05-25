@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AUTH_ROUTES = ["/auth/login", "/auth/signup"];
+// Short aliases users might type directly in the address bar
+const SHORT_ALIASES: Record<string, string> = {
+  "/login":    "/auth/login",
+  "/signin":   "/auth/login",
+  "/signup":   "/auth/signup",
+  "/register": "/auth/signup",
+  "/logout":   "/",
+};
+
+// The real auth pages (after alias resolution)
+const AUTH_PAGES = ["/auth/login", "/auth/signup"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const hasSession = req.cookies.has("pb_refresh_token");
 
-  // Only intercept auth pages
-  if (!AUTH_ROUTES.some((r) => pathname.startsWith(r))) {
-    return NextResponse.next();
+  // 1. Short alias typed directly (e.g. /login, /signup)
+  //    → logged-in users go home; guests go to the real auth page
+  if (SHORT_ALIASES[pathname]) {
+    const destination = hasSession ? "/" : SHORT_ALIASES[pathname];
+    return NextResponse.redirect(new URL(destination, req.url));
   }
 
-  // If the refresh-token cookie is present the user has an active session.
-  // Redirect them to home — no need to show the login/signup form.
-  const hasSession = req.cookies.has("pb_refresh_token");
-  if (hasSession) {
+  // 2. Real auth pages (/auth/login, /auth/signup)
+  //    → logged-in users go home
+  if (AUTH_PAGES.some((p) => pathname.startsWith(p)) && hasSession) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
@@ -21,5 +33,14 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/auth/login", "/auth/signup"],
+  // Match both the real auth pages and the short aliases
+  matcher: [
+    "/auth/login",
+    "/auth/signup",
+    "/login",
+    "/signin",
+    "/signup",
+    "/register",
+    "/logout",
+  ],
 };
