@@ -64,7 +64,7 @@ const FAQ: QA[] = [
   },
   {
     question: "I found a bug or have feedback",
-    answer: "We love feedback! 💌 Please email us at support@pricebasket.in or use the contact form. We read every message and fix bugs fast. Thank you for helping us improve! 🙏",
+    answer: "We love feedback! 💌 Please email us at founder@pricebasket.in or use the contact form. We read every message and fix bugs fast. Thank you for helping us improve! 🙏",
   },
   {
     question: "Which city is PriceBasket available in?",
@@ -255,7 +255,7 @@ export function ChatBot() {
       from: "bot",
       text: matched
         ? matched.answer
-        : "Hmm, I didn't quite catch that! 🤔\nTry tapping one of the quick questions below, or email us at support@pricebasket.in — we'll reply fast! 💌",
+        : "Hmm, I didn't quite catch that! 🤔\nTry tapping one of the quick questions below, or email us at founder@pricebasket.in — we'll reply fast! 💌",
     };
 
     setMessages((m) => [...m, userMsg, botReply]);
