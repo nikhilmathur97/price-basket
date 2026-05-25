@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Zap } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import toast from "react-hot-toast";
@@ -99,9 +100,7 @@ export default function SignupPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-brand-600 rounded-2xl flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white fill-white" />
-            </div>
+            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} className="w-[52px] h-[52px] object-contain" priority />
             <span className="text-2xl font-bold">
               Price<span className="text-brand-600">Basket</span>
             </span>

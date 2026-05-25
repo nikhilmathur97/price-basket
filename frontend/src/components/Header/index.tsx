@@ -61,9 +61,9 @@ export function Header() {
             <Image
               src="/pricebasket-logo.png"
               alt="PriceBasket"
-              width={62}
-              height={62}
-              className="w-[62px] h-[62px] object-contain"
+              width={72}
+              height={72}
+              className="w-[72px] h-[72px] object-contain"
               priority
             />
             <div className="hidden sm:block leading-tight">
