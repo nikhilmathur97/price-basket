@@ -53,21 +53,7 @@ export const useCartStore = create<CartState>()(
         set({ isLoading: true });
         try {
           const { data } = await api.getCart();
-          // Preserve any local mock items that aren't in the DB
-          const mockItems = (get().cart?.items ?? []).filter((i) =>
-            i.id.startsWith("mock_")
-          );
-          const merged: Cart =
-            mockItems.length > 0
-              ? {
-                  ...data,
-                  items: [...mockItems, ...data.items],
-                  total_items:
-                    data.total_items +
-                    mockItems.reduce((s, i) => s + i.quantity, 0),
-                }
-              : data;
-          set({ cart: merged, totalItems: merged.total_items, isLoading: false });
+          set({ cart: data, totalItems: data.total_items, isLoading: false });
         } catch {
           set({ isLoading: false });
         }
@@ -179,7 +165,10 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "pb_cart_meta",
-      partialize: (state) => ({ totalItems: state.totalItems, cart: state.cart }),
+      // Only persist the badge count — never the cart items themselves.
+      // Persisting cart items causes stale products/prices to appear for new
+      // users or after switching accounts, because localStorage outlives the session.
+      partialize: (state) => ({ totalItems: state.totalItems }),
       onRehydrateStorage: () => (state) => {
         state?._setHasHydrated();
       },

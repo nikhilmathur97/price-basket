@@ -1,50 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
+import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
 function getSignupErrorMessage(err: any): string {
-  // No response at all → backend is not reachable / Next.js proxy failed
   if (!err?.response) {
     return err?.message === "Network Error"
       ? "Cannot reach server — backend may be down. Please try again."
       : (err?.message ?? "Registration failed");
   }
-
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
-
   if (status === 409) return "Email already registered. Try signing in instead.";
   if (status === 502 || status === 503) return "Service unavailable — backend is not running. Please try again later.";
   if (status === 500) return "Server error — database may not be set up. Contact support.";
-
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     const first = detail[0];
     if (first?.msg) return first.msg.replace(/^Value error, /i, "");
   }
-
   return `Registration failed (HTTP ${status})`;
 }
 
 export default function SignupPage() {
   const router = useRouter();
   const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Block the form until hydration is confirmed, then redirect if already signed in
-  if (!hasHydrated) return null;
-  if (isAuthenticated) {
-    router.replace("/");
-    return null;
+  // Redirect via useEffect — never call router during render (causes 404 in Next.js 14)
+  useEffect(() => {
+    if (hasHydrated && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [hasHydrated, isAuthenticated, router]);
+
+  // Show loader while hydrating OR while already authenticated (redirect pending)
+  if (!hasHydrated || isAuthenticated) {
+    return <PageLoader message="Loading" />;
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -52,46 +55,31 @@ export default function SignupPage() {
     const trimmedName = form.full_name.trim();
     const normalizedEmail = form.email.trim().toLowerCase();
 
-    if (!trimmedName) {
-      toast.error("Full name is required");
-      return;
-    }
-    if (form.password !== form.confirm) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    if (form.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    if (!/[A-Z]/.test(form.password)) {
-      toast.error("Password must contain at least one uppercase letter");
-      return;
-    }
-    if (!/\d/.test(form.password)) {
-      toast.error("Password must contain at least one number");
-      return;
-    }
+    if (!trimmedName) { toast.error("Full name is required"); return; }
+    if (form.password !== form.confirm) { toast.error("Passwords do not match"); return; }
+    if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (!/[A-Z]/.test(form.password)) { toast.error("Password must contain at least one uppercase letter"); return; }
+    if (!/\d/.test(form.password)) { toast.error("Password must contain at least one number"); return; }
 
     setLoading(true);
     try {
-      await api.register({
-        email: normalizedEmail,
-        password: form.password,
-        full_name: trimmedName,
-      });
-      // Auto-login after registration
+      await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
       const { data } = await api.login({ email: normalizedEmail, password: form.password });
       setAccessToken(data.access_token);
       const { data: user } = await api.me();
       setUser(user);
+      resetCart();
+      fetchCart().catch(() => {});
       toast.success(`Welcome to Price Basket, ${user.full_name ?? "there"}!`);
       window.location.href = "/";
     } catch (err: any) {
       toast.error(getSignupErrorMessage(err));
-    } finally {
       setLoading(false);
     }
+  }
+
+  if (loading) {
+    return <PageLoader message="Creating your account" />;
   }
 
   return (
@@ -115,9 +103,7 @@ export default function SignupPage() {
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Full Name
-              </label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Full Name</label>
               <input
                 type="text"
                 required
@@ -130,9 +116,7 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
               <input
                 type="email"
                 required
@@ -145,9 +129,7 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Password
-              </label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Password</label>
               <div className="relative">
                 <input
                   type={showPw ? "text" : "password"}
@@ -170,9 +152,7 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Confirm Password
-              </label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Confirm Password</label>
               <input
                 type={showPw ? "text" : "password"}
                 required
@@ -196,10 +176,10 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={loading || (!!form.confirm && form.confirm !== form.password)}
+              disabled={!!form.confirm && form.confirm !== form.password}
               className="btn-primary w-full"
             >
-              {loading ? "Creating account..." : "Create Account"}
+              Create Account
             </button>
           </form>
 

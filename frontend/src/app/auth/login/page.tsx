@@ -1,27 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
+import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Block the form until hydration is confirmed, then redirect if already signed in
-  if (!hasHydrated) return null;
-  if (isAuthenticated) {
-    router.replace("/");
-    return null;
+  // Redirect via useEffect — never call router during render (causes 404 in Next.js 14)
+  useEffect(() => {
+    if (hasHydrated && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [hasHydrated, isAuthenticated, router]);
+
+  // Show loader while hydrating OR while already authenticated (redirect pending)
+  if (!hasHydrated || isAuthenticated) {
+    return <PageLoader message="Loading" />;
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -32,6 +40,9 @@ export default function LoginPage() {
       setAccessToken(data.access_token);
       const { data: user } = await api.me();
       setUser(user);
+      // Clear any stale cart from a previous session, then fetch this user's cart
+      resetCart();
+      fetchCart().catch(() => {});
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
@@ -39,9 +50,12 @@ export default function LoginPage() {
     } catch (err: any) {
       const detail = err?.response?.data?.detail ?? "Login failed";
       toast.error(detail);
-    } finally {
       setLoading(false);
     }
+  }
+
+  if (loading) {
+    return <PageLoader message="Signing you in" />;
   }
 
   return (
@@ -105,10 +119,9 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
               className="btn-primary w-full"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              Sign In
             </button>
           </form>
 

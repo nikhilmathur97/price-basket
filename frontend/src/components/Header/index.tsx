@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
-import { ShoppingCart, ChevronDown, LogOut, User, Bell, Package, Settings } from "lucide-react";
+import { ShoppingCart, LogOut, User, Bell, Package, Settings } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { SearchBar } from "@/components/SearchBar";
 import { LocationBar } from "@/components/LocationBar";
+import { PageLoader } from "@/components/PageLoader";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -18,16 +19,16 @@ export function Header() {
   const { totalItems, openCart, resetCart } = useCartStore();
   const { isAuthenticated, user, logout, hasHydrated } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
-    // Revoke the server-side refresh-token cookie first, then clear local state.
-    // Fire-and-forget — even if the API call fails we still clear local state.
+    setMenuOpen(false);
+    setLoggingOut(true);
     try { await api.logout(); } catch { /* ignore */ }
     logout();
     resetCart();
     toast("See you soon! 👋", { duration: 1500 });
-    setMenuOpen(false);
-    setTimeout(() => window.location.replace("/"), 300);
+    window.location.replace("/");
   }
 
   function handleCartClick() {
@@ -48,6 +49,10 @@ export function Header() {
       ? [{ href: "/admin", icon: Settings, label: "Admin Dashboard" }]
       : []),
   ] as const;
+
+  if (loggingOut) {
+    return <PageLoader message="Signing you out" />;
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_1px_0_#f0f0f0]">
