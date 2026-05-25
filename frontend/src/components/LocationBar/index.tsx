@@ -143,20 +143,15 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl
                      hover:bg-surface-100 active:bg-surface-200
-                     transition-all group max-w-[180px] sm:max-w-[220px]"
+                     transition-all group min-w-0"
         >
           <MapPin className="w-4 h-4 text-brand-600 flex-shrink-0" />
-          <div className="text-left min-w-0 hidden sm:block">
-            <p className="text-[9px] text-surface-400 font-medium leading-none">
-              {label ? "Delivering to" : "Deliver to"}
-            </p>
-            <p className="text-[12px] font-bold text-surface-800 truncate leading-tight">
-              {label ?? "Set location"}
-            </p>
-          </div>
-          <ChevronDown className="w-3 h-3 text-surface-400 flex-shrink-0 hidden sm:block group-hover:translate-y-0.5 transition-transform" />
+          <span className="text-[11px] sm:text-[12px] font-bold text-surface-800 truncate max-w-[90px] sm:max-w-[140px]">
+            {label ?? "Set location"}
+          </span>
+          <ChevronDown className="w-3 h-3 text-surface-400 flex-shrink-0 group-hover:translate-y-0.5 transition-transform" />
         </button>
       )}
 

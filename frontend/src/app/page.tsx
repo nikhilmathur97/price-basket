@@ -68,10 +68,11 @@ export default function HomePage() {
               {/* ── Right: grocery basket image ── */}
               <div className="flex-shrink-0 self-center w-[140px] sm:w-[165px]">
                 <Image
-                  src="/hero-basket.png"
+                  src="/hero-basket.jpg"
                   alt="Grocery basket"
-                  width={165}
-                  height={165}
+                  width={330}
+                  height={330}
+                  sizes="(max-width: 640px) 140px, 165px"
                   className="w-full h-auto object-contain"
                   priority
                 />

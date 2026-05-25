@@ -14,7 +14,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
-import { PageLoader } from "@/components/PageLoader";
 import { CATEGORY_SECTIONS } from "@/lib/mockData";
 import type { ProductWithPrices } from "@/types";
 import Link from "next/link";
@@ -155,9 +154,18 @@ export function HomeProductSections() {
     retry: 1,
   });
 
-  // Show full branded loader while fetching for the first time (no cache)
+  // Show skeleton rows instantly while loading — never block the page
   if (isLoading) {
-    return <PageLoader message="Fetching live prices" />;
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i}>
+            <div className="h-5 w-40 bg-surface-200 rounded animate-pulse mb-3" />
+            <SkeletonRow />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   const products: ProductWithPrices[] = apiProducts ?? [];

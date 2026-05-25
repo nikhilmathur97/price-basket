@@ -63,6 +63,7 @@ export function Header() {
               alt="PriceBasket"
               width={64}
               height={64}
+              sizes="64px"
               className="w-[64px] h-[64px] object-contain flex-shrink-0"
               style={{ mixBlendMode: "multiply" }}
               priority
