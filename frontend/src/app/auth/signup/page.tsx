@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
@@ -40,12 +40,12 @@ export default function SignupPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already signed in
-  useEffect(() => {
-    if (hasHydrated && isAuthenticated) {
-      router.replace("/");
-    }
-  }, [hasHydrated, isAuthenticated, router]);
+  // Block the form until hydration is confirmed, then redirect if already signed in
+  if (!hasHydrated) return null;
+  if (isAuthenticated) {
+    router.replace("/");
+    return null;
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
