@@ -22,9 +22,6 @@ export function HeroAuthButton() {
             {user?.full_name?.[0]?.toUpperCase() ?? "U"}
           </span>
         </div>
-        <span className="hidden sm:block truncate max-w-[90px]">
-          Hi, {user?.full_name?.split(" ")[0] ?? "there"}
-        </span>
       </Link>
     );
   }

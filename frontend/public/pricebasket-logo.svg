@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 115" fill="none">
+
+  <!-- ── Handle (thick dark arch) ── -->
+  <path
+    d="M32 56 C32 18 98 18 98 56"
+    stroke="#1a1a1a"
+    stroke-width="11"
+    stroke-linecap="round"
+    fill="none"
+  />
+
+  <!-- ── Basket body (wide trapezoid) ── -->
+  <path
+    d="M12 56 L20 100 Q21 107 28 107 L102 107 Q109 107 110 100 L118 56 Z"
+    fill="#EA580C"
+  />
+
+  <!-- ── Three white vertical slot cutouts ── -->
+  <rect x="36" y="65" width="11" height="32" rx="5.5" fill="white"/>
+  <rect x="59" y="65" width="11" height="32" rx="5.5" fill="white"/>
+  <rect x="82" y="65" width="11" height="32" rx="5.5" fill="white"/>
+
+  <!-- ── Price tag ring (hooks onto handle) ── -->
+  <circle cx="98" cy="48" r="5.5" stroke="#1a1a1a" stroke-width="3.5" fill="none"/>
+
+  <!-- ── Price tag body (classic rounded-rectangle tag pointing down-right) ── -->
+  <!-- Tag is a rounded rect; bottom-left corner has a notch pointing down -->
+  <path
+    d="M96 54
+       L96 95 Q96 101 102 101
+       L124 101 Q130 101 130 95
+       L130 54 Q130 48 124 48
+       L102 48 Q96 48 96 54 Z"
+    fill="#EA580C"
+  />
+  <!-- Notch / pointer at bottom centre of tag -->
+  <path d="M96 95 L113 112 L130 95" fill="#EA580C"/>
+
+  <!-- ── Rupee ₹ on tag ── -->
+  <text
+    x="113"
+    y="84"
+    font-size="26"
+    fill="white"
+    font-weight="900"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, Arial, sans-serif"
+  >₹</text>
+
+</svg>

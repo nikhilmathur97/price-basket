@@ -9,10 +9,7 @@ export const runtime = "edge";
 
 // BACKEND_URL is set in Vercel project env; falls back to Render public URL.
 const BACKEND =
-  process.env.BACKEND_URL ??
-  (process.env.NODE_ENV === "production"
-    ? "https://pricebasket-api.onrender.com"
-    : "http://localhost:8000");
+  process.env.BACKEND_URL ?? "https://pricebasket-api.onrender.com";
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;

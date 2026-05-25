@@ -21,6 +21,7 @@ from app.models.cart import Cart, CartItem
 from app.models.platform import Platform
 from app.models.price import PlatformPrice
 from app.models.product import Category, Product
+from sqlalchemy import or_
 from app.models.user import User
 from app.schemas import PlatformOut
 
@@ -161,6 +162,93 @@ async def create_product(
     db.add(product)
     await db.flush()
     return {"id": str(product.id), "slug": product.slug}
+
+
+# ── Amazon Affiliate Price Management ────────────────────────────────────────
+
+class AmazonPriceUpsert(BaseModel):
+    price: float
+    mrp: float
+    asin: str
+    image_url: Optional[str] = None
+    affiliate_link: str   # amzn.to/... from SiteStripe
+
+
+@router.get("/products/search")
+async def search_products_admin(
+    q: str = Query("", min_length=0),
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Search products by name/brand for the admin Amazon price tool."""
+    stmt = select(Product).where(Product.is_active.is_(True))
+    if q.strip():
+        stmt = stmt.where(
+            or_(Product.name.ilike(f"%{q}%"), Product.brand.ilike(f"%{q}%"))
+        )
+    stmt = stmt.limit(limit).order_by(Product.name)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [
+        {"id": str(p.id), "slug": p.slug, "name": p.name, "brand": p.brand, "unit": p.unit}
+        for p in rows
+    ]
+
+
+@router.post("/products/{product_slug}/amazon")
+async def upsert_amazon_price(
+    product_slug: str,
+    body: AmazonPriceUpsert,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Manually set Amazon affiliate price for a product (bypasses scraper)."""
+    product = (await db.execute(select(Product).where(Product.slug == product_slug))).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Product '{product_slug}' not found")
+
+    amazon = (await db.execute(select(Platform).where(Platform.slug == "amazon"))).scalar_one_or_none()
+    if not amazon:
+        raise HTTPException(status_code=404, detail="Amazon platform not seeded — run seed_platforms.py first")
+
+    discount = round(((body.mrp - body.price) / body.mrp) * 100, 1) if body.mrp > body.price else 0.0
+
+    existing = (await db.execute(
+        select(PlatformPrice).where(
+            and_(PlatformPrice.product_id == product.id, PlatformPrice.platform_id == amazon.id)
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        existing.price = body.price
+        existing.original_price = body.mrp
+        existing.discount_percent = discount
+        existing.discount_label = f"{int(discount)}% OFF" if discount >= 1 else None
+        existing.platform_product_id = body.asin
+        existing.platform_product_url = body.affiliate_link
+        existing.platform_image_url = body.image_url
+        existing.is_available = True
+        existing.delivery_time_minutes = 120
+        existing.source = "manual"
+    else:
+        db.add(PlatformPrice(
+            product_id=product.id,
+            platform_id=amazon.id,
+            price=body.price,
+            original_price=body.mrp,
+            discount_percent=discount,
+            discount_label=f"{int(discount)}% OFF" if discount >= 1 else None,
+            platform_product_id=body.asin,
+            platform_product_url=body.affiliate_link,
+            platform_image_url=body.image_url,
+            is_available=True,
+            delivery_time_minutes=120,
+            source="manual",
+        ))
+
+    await db.commit()
+    await cache_delete_pattern(f"prices:{product.id}*")
+    return {"status": "saved", "product_slug": product.slug, "asin": body.asin, "price": body.price, "discount": discount}
 
 
 # ── Dashboard Stats ───────────────────────────────────────────────────────────
