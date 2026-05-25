@@ -29,7 +29,7 @@ export default function HomePage() {
       {/* ── Hero poster ── */}
       <div className="px-3 pt-2 pb-2">
         <div className="max-w-screen-xl mx-auto">
-          <div className="relative overflow-hidden rounded-3xl px-5 py-5 shadow-lg" style={{ backgroundColor: "#FF5500" }}>
+          <div className="relative overflow-hidden rounded-3xl px-5 py-5 shadow-lg" style={{ backgroundColor: "#FC5A01" }}>
 
             <div className="flex items-center gap-2">
               {/* ── Left: text content ── */}

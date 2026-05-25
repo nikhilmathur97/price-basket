@@ -50,7 +50,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} className="w-[52px] h-[52px] object-contain" priority />
+            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} className="w-[52px] h-[52px] object-contain" style={{ mixBlendMode: "multiply" }} priority />
             <span className="text-2xl font-bold">
               Price<span className="text-brand-600">Basket</span>
             </span>

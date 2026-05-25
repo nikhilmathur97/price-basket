@@ -54,16 +54,17 @@ export function Header() {
       <div className="max-w-screen-xl mx-auto px-4">
 
         {/* ── Row 1: Logo + Location + Search + Auth — all in one line ── */}
-        <div className="flex items-center h-16 gap-3">
+        <div className="flex items-center h-[72px] gap-3">
 
           {/* Logo + brand name */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             <Image
               src="/pricebasket-logo.png"
               alt="PriceBasket"
-              width={72}
-              height={72}
-              className="w-[72px] h-[72px] object-contain"
+              width={64}
+              height={64}
+              className="w-[64px] h-[64px] object-contain flex-shrink-0"
+              style={{ mixBlendMode: "multiply" }}
               priority
             />
             <div className="hidden sm:block leading-tight">
