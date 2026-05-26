@@ -9,7 +9,7 @@ Product & Search API
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -243,30 +243,11 @@ async def search_products(
     return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
 
 
-@router.get("/search", response_model=ProductSearchResult)
-async def search_products_alias(
-    q: Optional[str] = Query(default=None),
-    category_slug: Optional[str] = Query(default=None),
-    platform_slug: Optional[str] = Query(default=None),
-    min_price: Optional[float] = Query(default=None, ge=0),
-    max_price: Optional[float] = Query(default=None, ge=0),
-    sort: str = Query(default="relevance", enum=["relevance", "price_asc", "price_desc", "fastest"]),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-):
-    """Alias for GET /products — supports /products/search?q=... pattern."""
-    return await search_products(
-        q=q,
-        category_slug=category_slug,
-        platform_slug=platform_slug,
-        min_price=min_price,
-        max_price=max_price,
-        sort=sort,
-        page=page,
-        page_size=page_size,
-        db=db,
-    )
+@router.get("/search")
+async def search_products_alias(request: Request):
+    """Redirect /products/search?... → /products?... for API consumers."""
+    new_url = str(request.url).replace("/products/search", "/products", 1)
+    return RedirectResponse(url=new_url, status_code=307)
 
 
 async def _refresh_prices_background(product_id: uuid.UUID) -> None:
