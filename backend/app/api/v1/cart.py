@@ -152,6 +152,7 @@ async def add_item(
         db.add(item)
 
     await db.flush()
+    db.expire_all()
     cart = await _load_cart(db, cart.id)
     return CartOut(
         id=cart.id,

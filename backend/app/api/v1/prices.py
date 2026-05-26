@@ -19,6 +19,58 @@ from app.services.price_engine import PriceEngine
 router = APIRouter()
 
 
+# ── Price Alerts (must be BEFORE /{product_id} wildcard) ─────────────────────
+
+@router.get("/alerts/me", response_model=List[PriceAlertOut])
+async def list_my_alerts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(PriceAlert)
+        .where(PriceAlert.user_id == current_user.id, PriceAlert.is_active == True)  # noqa
+        .options(selectinload(PriceAlert.product))
+    )
+    return result.scalars().all()
+
+
+@router.post("/alerts", response_model=PriceAlertOut, status_code=201)
+async def create_alert(
+    body: PriceAlertCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    alert = PriceAlert(
+        user_id=current_user.id,
+        product_id=body.product_id,
+        target_price=body.target_price,
+    )
+    db.add(alert)
+    await db.flush()
+    await db.refresh(alert, ["product"])
+    return alert
+
+
+@router.delete("/alerts/{alert_id}", status_code=204)
+async def delete_alert(
+    alert_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(PriceAlert).where(
+            PriceAlert.id == alert_id,
+            PriceAlert.user_id == current_user.id,
+        )
+    )
+    alert = result.scalar_one_or_none()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    await db.delete(alert)
+
+
+# ── Per-product routes (wildcard /{product_id} must be LAST) ─────────────────
+
 @router.get("/{product_id}", response_model=List[PlatformPriceOut])
 async def get_product_prices(
     product_id: uuid.UUID,
@@ -90,53 +142,3 @@ async def get_price_history(
         }
         for h in history
     ]
-
-
-# ── Price Alerts ──────────────────────────────────────────────────────────────
-
-@router.get("/alerts/me", response_model=List[PriceAlertOut])
-async def list_my_alerts(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(PriceAlert)
-        .where(PriceAlert.user_id == current_user.id, PriceAlert.is_active == True)  # noqa
-        .options(selectinload(PriceAlert.product))
-    )
-    return result.scalars().all()
-
-
-@router.post("/alerts", response_model=PriceAlertOut, status_code=201)
-async def create_alert(
-    body: PriceAlertCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    alert = PriceAlert(
-        user_id=current_user.id,
-        product_id=body.product_id,
-        target_price=body.target_price,
-    )
-    db.add(alert)
-    await db.flush()
-    await db.refresh(alert, ["product"])
-    return alert
-
-
-@router.delete("/alerts/{alert_id}", status_code=204)
-async def delete_alert(
-    alert_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(PriceAlert).where(
-            PriceAlert.id == alert_id,
-            PriceAlert.user_id == current_user.id,
-        )
-    )
-    alert = result.scalar_one_or_none()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
-    await db.delete(alert)

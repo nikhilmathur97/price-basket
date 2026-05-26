@@ -243,6 +243,32 @@ async def search_products(
     return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
 
 
+@router.get("/search", response_model=ProductSearchResult)
+async def search_products_alias(
+    q: Optional[str] = Query(default=None),
+    category_slug: Optional[str] = Query(default=None),
+    platform_slug: Optional[str] = Query(default=None),
+    min_price: Optional[float] = Query(default=None, ge=0),
+    max_price: Optional[float] = Query(default=None, ge=0),
+    sort: str = Query(default="relevance", enum=["relevance", "price_asc", "price_desc", "fastest"]),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for GET /products — supports /products/search?q=... pattern."""
+    return await search_products(
+        q=q,
+        category_slug=category_slug,
+        platform_slug=platform_slug,
+        min_price=min_price,
+        max_price=max_price,
+        sort=sort,
+        page=page,
+        page_size=page_size,
+        db=db,
+    )
+
+
 async def _refresh_prices_background(product_id: uuid.UUID) -> None:
     """Fire-and-forget price refresh — runs after response is sent."""
     from app.database import AsyncSessionLocal
