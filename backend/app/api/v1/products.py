@@ -176,7 +176,6 @@ async def featured_products(
 
 
 @router.get("", response_model=ProductSearchResult)
-@router.get("/search", response_model=ProductSearchResult)
 async def search_products(
     q: Optional[str] = Query(default=None, description="Search query"),
     category_slug: Optional[str] = Query(default=None),
@@ -242,6 +241,11 @@ async def search_products(
         )
 
     return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
+
+
+# Register /search as a concrete path alias — must appear in router.routes BEFORE /{product_id}
+# so Starlette matches it before the UUID wildcard.
+router.add_api_route("/search", search_products, response_model=ProductSearchResult, methods=["GET"])
 
 
 async def _refresh_prices_background(product_id: uuid.UUID) -> None:

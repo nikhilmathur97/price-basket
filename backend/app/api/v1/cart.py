@@ -152,14 +152,24 @@ async def add_item(
         db.add(item)
 
     await db.flush()
-    db.expire_all()
-    cart = await _load_cart(db, cart.id)
+    # Query items directly to bypass identity-map cache — the Cart.items collection
+    # loaded earlier by _get_or_create_cart doesn't reflect the new/updated item.
+    items_result = await db.execute(
+        select(CartItem)
+        .where(CartItem.cart_id == cart.id)
+        .options(
+            selectinload(CartItem.product).selectinload(Product.category),
+            selectinload(CartItem.selected_platform),
+        )
+    )
+    items = items_result.scalars().all()
+    cart_row = (await db.execute(select(Cart).where(Cart.id == cart.id))).scalar_one()
     return CartOut(
-        id=cart.id,
-        items=[CartItemOut.model_validate(i) for i in cart.items],
-        total_items=sum(i.quantity for i in cart.items),
-        created_at=cart.created_at,
-        updated_at=cart.updated_at,
+        id=cart_row.id,
+        items=[CartItemOut.model_validate(i) for i in items],
+        total_items=sum(i.quantity for i in items),
+        created_at=cart_row.created_at,
+        updated_at=cart_row.updated_at,
     )
 
 
