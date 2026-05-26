@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.models.price import PlatformPrice, PriceAlert, PriceHistory
+from app.models.product import Category, Product
 from app.models.user import User
 from app.schemas import PlatformOut, PlatformPriceOut, PriceAlertCreate, PriceAlertOut
 from app.services.price_engine import PriceEngine
@@ -29,7 +30,7 @@ async def list_my_alerts(
     result = await db.execute(
         select(PriceAlert)
         .where(PriceAlert.user_id == current_user.id, PriceAlert.is_active == True)  # noqa
-        .options(selectinload(PriceAlert.product))
+        .options(selectinload(PriceAlert.product).selectinload(Product.category))
     )
     return result.scalars().all()
 
@@ -47,11 +48,12 @@ async def create_alert(
     )
     db.add(alert)
     await db.flush()
-    # Re-query with eager load — db.refresh() doesn't work for relationships in async
+    # Re-query with eager load — db.refresh() doesn't work for relationships in async.
+    # Must also load product.category because ProductOut.category triggers lazy access.
     result = await db.execute(
         select(PriceAlert)
         .where(PriceAlert.id == alert.id)
-        .options(selectinload(PriceAlert.product))
+        .options(selectinload(PriceAlert.product).selectinload(Product.category))
     )
     return result.scalar_one()
 
