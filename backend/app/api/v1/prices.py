@@ -13,7 +13,7 @@ from app.database import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.models.price import PlatformPrice, PriceAlert, PriceHistory
 from app.models.user import User
-from app.schemas import PlatformOut, PlatformPriceOut, PriceAlertCreate, PriceAlertOut, ProductOut
+from app.schemas import PlatformOut, PlatformPriceOut, PriceAlertCreate, PriceAlertOut
 from app.services.price_engine import PriceEngine
 
 router = APIRouter()
@@ -47,8 +47,13 @@ async def create_alert(
     )
     db.add(alert)
     await db.flush()
-    await db.refresh(alert, ["product"])
-    return alert
+    # Re-query with eager load — db.refresh() doesn't work for relationships in async
+    result = await db.execute(
+        select(PriceAlert)
+        .where(PriceAlert.id == alert.id)
+        .options(selectinload(PriceAlert.product))
+    )
+    return result.scalar_one()
 
 
 @router.delete("/alerts/{alert_id}", status_code=204)
