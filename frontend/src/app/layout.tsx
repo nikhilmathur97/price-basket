@@ -8,6 +8,7 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { TopProgressBar } from "@/components/TopProgressBar";
 import { BottomNav } from "@/components/BottomNav";
 import { Footer } from "@/components/Footer";
+import { ChatBot } from "@/components/ChatBot";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Footer />
           <BottomNav />
           <CartDrawer />
+          <ChatBot />
           <Toaster
             position="top-center"
             containerStyle={{ zIndex: 999999 }}

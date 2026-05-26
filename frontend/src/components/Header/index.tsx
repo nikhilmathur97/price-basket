@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart, Zap, ChevronDown, LogOut, User, Bell, Package, Settings } from "lucide-react";
+import Image from "next/image";
+import { ShoppingCart, LogOut, User, Bell, Package, Settings } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { SearchBar } from "@/components/SearchBar";
 import { LocationBar } from "@/components/LocationBar";
+import { PageLoader } from "@/components/PageLoader";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -17,16 +19,16 @@ export function Header() {
   const { totalItems, openCart, resetCart } = useCartStore();
   const { isAuthenticated, user, logout, hasHydrated } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
-    // Revoke the server-side refresh-token cookie first, then clear local state.
-    // Fire-and-forget — even if the API call fails we still clear local state.
+    setMenuOpen(false);
+    setLoggingOut(true);
     try { await api.logout(); } catch { /* ignore */ }
     logout();
     resetCart();
     toast("See you soon! 👋", { duration: 1500 });
-    setMenuOpen(false);
-    setTimeout(() => window.location.replace("/"), 300);
+    window.location.replace("/");
   }
 
   function handleCartClick() {
@@ -48,32 +50,43 @@ export function Header() {
       : []),
   ] as const;
 
+  if (loggingOut) {
+    return <PageLoader message="Signing you out" />;
+  }
+
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_1px_0_#f0f0f0]">
       <div className="max-w-screen-xl mx-auto px-4">
 
-        {/* ── Row 1: Logo + Actions ── */}
-        <div className="flex items-center h-14 gap-3">
+        {/* ── Row 1: Logo + Location + Search + Auth — all in one line ── */}
+        <div className="flex items-center h-[72px] gap-3">
 
-          {/* Logo */}
+          {/* Logo + brand name */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Zap className="w-5 h-5 text-white fill-white" />
-            </div>
+            <Image
+              src="/pricebasket-logo.png"
+              alt="PriceBasket"
+              width={64}
+              height={64}
+              sizes="64px"
+              className="w-[64px] h-[64px] object-contain flex-shrink-0"
+              style={{ mixBlendMode: "multiply" }}
+              priority
+            />
             <div className="hidden sm:block leading-tight">
               <p className="text-[15px] font-extrabold text-surface-900 tracking-tight leading-none">
                 Price<span className="text-brand-600">Basket</span>
               </p>
-              <p className="text-[10px] text-surface-400 font-medium leading-none mt-0.5">
-                Compare 10 platforms
+              <p className="text-[9px] text-surface-400 font-semibold leading-none mt-0.5 tracking-wide uppercase">
+                Compare · Save · Smart
               </p>
             </div>
           </Link>
 
-          {/* Location picker — all screen sizes */}
+          {/* Location picker */}
           <LocationBar variant="header" />
 
-          {/* Search bar — desktop only (md+) */}
+          {/* Search bar — desktop only */}
           <div className="flex-1 hidden md:flex items-center max-w-2xl mx-4">
             <SearchBar />
           </div>
@@ -81,7 +94,7 @@ export function Header() {
           {/* Spacer — mobile */}
           <div className="flex-1 md:hidden" />
 
-          {/* Cart button — desktop only (BottomNav handles mobile) */}
+          {/* Cart — desktop only */}
           <button
             onClick={handleCartClick}
             aria-label="Cart"
@@ -102,9 +115,7 @@ export function Header() {
                 {totalItems > 9 ? "9+" : totalItems}
               </motion.span>
             )}
-            <span className="hidden sm:block text-sm font-semibold text-surface-700">
-              Cart
-            </span>
+            <span className="hidden sm:block text-sm font-semibold text-surface-700">Cart</span>
           </button>
 
           {/* Auth */}
@@ -112,53 +123,38 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-1.5 h-9 px-2 rounded-xl
+                className="flex items-center gap-1 h-10 px-1 rounded-xl
                            hover:bg-surface-100 active:bg-surface-200 transition-all"
               >
-                <div className="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xs font-extrabold">
+                <div className="w-10 h-10 bg-brand-600 rounded-full flex items-center justify-center shadow-sm">
+                  <span className="text-white text-sm font-extrabold">
                     {user?.full_name?.[0]?.toUpperCase() ?? "U"}
                   </span>
                 </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-surface-500 transition-transform hidden sm:block
-                              ${menuOpen ? "rotate-180" : ""}`}
-                />
               </button>
 
-              {/* Dropdown */}
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                   <div className="absolute right-0 top-full mt-2 w-52 bg-white
                                   rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)]
                                   border border-surface-100 py-2 z-20 overflow-hidden">
-                    {/* User info */}
                     <div className="px-4 py-3 border-b border-surface-100">
-                      <p className="text-sm font-bold text-surface-900 truncate">
-                        {user?.full_name ?? "User"}
-                      </p>
+                      <p className="text-sm font-bold text-surface-900 truncate">{user?.full_name ?? "User"}</p>
                       <p className="text-xs text-surface-400 truncate mt-0.5">{user?.email}</p>
                     </div>
-                    {/* Links */}
                     {menuLinks.map(({ href, icon: Icon, label }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        onClick={() => setMenuOpen(false)}
+                      <Link key={href} href={href} onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm
-                                   text-surface-700 hover:bg-surface-50 transition-colors"
-                      >
+                                   text-surface-700 hover:bg-surface-50 transition-colors">
                         <Icon className="w-4 h-4 text-surface-400" />
                         {label}
                       </Link>
                     ))}
                     <div className="border-t border-surface-100 mt-1 pt-1">
-                      <button
-                        onClick={handleLogout}
+                      <button onClick={handleLogout}
                         className="flex items-center gap-3 w-full px-4 py-2.5 text-sm
-                                   text-red-500 hover:bg-red-50 transition-colors"
-                      >
+                                   text-red-500 hover:bg-red-50 transition-colors">
                         <LogOut className="w-4 h-4" />
                         Sign Out
                       </button>
@@ -168,18 +164,16 @@ export function Header() {
               )}
             </div>
           ) : (
-            <Link
-              href="/auth/login"
+            <Link href="/auth/login"
               className="h-9 px-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.97]
                          text-white text-sm font-bold rounded-xl transition-all
-                         flex items-center whitespace-nowrap"
-            >
+                         flex items-center whitespace-nowrap">
               Login
             </Link>
           )}
         </div>
 
-        {/* ── Row 2: Search bar — mobile only (< md) ── */}
+        {/* ── Row 2: Search bar — mobile only ── */}
         <div className="pb-2.5 md:hidden">
           <SearchBar />
         </div>

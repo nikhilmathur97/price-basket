@@ -125,6 +125,7 @@ export const api = {
   getAdminStats: () => apiClient.get("/admin/stats"),
   getAdminUsers: (params?: { limit?: number; offset?: number }) =>
     apiClient.get("/admin/users", { params }),
+  getAdminUserCart: (userId: string) => apiClient.get(`/admin/users/${userId}/cart`),
   getAdminDailyLogins: (days = 7) => apiClient.get(`/admin/logins/daily?days=${days}`),
   getAdminPayments: () => apiClient.get("/admin/payments"),
   getAdminQueries: () => apiClient.get("/admin/queries"),
@@ -132,6 +133,11 @@ export const api = {
   setAdminPlatformActive: (platformId: string, isActive: boolean) =>
     apiClient.patch(`/admin/platforms/${platformId}?is_active=${isActive}`),
   getAdminDbOverview: () => apiClient.get("/admin/db-overview"),
+  searchAdminProducts: (q: string) =>
+    apiClient.get(`/admin/products/search?q=${encodeURIComponent(q)}`),
+  upsertAmazonPrice: (slug: string, data: {
+    price: number; mrp: number; asin: string; image_url?: string; affiliate_link: string;
+  }) => apiClient.post(`/admin/products/${slug}/amazon`, data),
 
   // Analytics (admin)
   getAnalyticsStats: (days = 7) => apiClient.get(`/analytics/stats?days=${days}`),

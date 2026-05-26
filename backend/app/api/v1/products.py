@@ -9,7 +9,7 @@ Product & Search API
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,6 +241,13 @@ async def search_products(
         )
 
     return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
+
+
+@router.get("/search")
+async def search_products_alias(request: Request):
+    """Redirect /products/search?... → /products?... for API consumers."""
+    new_url = str(request.url).replace("/products/search", "/products", 1)
+    return RedirectResponse(url=new_url, status_code=307)
 
 
 async def _refresh_prices_background(product_id: uuid.UUID) -> None:

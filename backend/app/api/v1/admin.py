@@ -21,6 +21,7 @@ from app.models.cart import Cart, CartItem
 from app.models.platform import Platform
 from app.models.price import PlatformPrice
 from app.models.product import Category, Product
+from sqlalchemy import or_
 from app.models.user import User
 from app.schemas import PlatformOut
 
@@ -161,6 +162,93 @@ async def create_product(
     db.add(product)
     await db.flush()
     return {"id": str(product.id), "slug": product.slug}
+
+
+# ── Amazon Affiliate Price Management ────────────────────────────────────────
+
+class AmazonPriceUpsert(BaseModel):
+    price: float
+    mrp: float
+    asin: str
+    image_url: Optional[str] = None
+    affiliate_link: str   # amzn.to/... from SiteStripe
+
+
+@router.get("/products/search")
+async def search_products_admin(
+    q: str = Query("", min_length=0),
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Search products by name/brand for the admin Amazon price tool."""
+    stmt = select(Product).where(Product.is_active.is_(True))
+    if q.strip():
+        stmt = stmt.where(
+            or_(Product.name.ilike(f"%{q}%"), Product.brand.ilike(f"%{q}%"))
+        )
+    stmt = stmt.limit(limit).order_by(Product.name)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [
+        {"id": str(p.id), "slug": p.slug, "name": p.name, "brand": p.brand, "unit": p.unit}
+        for p in rows
+    ]
+
+
+@router.post("/products/{product_slug}/amazon")
+async def upsert_amazon_price(
+    product_slug: str,
+    body: AmazonPriceUpsert,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Manually set Amazon affiliate price for a product (bypasses scraper)."""
+    product = (await db.execute(select(Product).where(Product.slug == product_slug))).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Product '{product_slug}' not found")
+
+    amazon = (await db.execute(select(Platform).where(Platform.slug == "amazon"))).scalar_one_or_none()
+    if not amazon:
+        raise HTTPException(status_code=404, detail="Amazon platform not seeded — run seed_platforms.py first")
+
+    discount = round(((body.mrp - body.price) / body.mrp) * 100, 1) if body.mrp > body.price else 0.0
+
+    existing = (await db.execute(
+        select(PlatformPrice).where(
+            and_(PlatformPrice.product_id == product.id, PlatformPrice.platform_id == amazon.id)
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        existing.price = body.price
+        existing.original_price = body.mrp
+        existing.discount_percent = discount
+        existing.discount_label = f"{int(discount)}% OFF" if discount >= 1 else None
+        existing.platform_product_id = body.asin
+        existing.platform_product_url = body.affiliate_link
+        existing.platform_image_url = body.image_url
+        existing.is_available = True
+        existing.delivery_time_minutes = 120
+        existing.source = "manual"
+    else:
+        db.add(PlatformPrice(
+            product_id=product.id,
+            platform_id=amazon.id,
+            price=body.price,
+            original_price=body.mrp,
+            discount_percent=discount,
+            discount_label=f"{int(discount)}% OFF" if discount >= 1 else None,
+            platform_product_id=body.asin,
+            platform_product_url=body.affiliate_link,
+            platform_image_url=body.image_url,
+            is_available=True,
+            delivery_time_minutes=120,
+            source="manual",
+        ))
+
+    await db.commit()
+    await cache_delete_pattern(f"prices:{product.id}*")
+    return {"status": "saved", "product_slug": product.slug, "asin": body.asin, "price": body.price, "discount": discount}
 
 
 # ── Dashboard Stats ───────────────────────────────────────────────────────────
@@ -440,6 +528,85 @@ async def list_users(
         "limit": limit,
         "offset": offset,
         "items": rows,
+    }
+
+
+@router.get("/users/{user_id}/cart")
+async def get_user_cart_detail(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Return the active cart items for a specific user, including product and platform info."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    user_result = await db.execute(select(User).where(User.id == uid))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cart_result = await db.execute(
+        select(Cart).where(and_(Cart.user_id == uid, Cart.is_active.is_(True)))
+        .order_by(Cart.updated_at.desc())
+        .limit(1)
+    )
+    cart = cart_result.scalar_one_or_none()
+
+    if not cart:
+        return {
+            "user_id": user_id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "last_login_at": user.last_login_at,
+            "cart": None,
+            "items": [],
+            "total": 0.0,
+        }
+
+    items_result = await db.execute(
+        select(CartItem, Product, Platform)
+        .join(Product, CartItem.product_id == Product.id)
+        .outerjoin(Platform, CartItem.selected_platform_id == Platform.id)
+        .where(CartItem.cart_id == cart.id)
+    )
+    rows = items_result.all()
+
+    items = []
+    total = 0.0
+    for cart_item, product, platform in rows:
+        price = float(cart_item.snapshot_price or 0)
+        subtotal = price * cart_item.quantity
+        total += subtotal
+        items.append({
+            "item_id": str(cart_item.id),
+            "product_id": str(product.id),
+            "product_name": product.name,
+            "brand": product.brand,
+            "unit": product.unit,
+            "image_url": product.thumbnail_url or product.image_url,
+            "quantity": cart_item.quantity,
+            "price": price,
+            "subtotal": subtotal,
+            "platform": platform.name if platform else None,
+            "platform_slug": platform.slug if platform else None,
+            "added_at": cart_item.added_at,
+        })
+
+    return {
+        "user_id": user_id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "last_login_at": user.last_login_at,
+        "cart": {
+            "id": str(cart.id),
+            "created_at": cart.created_at,
+            "updated_at": cart.updated_at,
+        },
+        "items": items,
+        "total": round(total, 2),
     }
 
 
