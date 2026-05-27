@@ -1,15 +1,15 @@
 /**
  * Catch-all proxy: forwards every /api/v1/* request to the backend.
- * Runs on Vercel Edge Runtime — avoids Lambda SSRF/DNS restrictions
- * that block outbound calls to Render's IP range.
+ * Uses Node.js runtime — Edge Runtime blocks outbound calls to Render
+ * (DNS_HOSTNAME_RESOLVED_PRIVATE error).
  */
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
-// BACKEND_URL is set in Vercel project env; falls back to Render public URL.
+// BACKEND_URL is set in Vercel project env; falls back to custom domain (avoids Vercel SSRF block on .onrender.com IPs).
 const BACKEND =
-  process.env.BACKEND_URL ?? "https://pricebasket-api.onrender.com";
+  process.env.BACKEND_URL ?? "https://api.test2.pricebasket.in";
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
