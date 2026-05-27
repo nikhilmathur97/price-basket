@@ -920,3 +920,135 @@ async def create_admin(
     user.is_admin = True
     await db.commit()
     return {"status": "created", "email": user.email, "id": str(user.id)}
+
+
+# ── Load bundled scraped data ─────────────────────────────────────────────────
+
+@router.post("/load-scraped", status_code=200)
+async def load_scraped_data(
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """
+    Load the bundled scraped_prices.json (1,328 real products from Blinkit + Zepto)
+    into the database. Upserts products and platform_prices.
+    Protected by x-seed-key header.
+    Call once after deploy: POST /api/v1/setup/load-scraped
+    """
+    import json as _json
+    import os as _os
+    import re as _re
+    from datetime import timezone as _tz
+
+    # Find the data file relative to this module
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    _data_file = _os.path.join(_here, "..", "..", "data", "scraped_prices.json")
+    _data_file = _os.path.normpath(_data_file)
+
+    if not _os.path.exists(_data_file):
+        raise HTTPException(status_code=404, detail=f"Data file not found: {_data_file}")
+
+    with open(_data_file) as f:
+        items = _json.load(f)
+
+    def _slugify(text: str) -> str:
+        return _re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+    # Load all platforms
+    plat_res = await db.execute(select(Platform))
+    platforms = {p.slug: p for p in plat_res.scalars().all()}
+
+    # Load all categories
+    cat_res = await db.execute(select(Category))
+    categories = {c.slug: c for c in cat_res.scalars().all()}
+
+    fallback_cat = categories.get("snacks-drinks") or next(iter(categories.values()), None)
+
+    saved = 0
+    skipped = 0
+    now = datetime.now(_tz.utc)
+
+    for item in items:
+        platform = platforms.get(item.get("platform", ""))
+        if not platform:
+            skipped += 1
+            continue
+
+        name = (item.get("name") or "").strip()[:255]
+        price = float(item.get("price") or 0)
+        if not name or price <= 0:
+            skipped += 1
+            continue
+
+        mrp = float(item.get("mrp") or price)
+        image_url = item.get("image_url") or None
+        unit = (item.get("unit") or "")[:100]
+        query = item.get("query", "")
+
+        cat_slug = QUERY_TO_CATEGORY.get(query, "")
+        category = categories.get(cat_slug) or fallback_cat
+
+        prod_slug = _slugify(name)[:255]
+        res = await db.execute(select(Product).where(Product.slug == prod_slug))
+        product = res.scalar_one_or_none()
+        if not product:
+            product = Product(
+                id=uuid.uuid4(),
+                slug=prod_slug,
+                name=name,
+                unit=unit or None,
+                image_url=image_url,
+                thumbnail_url=image_url,
+                category_id=category.id if category else None,
+                is_active=True,
+                is_featured=False,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(product)
+            await db.flush()
+        else:
+            # Update image if missing
+            if image_url and not product.image_url:
+                product.image_url = image_url
+                product.thumbnail_url = image_url
+
+        # Upsert platform price
+        pp_res = await db.execute(
+            select(PlatformPrice).where(
+                PlatformPrice.product_id == product.id,
+                PlatformPrice.platform_id == platform.id,
+            )
+        )
+        pp = pp_res.scalar_one_or_none()
+        disc = round(((mrp - price) / mrp) * 100, 1) if mrp > price else 0.0
+        if pp:
+            pp.price = price
+            pp.original_price = mrp
+            pp.discount_percent = disc
+            pp.discount_label = f"{int(disc)}% OFF" if disc >= 1 else None
+            pp.is_available = True
+            pp.platform_image_url = image_url
+            pp.updated_at = now
+        else:
+            pp = PlatformPrice(
+                id=uuid.uuid4(),
+                product_id=product.id,
+                platform_id=platform.id,
+                price=price,
+                original_price=mrp,
+                discount_percent=disc,
+                discount_label=f"{int(disc)}% OFF" if disc >= 1 else None,
+                is_available=True,
+                platform_image_url=image_url,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(pp)
+        saved += 1
+
+    await db.commit()
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+
+    return {"status": "ok", "saved": saved, "skipped": skipped, "total": len(items)}
