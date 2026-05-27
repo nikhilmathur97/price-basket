@@ -196,10 +196,10 @@ export function ProductCard({ product, className }: ProductCardProps) {
             </div>
           </Link>
 
-          {/* ── Price + ADD row ── */}
-          <div className="flex items-end justify-between gap-2 mt-auto">
+          {/* ── Price + ADD row — fixed height so card never expands ── */}
+          <div className="flex items-center justify-between gap-2 mt-auto h-10">
             {/* Price */}
-            <div>
+            <div className="min-w-0">
               {cheapestPrice !== null && (
                 <p className="text-[15px] font-extrabold text-surface-900 leading-none">
                   ₹{cheapestPrice}
@@ -212,7 +212,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
               )}
             </div>
 
-            {/* ADD / Counter */}
+            {/* ADD / Counter — both states are h-8, so the row stays h-10 always */}
             <AnimatePresence mode="wait">
               {qty === 0 ? (
                 <motion.div
@@ -251,8 +251,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85 }}
                   transition={{ duration: 0.12 }}
-                  className="flex flex-col items-end gap-1 flex-shrink-0"
+                  className="flex items-center gap-1.5 flex-shrink-0"
                 >
+                  <button
+                    onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
+                    title="Compare platforms"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg
+                               border border-surface-200 text-brand-400
+                               hover:text-brand-600 hover:border-brand-500
+                               active:scale-[0.95] transition-all"
+                  >
+                    <BarChart2 className="w-3.5 h-3.5" />
+                  </button>
                   <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-8">
                     <button
                       onClick={handleDecrease}
@@ -270,12 +280,6 @@ export function ProductCard({ product, className }: ProductCardProps) {
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <button
-                    onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
-                    className="text-[10px] text-brand-600 hover:underline flex items-center gap-0.5"
-                  >
-                    <BarChart2 className="w-2.5 h-2.5" />compare
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

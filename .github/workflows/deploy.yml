@@ -1,17 +1,21 @@
 name: Deploy Price Basket
 
-#   dev  branch  →  Preview deploy  →  dev.pricebasket.in
-#   main branch  →  Production      →  pricebasket.in + Render backend
+#   dev  branch  →  Auto-deploy  →  dev.pricebasket.in  (on every push)
+#   main branch  →  Manual only  →  pricebasket.in + Render backend
+#
+#   To deploy to production:
+#     1. Go to Actions → "Deploy Price Basket" → "Run workflow"
+#     2. Select branch: main
+#     3. Click "Run workflow"
 
 on:
   push:
     branches:
-      - dev
-      - main
+      - dev          # ← only dev auto-deploys on push
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to deploy"
+        description: "Branch to deploy (use 'main' for production)"
         required: true
         default: "dev"
         type: choice
@@ -121,7 +125,7 @@ jobs:
   deploy-backend:
     name: "Backend → Render (main only)"
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.branch == 'main' || github.ref_name == 'main' }}
+    if: ${{ github.event.inputs.branch == 'main' }}
     outputs:
       deployed: ${{ steps.trigger.outputs.deployed }}
 
@@ -170,7 +174,10 @@ jobs:
           if [ "$BRANCH" = "main" ]; then
             echo "### ✅ Production deployed → pricebasket.in" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### Dev deployed → dev.pricebasket.in"       >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ Dev deployed → dev.pricebasket.in"    >> $GITHUB_STEP_SUMMARY
           fi
           echo "- Branch : \`$BRANCH\`" >> $GITHUB_STEP_SUMMARY
           echo "- URL    : $URL"        >> $GITHUB_STEP_SUMMARY
+          if [ "$BRANCH" = "main" ]; then
+            echo "- Backend: Render deploy triggered ✅"       >> $GITHUB_STEP_SUMMARY
+          fi

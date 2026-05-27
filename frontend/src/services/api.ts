@@ -133,6 +133,7 @@ export const api = {
   setAdminPlatformActive: (platformId: string, isActive: boolean) =>
     apiClient.patch(`/admin/platforms/${platformId}?is_active=${isActive}`),
   getAdminDbOverview: () => apiClient.get("/admin/db-overview"),
+  getAdminCatalog: () => apiClient.get("/admin/catalog"),
   searchAdminProducts: (q: string) =>
     apiClient.get(`/admin/products/search?q=${encodeURIComponent(q)}`),
   upsertAmazonPrice: (slug: string, data: {

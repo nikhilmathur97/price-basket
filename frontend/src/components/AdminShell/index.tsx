@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home, Database, ShoppingBag, Activity } from "lucide-react";
+import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home, Database, ShoppingBag, Activity, LayoutGrid } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 
 const NAV = [
   { href: "/admin", label: "Overview", icon: ShieldCheck },
+  { href: "/admin/catalog", label: "Catalog", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/user-activity", label: "User Activity", icon: Activity },
   { href: "/admin/payments", label: "Payments", icon: Receipt },

@@ -1071,3 +1071,166 @@ async def run_seed(
 
     await db.commit()
     return {"created": created, "updated": updated}
+
+# ── Catalog audit ─────────────────────────────────────────────────────────────
+
+# Keywords used to detect category mismatches
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer", "egg", "cream", "ghee", "lassi", "whey"],
+    "fruits-vegetables": ["apple", "banana", "mango", "tomato", "potato", "onion", "spinach", "carrot", "orange", "lemon", "grape", "broccoli", "cauliflower", "peas", "beans", "cabbage", "cucumber", "capsicum"],
+    "snacks":            ["chips", "biscuit", "cookie", "namkeen", "bhujia", "popcorn", "wafer", "cracker", "snack", "puff", "pretzel", "nachos"],
+    "beverages":         ["juice", "cola", "soda", "water", "tea", "coffee", "drink", "shake", "smoothie", "energy", "lemonade", "squash", "syrup"],
+    "staples":           ["rice", "wheat", "flour", "dal", "lentil", "sugar", "salt", "oil", "atta", "maida", "semolina", "poha", "oats", "cornflour"],
+    "personal-care":     ["shampoo", "soap", "face wash", "moisturizer", "lotion", "deodorant", "toothpaste", "toothbrush", "conditioner", "body wash", "sunscreen", "serum"],
+    "household":         ["detergent", "dishwash", "toilet", "cleaner", "floor", "mop", "broom", "scrub", "sanitizer", "bleach", "freshener", "wipes", "tissue"],
+    "baby-care":         ["baby", "diaper", "nappy", "infant", "toddler", "formula", "rash", "wipe", "teether"],
+    "beauty":            ["lipstick", "mascara", "foundation", "blush", "kajal", "eyeliner", "nail", "makeup", "concealer", "primer", "highlighter"],
+    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle", "freeze"],
+    "bakery":            ["bread", "bun", "cake", "muffin", "pastry", "rusk", "toast", "croissant", "bagel"],
+    "meat-seafood":      ["chicken", "mutton", "fish", "prawn", "shrimp", "egg", "meat", "beef", "pork", "salmon", "tuna"],
+    "instant-food":      ["noodles", "pasta", "maggi", "instant", "ready", "soup", "oatmeal", "porridge", "upma"],
+}
+
+
+def _detect_expected_category(name: str, current_slug: str) -> Optional[str]:
+    """Return the best-matching category slug for a product name, or None if it matches current."""
+    name_lower = name.lower()
+    scores: dict[str, int] = {}
+    for cat_slug, keywords in _CATEGORY_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in name_lower)
+        if score > 0:
+            scores[cat_slug] = score
+    if not scores:
+        return None
+    best = max(scores, key=lambda k: scores[k])
+    if best != current_slug:
+        return best
+    return None
+
+
+@router.get("/catalog")
+async def catalog_overview(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """
+    Full catalog audit: every category with its products, images, prices, and platform availability.
+    Also detects products whose name does not match their assigned category.
+    """
+    cat_rows = (await db.execute(
+        select(Category).order_by(Category.display_order)
+    )).scalars().all()
+
+    prod_rows = (await db.execute(
+        select(
+            Product.id,
+            Product.name,
+            Product.slug,
+            Product.brand,
+            Product.unit,
+            Product.image_url,
+            Product.thumbnail_url,
+            Product.is_active,
+            Product.is_featured,
+            Category.slug.label("category_slug"),
+            Category.name.label("category_name"),
+        )
+        .join(Category, Product.category_id == Category.id, isouter=True)
+        .order_by(Category.display_order, Product.name)
+    )).all()
+
+    price_rows = (await db.execute(
+        select(
+            PlatformPrice.product_id,
+            Platform.slug.label("platform_slug"),
+            Platform.name.label("platform_name"),
+            Platform.color_hex,
+            func.min(PlatformPrice.price).label("min_price"),
+        )
+        .join(Platform, PlatformPrice.platform_id == Platform.id)
+        .where(PlatformPrice.is_available.is_(True))
+        .group_by(PlatformPrice.product_id, Platform.id, Platform.slug, Platform.name, Platform.color_hex)
+    )).all()
+
+    prices_by_product: dict[str, list[dict]] = {}
+    for pr in price_rows:
+        pid = str(pr.product_id)
+        prices_by_product.setdefault(pid, []).append({
+            "platform_slug": pr.platform_slug,
+            "platform_name": pr.platform_name,
+            "color_hex": pr.color_hex,
+            "price": float(pr.min_price),
+        })
+
+    cat_map: dict[str, dict] = {}
+    for cat in cat_rows:
+        cat_map[cat.slug] = {
+            "slug": cat.slug,
+            "name": cat.name,
+            "icon": cat.icon,
+            "is_active": cat.is_active,
+            "products": [],
+            "product_count": 0,
+            "with_image": 0,
+            "with_prices": 0,
+            "mismatches": 0,
+        }
+
+    all_mismatches: list[dict] = []
+
+    for p in prod_rows:
+        pid = str(p.id)
+        prices = prices_by_product.get(pid, [])
+        has_image = bool(p.image_url or p.thumbnail_url)
+        has_prices = len(prices) > 0
+        current_slug = p.category_slug or ""
+        expected_slug = _detect_expected_category(p.name, current_slug)
+        mismatch = expected_slug is not None
+
+        product_entry = {
+            "id": pid,
+            "name": p.name,
+            "slug": p.slug,
+            "brand": p.brand,
+            "unit": p.unit,
+            "image_url": p.image_url or p.thumbnail_url,
+            "is_active": p.is_active,
+            "is_featured": p.is_featured,
+            "category_slug": current_slug,
+            "category_name": p.category_name,
+            "prices": prices,
+            "platform_count": len(prices),
+            "cheapest_price": min((pr["price"] for pr in prices), default=None),
+            "has_image": has_image,
+            "has_prices": has_prices,
+            "mismatch": mismatch,
+            "expected_category": expected_slug,
+        }
+
+        if mismatch:
+            all_mismatches.append({
+                "product_id": pid,
+                "product_name": p.name,
+                "current_category": current_slug,
+                "expected_category": expected_slug,
+            })
+
+        if current_slug in cat_map:
+            cat_map[current_slug]["products"].append(product_entry)
+            cat_map[current_slug]["product_count"] += 1
+            if has_image:
+                cat_map[current_slug]["with_image"] += 1
+            if has_prices:
+                cat_map[current_slug]["with_prices"] += 1
+            if mismatch:
+                cat_map[current_slug]["mismatches"] += 1
+
+    categories = list(cat_map.values())
+
+    return {
+        "total_categories": len(categories),
+        "total_products": len(prod_rows),
+        "total_mismatches": len(all_mismatches),
+        "mismatches": all_mismatches,
+        "categories": categories,
+    }
