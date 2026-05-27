@@ -17,11 +17,11 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-export function useSearch(initialQuery = "") {
+export function useSearch(initialQuery = "", initialCategory?: string) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc" | "fastest">("relevance");
-  const [categorySlug, setCategorySlug] = useState<string | undefined>();
+  const [categorySlug, setCategorySlug] = useState<string | undefined>(initialCategory);
 
   const debouncedQuery = useDebounce(query, 350);
 

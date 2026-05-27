@@ -19,6 +19,7 @@ export default function SearchPage() {
 function SearchResults() {
   const params = useSearchParams();
   const initialQuery = params.get("q") ?? "";
+  const initialCategory = params.get("category") ?? undefined;
 
   const {
     query,
@@ -30,7 +31,9 @@ function SearchResults() {
     setSort,
     page,
     setPage,
-  } = useSearch(initialQuery);
+    categorySlug,
+    setCategorySlug,
+  } = useSearch(initialQuery, initialCategory);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -42,9 +45,13 @@ function SearchResults() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-xl font-bold text-surface-900">
-            {query ? `Results for "${query}"` : "All Products"}
-          </h1>
+            <h1 className="text-xl font-bold text-surface-900">
+              {query
+                ? `Results for "${query}"`
+                : categorySlug
+                ? `${categorySlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`
+                : "All Products"}
+            </h1>
           {results && (
             <p className="text-sm text-surface-400 mt-0.5">
               {results.total.toLocaleString()} products found

@@ -148,7 +148,7 @@ export function HomeProductSections() {
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
-      const { data } = await api.getFeatured(20);
+      const { data } = await api.getFeatured(60);
       return data ?? [];
     },
     staleTime: 300_000,
