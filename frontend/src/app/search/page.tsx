@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { useSearch } from "@/hooks/useSearch";
 import { ProductCard } from "@/components/ProductCard";
 import { SearchBar } from "@/components/SearchBar";
+import { PageLoader } from "@/components/PageLoader";
 import { SlidersHorizontal, ChevronDown, Loader2 } from "lucide-react";
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<SearchSkeleton />}>
+    <Suspense fallback={<PageLoader message="Searching products" />}>
       <SearchResults />
     </Suspense>
   );
@@ -34,11 +35,16 @@ function SearchResults() {
     setCategorySlug,
   } = useSearch(initialQuery, initialCategory);
 
-  // Scroll to top whenever page changes
+  // Scroll to top on initial mount AND on every page change
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [page]);
+
+  // Also scroll to top when category or query changes (new search)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [categorySlug, query]);
 
   const totalPages = results ? Math.ceil(results.total / results.page_size) : 0;
 
@@ -46,8 +52,13 @@ function SearchResults() {
     setPage(newPage);
   }
 
+  // Full-page loader on initial load
+  if (isLoading) {
+    return <PageLoader message={categorySlug ? `Loading ${categorySlug.replace(/-/g, " ")}` : "Searching products"} />;
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" ref={topRef}>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 page-enter" ref={topRef}>
       {/* Mobile search bar */}
       <div className="md:hidden mb-4">
         <SearchBar autoFocus />
@@ -88,116 +99,102 @@ function SearchResults() {
         </div>
       </div>
 
-      {/* Products grid — show skeleton overlay while fetching next page */}
-      {isLoading ? (
-        <SearchSkeleton />
-      ) : (
-        <>
-          <div className="relative">
-            {/* Fetching overlay — shown when paginating (not initial load) */}
-            {isFetching && (
-              <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] rounded-2xl
-                              flex items-center justify-center">
-                <div className="flex items-center gap-2 bg-white shadow-lg rounded-full px-5 py-3 border border-surface-100">
-                  <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
-                  <span className="text-sm font-semibold text-surface-700">Loading products…</span>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {results?.items.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
+      {/* Products grid */}
+      <div className="relative">
+        {/* Pagination loader overlay — clean spinner, no blur */}
+        {isFetching && (
+          <div className="absolute inset-0 z-10 flex items-start justify-center pt-16 pointer-events-none">
+            <div className="flex items-center gap-2.5 bg-white shadow-xl rounded-2xl
+                            px-5 py-3.5 border border-surface-100">
+              <div
+                className="w-5 h-5 rounded-full border-2 border-brand-200 border-t-brand-600"
+                style={{ animation: "spin 0.7s linear infinite" }}
+              />
+              <span className="text-sm font-semibold text-surface-700">Loading products…</span>
             </div>
           </div>
+        )}
 
-          {results?.items.length === 0 && (
-            <div className="text-center py-20">
-              <div className="text-5xl mb-4">🔍</div>
-              <p className="font-semibold text-surface-700 mb-2">No products found</p>
-              <p className="text-sm text-surface-400">
-                Try different keywords or browse categories
-              </p>
-            </div>
-          )}
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 transition-opacity duration-200 ${isFetching ? "opacity-40" : "opacity-100"}`}>
+          {results?.items.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      </div>
 
-          {/* Pagination */}
-          {results && totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-10">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page === 1 || isFetching}
-                className="btn-secondary disabled:opacity-40 flex items-center gap-1.5"
-              >
-                {isFetching && page > 1 ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : null}
-                Previous
-              </button>
-
-              {/* Page number pills */}
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  // Show pages around current page
-                  let pageNum: number;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      disabled={isFetching}
-                      className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 ${
-                        pageNum === page
-                          ? "bg-brand-600 text-white shadow-sm"
-                          : "bg-white border border-surface-200 text-surface-600 hover:border-brand-400 hover:text-brand-600"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages || isFetching}
-                className="btn-secondary disabled:opacity-40 flex items-center gap-1.5"
-              >
-                Next
-                {isFetching && page < totalPages ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : null}
-              </button>
-            </div>
-          )}
-
-          {/* Page info */}
-          {results && totalPages > 1 && (
-            <p className="text-center text-xs text-surface-400 mt-3">
-              Page {page} of {totalPages} · {results.total.toLocaleString()} products
-            </p>
-          )}
-        </>
+      {results?.items.length === 0 && (
+        <div className="text-center py-20">
+          <div className="text-5xl mb-4">🔍</div>
+          <p className="font-semibold text-surface-700 mb-2">No products found</p>
+          <p className="text-sm text-surface-400">
+            Try different keywords or browse categories
+          </p>
+        </div>
       )}
-    </div>
-  );
-}
 
-function SearchSkeleton() {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-      {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} className="skeleton h-64 rounded-2xl" />
-      ))}
+      {/* Pagination */}
+      {results && totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-10">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1 || isFetching}
+            className="btn-secondary disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {isFetching && page > 1 ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : null}
+            Previous
+          </button>
+
+          {/* Page number pills */}
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pageNum: number;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (page <= 3) {
+                pageNum = i + 1;
+              } else if (page >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  disabled={isFetching}
+                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 ${
+                    pageNum === page
+                      ? "bg-brand-600 text-white shadow-sm"
+                      : "bg-white border border-surface-200 text-surface-600 hover:border-brand-400 hover:text-brand-600"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages || isFetching}
+            className="btn-secondary disabled:opacity-40 flex items-center gap-1.5"
+          >
+            Next
+            {isFetching && page < totalPages ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : null}
+          </button>
+        </div>
+      )}
+
+      {/* Page info */}
+      {results && totalPages > 1 && (
+        <p className="text-center text-xs text-surface-400 mt-3">
+          Page {page} of {totalPages} · {results.total.toLocaleString()} products
+        </p>
+      )}
     </div>
   );
 }

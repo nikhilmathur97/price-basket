@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * PageLoader — animated full-page loading screen
+ * PageLoader — animated full-page loading screen with PriceBasket logo animation.
  *
  * Usage:
  *   <PageLoader />               — default, shows "Comparing prices..."
@@ -9,6 +9,7 @@
  *   <PageLoader mini />          — small inline spinner only (no full-screen)
  */
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 // Platform brand colours
@@ -36,59 +37,53 @@ function FloatingTag({ x, delay, duration }: { x: string; delay: string; duratio
   );
 }
 
-// Cart character with bounce + shadow squish
-function CartCharacter() {
+// ── Animated PriceBasket Logo ─────────────────────────────────────────────────
+function AnimatedLogo() {
   return (
-    <div className="relative flex items-center justify-center mx-auto" style={{ width: 96, height: 96 }}>
-      {/* Glow ring */}
+    <div className="relative flex flex-col items-center" style={{ width: 120 }}>
+      {/* Glow rings */}
       <span
-        className="absolute inset-0 rounded-full bg-brand-200 opacity-30"
-        style={{ animation: "ripple 1.8s ease-out infinite" }}
+        className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-brand-200 opacity-25"
+        style={{ width: 100, height: 100, animation: "ripple 2s ease-out infinite" }}
       />
       <span
-        className="absolute inset-0 rounded-full bg-brand-200 opacity-20"
-        style={{ animation: "ripple 1.8s ease-out 0.6s infinite" }}
+        className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-brand-200 opacity-15"
+        style={{ width: 100, height: 100, animation: "ripple 2s ease-out 0.7s infinite" }}
       />
 
-      {/* Cart icon wrapper */}
+      {/* Logo image with bounce */}
       <div
-        className="relative z-10 w-20 h-20 bg-white rounded-2xl shadow-hover border border-brand-100
-                   flex items-center justify-center"
-        style={{ animation: "cartBounce 0.9s ease-in-out infinite" }}
+        className="relative z-10 w-[88px] h-[88px] rounded-[22px] bg-white
+                   shadow-[0_8px_32px_rgba(234,88,12,0.18)] border border-brand-100
+                   flex items-center justify-center overflow-hidden"
+        style={{ animation: "logoBounce 1.1s ease-in-out infinite" }}
       >
-        {/* ₹ floating tags */}
-        <div className="absolute inset-0 overflow-visible">
-          <FloatingTag x="-8px"  delay="0ms"    duration="2s"   />
-          <FloatingTag x="50%"   delay="700ms"  duration="2.3s" />
-          <FloatingTag x="82%"   delay="400ms"  duration="1.8s" />
+        {/* Floating ₹ tags */}
+        <div className="absolute inset-0 overflow-visible pointer-events-none">
+          <FloatingTag x="-6px"  delay="0ms"    duration="2.2s" />
+          <FloatingTag x="48%"   delay="750ms"  duration="2.5s" />
+          <FloatingTag x="80%"   delay="400ms"  duration="2s"   />
         </div>
 
-        {/* Shopping basket SVG */}
-        <svg
-          viewBox="0 0 24 24"
-          className="w-10 h-10"
-          fill="none"
-          stroke="#ea580c"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <path d="M16 10a4 4 0 0 1-8 0" />
-        </svg>
+        <Image
+          src="/pricebasket-logo.png"
+          alt="PriceBasket"
+          width={64}
+          height={64}
+          className="object-contain"
+          priority
+        />
       </div>
 
-      {/* Shadow squish beneath cart — grows when cart comes down */}
+      {/* Shadow squish */}
       <div
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-surface-200"
+        className="rounded-full bg-surface-300 mt-1"
         style={{
-          width: 40,
-          height: 6,
-          animation: "cartBounce 0.9s ease-in-out infinite",
-          transform: "scaleX(1)",
-          opacity: 0.4,
-          filter: "blur(3px)",
+          width: 44,
+          height: 7,
+          opacity: 0.35,
+          filter: "blur(4px)",
+          animation: "shadowSquish 1.1s ease-in-out infinite",
         }}
       />
     </div>
@@ -131,7 +126,7 @@ function AnimatedEllipsis() {
   );
 }
 
-// ── Mini inline spinner (for search / data fetch states) ─────────────────────
+// ── Mini inline spinner ───────────────────────────────────────────────────────
 
 export function MiniLoader({ className }: { className?: string }) {
   return (
@@ -171,27 +166,40 @@ export function PageLoader({ message = "Comparing prices", mini = false, classNa
     <div
       className={cn(
         "fixed inset-0 z-[9999] flex flex-col items-center justify-center",
-        "bg-white/95 backdrop-blur-sm",
+        "bg-white/97 backdrop-blur-sm",
         className
       )}
       role="status"
       aria-live="polite"
       aria-label="Loading page"
     >
-      {/* Character */}
-      <CartCharacter />
+      {/* Animated logo */}
+      <AnimatedLogo />
 
-      {/* Brand name */}
-      <div className="mt-6 text-center">
-        <p className="text-xl font-black tracking-tight text-surface-900">
-          Price<span className="text-brand-600">Basket</span>
+      {/* Brand name with animated gradient */}
+      <div className="mt-5 text-center">
+        <p
+          className="text-2xl font-black tracking-tight select-none"
+          style={{ animation: "textPulse 2s ease-in-out infinite" }}
+        >
+          <span className="text-surface-900">Price</span>
+          <span
+            className="text-transparent bg-clip-text"
+            style={{
+              backgroundImage: "linear-gradient(90deg, #ea580c, #f97316, #ea580c)",
+              backgroundSize: "200% 100%",
+              animation: "gradientShift 2s ease-in-out infinite",
+            }}
+          >
+            Basket
+          </span>
         </p>
-        <p className="text-xs text-surface-400 mt-1 font-medium">
-          Compare · Save · Redirect
+        <p className="text-xs text-surface-400 mt-0.5 font-medium tracking-wide">
+          Compare · Save · Shop Smart
         </p>
       </div>
 
-      {/* Platform dots */}
+      {/* Platform dots + message */}
       <div className="mt-5 flex flex-col items-center gap-2">
         <PlatformDots />
         <p className="text-sm text-surface-500 font-medium flex items-center gap-1.5">
