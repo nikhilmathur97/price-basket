@@ -193,7 +193,7 @@ export function Footer() {
           <div className="flex flex-col gap-2">
             <p className="text-surface-400 text-xs">© Price Basket, 2024–2026 · All rights reserved.</p>
             <div className="flex items-center gap-4">
-              {/* Instagram */}
+              {/* Instagram — official radial gradient + camera mark */}
               <a
                 href="https://www.instagram.com/pricebasketindia/"
                 target="_blank"
@@ -202,34 +202,27 @@ export function Footer() {
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
                   <defs>
-                    <linearGradient id="ig-a" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%"   stopColor="#FFDC80"/>
-                      <stop offset="15%"  stopColor="#FCAF45"/>
-                      <stop offset="30%"  stopColor="#F77737"/>
-                      <stop offset="45%"  stopColor="#F56040"/>
-                      <stop offset="60%"  stopColor="#FD1D1D"/>
-                      <stop offset="75%"  stopColor="#E1306C"/>
-                      <stop offset="88%"  stopColor="#C13584"/>
-                      <stop offset="100%" stopColor="#833AB4"/>
-                    </linearGradient>
-                    <linearGradient id="ig-b" x1="0%" y1="100%" x2="50%" y2="0%" gradientUnits="objectBoundingBox">
-                      <stop offset="0%"   stopColor="#405DE6" stopOpacity="0.5"/>
-                      <stop offset="100%" stopColor="#405DE6" stopOpacity="0"/>
-                    </linearGradient>
+                    {/* Radial gradient: yellow bottom-left → pink → purple top-right (official) */}
+                    <radialGradient id="ig-rg" cx="30%" cy="107%" r="150%">
+                      <stop offset="0%"   stopColor="#fdf497"/>
+                      <stop offset="10%"  stopColor="#fdf497"/>
+                      <stop offset="50%"  stopColor="#fd5949"/>
+                      <stop offset="68%"  stopColor="#d6249f"/>
+                      <stop offset="100%" stopColor="#285AEB"/>
+                    </radialGradient>
                   </defs>
-                  <rect width="24" height="24" rx="5.5" fill="url(#ig-a)"/>
-                  <rect width="24" height="24" rx="5.5" fill="url(#ig-b)"/>
-                  {/* Camera outline */}
-                  <rect x="4.5" y="4.5" width="15" height="15" rx="4" fill="none" stroke="white" strokeWidth="1.5"/>
-                  {/* Lens */}
-                  <circle cx="12" cy="12" r="3.2" fill="none" stroke="white" strokeWidth="1.5"/>
-                  {/* Dot */}
-                  <circle cx="16.8" cy="7.2" r="1" fill="white"/>
+                  <rect width="24" height="24" rx="5.5" fill="url(#ig-rg)"/>
+                  {/* Camera body */}
+                  <rect x="4.5" y="4.5" width="15" height="15" rx="4" fill="none" stroke="white" strokeWidth="1.6"/>
+                  {/* Lens ring */}
+                  <circle cx="12" cy="12" r="3.5" fill="none" stroke="white" strokeWidth="1.6"/>
+                  {/* Flash dot */}
+                  <circle cx="17" cy="7" r="1.3" fill="white"/>
                 </svg>
                 <span className="text-surface-300">@pricebasketindia</span>
               </a>
 
-              {/* WhatsApp */}
+              {/* WhatsApp — official green circle + speech-bubble phone mark */}
               <a
                 href="https://wa.me/918005828390"
                 target="_blank"
@@ -237,13 +230,44 @@ export function Footer() {
                 className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
-                  <rect width="24" height="24" rx="6" fill="#25D366"/>
-                  <path fill="white" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  {/* Green circle background — matches the real WhatsApp icon */}
+                  <circle cx="12" cy="12" r="12" fill="#25D366"/>
+                  {/* Official WhatsApp speech-bubble + phone mark */}
+                  <path fill="white" d="
+                    M12 4.25
+                    C7.71 4.25 4.25 7.71 4.25 12
+                    c0 1.62.49 3.13 1.33 4.38
+                    L4.25 19.75 8.71 18.44
+                    A7.74 7.74 0 0012 19.75
+                    c4.29 0 7.75-3.46 7.75-7.75
+                    S16.29 4.25 12 4.25z
+                    M16.28 14.9
+                    c-.18.5-.88.92-1.45 1.04
+                    -.38.08-.88.14-2.56-.55
+                    -2.15-.88-3.54-3.07-3.65-3.21
+                    -.11-.14-.89-1.18-.89-2.25
+                    0-1.07.56-1.6.76-1.82
+                    .2-.22.43-.27.57-.27
+                    h.4c.13 0 .31-.05.49.37
+                    .18.43.62 1.51.67 1.62
+                    .05.11.09.24.02.38
+                    -.07.14-.11.23-.22.35
+                    -.11.12-.23.27-.32.36
+                    -.11.1-.22.22-.1.43
+                    .13.21.55.91 1.19 1.47
+                    .82.73 1.5.95 1.71 1.06
+                    .22.11.34.09.47-.05
+                    .13-.14.54-.63.68-.85
+                    .14-.22.29-.18.49-.11
+                    .2.07 1.25.59 1.46.7
+                    .21.11.35.16.41.25
+                    .05.09.05.52-.13 1.02z
+                  "/>
                 </svg>
                 <span className="text-surface-300">WhatsApp</span>
               </a>
 
-              {/* YouTube */}
+              {/* YouTube — official red rounded-rect + play mark */}
               <a
                 href="https://www.youtube.com/@pricebasketindia/shorts"
                 target="_blank"
@@ -251,8 +275,10 @@ export function Footer() {
                 className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
-                  <rect width="24" height="24" rx="5.5" fill="#FF0000"/>
-                  <path fill="white" d="M19.6 8.2s-.2-1.3-.8-1.9c-.7-.8-1.5-.8-1.9-.8C14.7 5.4 12 5.4 12 5.4s-2.7 0-4.9.1c-.4.1-1.2.1-1.9.8-.6.6-.8 1.9-.8 1.9S4.2 9.6 4.2 11v1.3c0 1.4.2 2.8.2 2.8s.2 1.3.8 1.9c.7.8 1.7.7 2.1.8C8.6 17.9 12 18 12 18s2.7 0 4.9-.2c.4-.1 1.2-.1 1.9-.8.6-.6.8-1.9.8-1.9s.2-1.4.2-2.8V11c0-1.4-.2-2.8-.2-2.8zM10.1 14.1V9.7l5.2 2.2-5.2 2.2z"/>
+                  {/* Official YouTube red pill shape */}
+                  <path fill="#FF0000" d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.02 3.02 0 00.502 6.19C0 8.07 0 12 0 12s0 3.93.502 5.81a3.02 3.02 0 002.121 2.136C4.495 20.455 12 20.455 12 20.455s7.505 0 9.377-.509a3.02 3.02 0 002.121-2.136C24 15.93 24 12 24 12s0-3.93-.5-5.81z"/>
+                  {/* White play triangle */}
+                  <path fill="white" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                 </svg>
                 <span className="text-surface-300">YouTube</span>
               </a>
