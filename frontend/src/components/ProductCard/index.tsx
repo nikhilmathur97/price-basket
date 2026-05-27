@@ -14,22 +14,30 @@ import PriceCompareModal from "@/components/PriceCompareModal";
 import { cn } from "@/lib/utils";
 import { trackEvent, extractApiError } from "@/services/api";
 
-// Fallback images keyed by product slug for when DB has no image_url yet
+// ── Fallback images ──────────────────────────────────────────────────────────
+// Only used when DB has no image_url AND no thumbnail_url.
+// Images are carefully matched to the actual product — no mismatches.
 const SLUG_IMAGES: Record<string, string> = {
-  "amul-gold-milk-1l":             "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&h=400&fit=crop",
-  "amul-butter-500g":              "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&h=400&fit=crop",
-  "britannia-bread-400g":          "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop",
-  "lays-classic-26g":              "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=400&fit=crop",
-  "haldirams-aloo-bhujia-200g":    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&h=400&fit=crop",
-  "maggi-noodles-70g":             "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop",
-  "coca-cola-750ml":               "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=400&fit=crop",
-  "tropicana-orange-1l":           "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=400&fit=crop",
-  "dove-soap-100g":                "https://images.unsplash.com/photo-1607006344380-b6775a0824a7?w=400&h=400&fit=crop",
-  "head-shoulders-shampoo-180ml":  "https://images.unsplash.com/photo-1585751119414-ef2636f8aede?w=400&h=400&fit=crop",
-  "vim-dish-wash-bar-200g":        "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=400&fit=crop",
-  "harpic-toilet-cleaner-500ml":   "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=400&fit=crop",
-  "lakme-foundation-30ml":         "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop",
-  "maybelline-mascara-9ml":        "https://images.unsplash.com/photo-1631214499789-a23a7ece09c7?w=400&h=400&fit=crop",
+  // Dairy
+  "amul-gold-milk-1l":            "https://images.pexels.com/photos/1675976/pexels-photo-1675976.jpeg?w=400&h=400&fit=crop",
+  "amul-butter-500g":             "https://images.pexels.com/photos/7966386/pexels-photo-7966386.jpeg?w=400&h=400&fit=crop",
+  // Bakery
+  "britannia-bread-400g":         "https://images.pexels.com/photos/1756061/pexels-photo-1756061.jpeg?w=400&h=400&fit=crop",
+  // Snacks — generic snack/chips images only (no samosa for bhujia)
+  "lays-classic-26g":             "https://images.pexels.com/photos/7033644/pexels-photo-7033644.jpeg?w=400&h=400&fit=crop",
+  "maggi-noodles-70g":            "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?w=400&h=400&fit=crop",
+  // Beverages
+  "coca-cola-750ml":              "https://images.pexels.com/photos/4710978/pexels-photo-4710978.jpeg?w=400&h=400&fit=crop",
+  "tropicana-orange-1l":          "https://images.pexels.com/photos/3550044/pexels-photo-3550044.jpeg?w=400&h=400&fit=crop",
+  // Personal care
+  "dove-soap-100g":               "https://images.pexels.com/photos/3944844/pexels-photo-3944844.jpeg?w=400&h=400&fit=crop",
+  "head-shoulders-shampoo-180ml": "https://images.pexels.com/photos/7440056/pexels-photo-7440056.jpeg?w=400&h=400&fit=crop",
+  // Household
+  "vim-dish-wash-bar-200g":       "https://images.pexels.com/photos/4154194/pexels-photo-4154194.jpeg?w=400&h=400&fit=crop",
+  "harpic-toilet-cleaner-500ml":  "https://images.pexels.com/photos/4239034/pexels-photo-4239034.jpeg?w=400&h=400&fit=crop",
+  // Beauty
+  "lakme-foundation-30ml":        "https://images.pexels.com/photos/3596449/pexels-photo-3596449.jpeg?w=400&h=400&fit=crop",
+  "maybelline-mascara-9ml":       "https://images.pexels.com/photos/2533266/pexels-photo-2533266.jpeg?w=400&h=400&fit=crop",
 };
 
 interface ProductCardProps {
@@ -101,13 +109,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
+  // Only use fallback image if DB has no image AND slug matches exactly
+  const imgSrc = !imgError
+    ? (product.thumbnail_url ?? product.image_url ?? SLUG_IMAGES[product.slug] ?? null)
+    : null;
+
   return (
     <>
       <motion.div
         whileHover={{ y: -1 }}
         transition={{ duration: 0.15 }}
         className={cn(
-          "bg-white rounded-2xl border border-surface-100 overflow-hidden flex flex-col",
+          "bg-white rounded-2xl border border-surface-100 overflow-hidden flex flex-col h-full",
           "shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)]",
           "transition-shadow duration-200",
           className
@@ -127,23 +140,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
         >
           {/* ── Image ── */}
           <div className="relative aspect-square bg-[#f9f9f9] overflow-hidden">
-            {(() => {
-              const imgSrc = !imgError
-                ? (product.thumbnail_url ?? product.image_url ?? SLUG_IMAGES[product.slug])
-                : undefined;
-              return imgSrc ? (
-                <Image
-                  src={imgSrc}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, 200px"
-                  className="object-contain p-3 hover:scale-105 transition-transform duration-300"
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl select-none">🛒</div>
-              );
-            })()}
+            {imgSrc ? (
+              <Image
+                src={imgSrc}
+                alt={product.name}
+                fill
+                sizes="(max-width: 640px) 50vw, 200px"
+                className="object-contain p-3 hover:scale-105 transition-transform duration-300"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-4xl select-none">🛒</div>
+            )}
 
             {/* Discount badge */}
             {maxDiscount > 0 && (
@@ -172,15 +180,16 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 {product.brand}
               </p>
             )}
-            <h3 className="text-[13px] font-semibold text-surface-900 line-clamp-2 leading-snug mb-1">
+            {/* Fixed 2-line height for name so all cards align */}
+            <h3 className="text-[13px] font-semibold text-surface-900 line-clamp-2 leading-snug mb-1 min-h-[2.5rem]">
               {product.name}
             </h3>
             {product.unit && (
-              <p className="text-[11px] text-surface-400 mb-2">{product.unit}</p>
+              <p className="text-[11px] text-surface-400 mb-1">{product.unit}</p>
             )}
 
-            {/* Badges */}
-            <div className="flex flex-wrap gap-1 mb-3">
+            {/* Badges — fixed min-height so cards without badges still align */}
+            <div className="flex flex-wrap gap-1 mb-2 min-h-[1.25rem]">
               {product.cheapest_platform && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold
                                  text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
@@ -196,93 +205,97 @@ export function ProductCard({ product, className }: ProductCardProps) {
             </div>
           </Link>
 
-          {/* ── Price + ADD row — fixed height so card never expands ── */}
-          <div className="flex items-center justify-between gap-2 mt-auto h-10">
-            {/* Price */}
-            <div className="min-w-0">
+          {/* ── Price + ADD row — fixed height, no overlap ── */}
+          <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-surface-50 h-11">
+            {/* Price — shrinks if needed but never overlaps */}
+            <div className="min-w-0 flex-1 overflow-hidden">
               {cheapestPrice !== null && (
-                <p className="text-[15px] font-extrabold text-surface-900 leading-none">
+                <p className="text-[15px] font-extrabold text-surface-900 leading-none truncate">
                   ₹{cheapestPrice}
                 </p>
               )}
               {mrp > (cheapestPrice ?? 0) && (
-                <p className="text-[11px] text-surface-400 line-through leading-none mt-0.5">
+                <p className="text-[10px] text-surface-400 line-through leading-none mt-0.5 truncate">
                   ₹{mrp}
                 </p>
               )}
             </div>
 
-            {/* ADD / Counter — both states are h-8, so the row stays h-10 always */}
-            <AnimatePresence mode="wait">
-              {qty === 0 ? (
-                <motion.div
-                  key="add-row"
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.12 }}
-                  className="flex items-center gap-1.5 flex-shrink-0"
-                >
-                  <button
-                    onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
-                    title="Compare platforms"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg
-                               border border-surface-200 text-surface-400
-                               hover:text-brand-600 hover:border-brand-400
-                               active:scale-[0.95] transition-all"
+            {/* ADD / Counter — fixed width, never overlaps price */}
+            <div className="flex-shrink-0">
+              <AnimatePresence mode="wait">
+                {qty === 0 ? (
+                  <motion.div
+                    key="add-row"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.12 }}
+                    className="flex items-center gap-1"
                   >
-                    <BarChart2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={handleAdd}
-                    className="flex items-center gap-1 h-8 px-3 rounded-xl
-                               border-2 border-brand-600 text-brand-600 font-extrabold text-sm
-                               bg-white hover:bg-brand-600 hover:text-white
-                               active:scale-[0.95] transition-all select-none"
-                    style={{ touchAction: "manipulation" }}
-                  >
-                    <Plus className="w-3.5 h-3.5" />Add
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="counter"
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.12 }}
-                  className="flex items-center gap-1.5 flex-shrink-0"
-                >
-                  <button
-                    onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
-                    title="Compare platforms"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg
-                               border border-surface-200 text-brand-400
-                               hover:text-brand-600 hover:border-brand-500
-                               active:scale-[0.95] transition-all"
-                  >
-                    <BarChart2 className="w-3.5 h-3.5" />
-                  </button>
-                  <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-8">
                     <button
-                      onClick={handleDecrease}
-                      className="flex items-center justify-center w-8 h-8 text-white hover:bg-brand-700 transition-colors"
+                      onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
+                      title="Compare platforms"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg
+                                 border border-surface-200 text-surface-400
+                                 hover:text-brand-600 hover:border-brand-400
+                                 active:scale-[0.95] transition-all flex-shrink-0"
                     >
-                      <Minus className="w-3.5 h-3.5" />
+                      <BarChart2 className="w-3.5 h-3.5" />
                     </button>
-                    <span className="text-white font-extrabold text-sm min-w-[24px] text-center px-1">
-                      {qty}
-                    </span>
                     <button
                       onClick={handleAdd}
-                      className="flex items-center justify-center w-8 h-8 text-white hover:bg-brand-700 transition-colors"
+                      className="flex items-center gap-0.5 h-8 px-2.5 rounded-xl
+                                 border-2 border-brand-600 text-brand-600 font-extrabold text-sm
+                                 bg-white hover:bg-brand-600 hover:text-white
+                                 active:scale-[0.95] transition-all select-none flex-shrink-0"
+                      style={{ touchAction: "manipulation" }}
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" />Add
                     </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="counter"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.12 }}
+                    className="flex items-center gap-1"
+                  >
+                    {/* Compare icon stays visible */}
+                    <button
+                      onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
+                      title="Compare platforms"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg
+                                 border border-brand-200 text-brand-500
+                                 hover:text-brand-700 hover:border-brand-500
+                                 active:scale-[0.95] transition-all flex-shrink-0"
+                    >
+                      <BarChart2 className="w-3.5 h-3.5" />
+                    </button>
+                    {/* Counter stepper */}
+                    <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-8 flex-shrink-0">
+                      <button
+                        onClick={handleDecrease}
+                        className="flex items-center justify-center w-7 h-8 text-white hover:bg-brand-700 transition-colors"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-white font-extrabold text-sm min-w-[20px] text-center px-0.5">
+                        {qty}
+                      </span>
+                      <button
+                        onClick={handleAdd}
+                        className="flex items-center justify-center w-7 h-8 text-white hover:bg-brand-700 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </motion.div>

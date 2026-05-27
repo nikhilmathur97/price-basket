@@ -90,8 +90,10 @@ function ProductRow({ products, loading }: { products: ProductWithPrices[]; load
           className={`w-[160px] sm:w-[175px] flex-shrink-0 snap-start transition-opacity duration-300 ${
             loading ? "opacity-60" : "opacity-100"
           }`}
+          // equal height: all cards in a row stretch to the tallest
+          style={{ display: "flex", flexDirection: "column" }}
         >
-          <ProductCard product={p} />
+          <ProductCard product={p} className="flex-1" />
         </div>
       ))}
     </div>

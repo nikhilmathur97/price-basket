@@ -290,9 +290,23 @@ export default function AdminCatalogPage() {
   }
 
   if (error || !data) {
+    const errMsg = (error as any)?.response?.data?.detail ?? (error as any)?.message ?? "Unknown error";
     return (
-      <div className="card p-6 text-center text-red-500">
-        Failed to load catalog data.
+      <div className="card p-8 text-center space-y-3">
+        <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+        <p className="font-semibold text-surface-800">Failed to load catalog data</p>
+        <p className="text-sm text-surface-500 max-w-sm mx-auto">{String(errMsg)}</p>
+        <p className="text-xs text-surface-400 max-w-sm mx-auto">
+          This endpoint requires admin authentication. Make sure you are logged in as an admin.
+          If the backend was just deployed, wait 1–2 minutes and refresh.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-200
+                     text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors mt-2"
+        >
+          <Loader2 className="w-3.5 h-3.5" /> Retry
+        </button>
       </div>
     );
   }
