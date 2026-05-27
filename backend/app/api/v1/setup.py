@@ -19,7 +19,7 @@ import httpx
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis_client import cache_delete_pattern
@@ -1052,3 +1052,42 @@ async def load_scraped_data(
     await cache_delete_pattern("products:*")
 
     return {"status": "ok", "saved": saved, "skipped": skipped, "total": len(items)}
+
+
+@router.post("/mark-featured", status_code=200)
+async def mark_featured_products(
+    limit: int = 60,
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """Mark top N products (by platform price count) as featured for homepage display."""
+    from sqlalchemy import func
+
+    # Unfeature all currently featured products
+    await db.execute(
+        update(Product).where(Product.is_featured == True).values(is_featured=False)
+    )
+
+    # Pick top `limit` products that have the most platform prices
+    subq = (
+        select(PlatformPrice.product_id, func.count(PlatformPrice.id).label("cnt"))
+        .group_by(PlatformPrice.product_id)
+        .order_by(func.count(PlatformPrice.id).desc())
+        .limit(limit)
+        .subquery()
+    )
+    result = await db.execute(select(subq.c.product_id))
+    top_ids = [row[0] for row in result.fetchall()]
+
+    if not top_ids:
+        return {"status": "ok", "featured": 0, "message": "No products with prices found"}
+
+    await db.execute(
+        update(Product).where(Product.id.in_(top_ids)).values(is_featured=True)
+    )
+    await db.commit()
+
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+
+    return {"status": "ok", "featured": len(top_ids), "limit": limit}
