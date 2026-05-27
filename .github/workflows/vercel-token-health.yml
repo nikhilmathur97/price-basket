@@ -96,7 +96,6 @@ jobs:
     needs: health-check
     if: github.event.inputs.action == 'rotate' && github.event.inputs.new_token != ''
     permissions:
-      secrets: write
       issues: write
     steps:
       - name: Validate new token before saving
