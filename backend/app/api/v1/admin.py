@@ -1075,36 +1075,133 @@ async def run_seed(
 # ── Catalog audit ─────────────────────────────────────────────────────────────
 
 # Keywords used to detect category mismatches
+# Keywords that STRONGLY identify a category (product name contains these → belongs here)
+# Use multi-word phrases first (more specific), then single words.
+# Words that are ambiguous (e.g. "banana" can be a fruit OR banana chips) are NOT listed here.
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer", "egg", "cream", "ghee", "lassi", "whey"],
-    "fruits-vegetables": ["apple", "banana", "mango", "tomato", "potato", "onion", "spinach", "carrot", "orange", "lemon", "grape", "broccoli", "cauliflower", "peas", "beans", "cabbage", "cucumber", "capsicum"],
-    "snacks":            ["chips", "biscuit", "cookie", "namkeen", "bhujia", "popcorn", "wafer", "cracker", "snack", "puff", "pretzel", "nachos"],
-    "beverages":         ["juice", "cola", "soda", "water", "tea", "coffee", "drink", "shake", "smoothie", "energy", "lemonade", "squash", "syrup"],
-    "staples":           ["rice", "wheat", "flour", "dal", "lentil", "sugar", "salt", "oil", "atta", "maida", "semolina", "poha", "oats", "cornflour"],
-    "personal-care":     ["shampoo", "soap", "face wash", "moisturizer", "lotion", "deodorant", "toothpaste", "toothbrush", "conditioner", "body wash", "sunscreen", "serum"],
-    "household":         ["detergent", "dishwash", "toilet", "cleaner", "floor", "mop", "broom", "scrub", "sanitizer", "bleach", "freshener", "wipes", "tissue"],
-    "baby-care":         ["baby", "diaper", "nappy", "infant", "toddler", "formula", "rash", "wipe", "teether"],
-    "beauty":            ["lipstick", "mascara", "foundation", "blush", "kajal", "eyeliner", "nail", "makeup", "concealer", "primer", "highlighter"],
-    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle", "freeze"],
-    "bakery":            ["bread", "bun", "cake", "muffin", "pastry", "rusk", "toast", "croissant", "bagel"],
-    "meat-seafood":      ["chicken", "mutton", "fish", "prawn", "shrimp", "egg", "meat", "beef", "pork", "salmon", "tuna"],
-    "instant-food":      ["noodles", "pasta", "maggi", "instant", "ready", "soup", "oatmeal", "porridge", "upma"],
+    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer", "cream cheese",
+                          "ghee", "lassi", "whey protein", "buttermilk", "skimmed milk"],
+    "fruits-vegetables": ["fresh apple", "fresh banana", "fresh mango", "fresh tomato",
+                          "fresh potato", "fresh onion", "fresh spinach", "fresh carrot",
+                          "fresh orange", "fresh lemon", "fresh grape", "broccoli",
+                          "cauliflower", "fresh peas", "fresh beans", "fresh cabbage",
+                          "fresh cucumber", "fresh capsicum", "raw vegetable", "raw fruit"],
+    "snacks":            ["chips", "biscuit", "cookie", "namkeen", "bhujia", "popcorn",
+                          "wafer", "cracker", "snack", "puff", "pretzel", "nachos",
+                          "banana chips", "potato chips", "tortilla", "murukku", "chivda",
+                          "mixture", "mathri", "sev", "chakli", "fryums"],
+    "beverages":         ["juice", "cola", "soda", "mineral water", "packaged water",
+                          "tea bags", "coffee powder", "instant coffee", "energy drink",
+                          "lemonade", "squash", "syrup", "milkshake", "smoothie",
+                          "cold drink", "soft drink", "aerated", "tonic water"],
+    "staples":           ["basmati rice", "brown rice", "wheat flour", "atta", "maida",
+                          "besan", "dal", "lentil", "toor dal", "moong dal", "chana dal",
+                          "urad dal", "masoor dal", "sugar", "salt", "refined oil",
+                          "mustard oil", "sunflower oil", "olive oil", "semolina", "sooji",
+                          "poha", "oats", "cornflour", "suji", "rawa"],
+    "personal-care":     ["shampoo", "conditioner", "face wash", "moisturizer", "body lotion",
+                          "deodorant", "toothpaste", "toothbrush", "body wash", "sunscreen",
+                          "face serum", "hair oil", "hair gel", "hand wash", "sanitizer gel"],
+    "household":         ["detergent", "dishwash", "toilet cleaner", "floor cleaner",
+                          "surface cleaner", "scrubber", "bleach", "air freshener",
+                          "garbage bag", "tissue paper", "paper towel", "wet wipes",
+                          "dish soap", "laundry", "fabric softener"],
+    "baby-care":         ["baby", "diaper", "nappy", "infant formula", "toddler",
+                          "baby food", "baby wipes", "teether", "baby lotion", "baby shampoo"],
+    "beauty":            ["lipstick", "mascara", "foundation", "blush", "kajal", "eyeliner",
+                          "nail polish", "makeup", "concealer", "primer", "highlighter",
+                          "face mask", "toner", "micellar", "bb cream", "cc cream"],
+    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle",
+                          "frozen peas", "frozen corn", "frozen paratha", "frozen snack"],
+    "bakery":            ["bread", "bun", "cake", "muffin", "pastry", "rusk", "toast",
+                          "croissant", "bagel", "pav", "dinner roll", "loaf"],
+    "meat-seafood":      ["chicken", "mutton", "fish fillet", "prawn", "shrimp",
+                          "beef", "pork", "salmon", "tuna", "seafood", "boneless chicken",
+                          "chicken breast", "chicken leg", "minced meat"],
+    "instant-food":      ["noodles", "pasta", "maggi", "instant noodles", "ready to eat",
+                          "instant soup", "cup noodles", "ramen", "upma mix", "poha mix",
+                          "oatmeal", "porridge mix", "instant oats"],
+}
+
+# These category slugs should NEVER be suggested as a mismatch for these product name fragments.
+# e.g. "banana chips" in snacks should NOT be flagged as fruits-vegetables.
+_CATEGORY_OVERRIDES: dict[str, list[str]] = {
+    # if product name contains any of these phrases, keep it in its current category
+    "snacks":            ["chips", "namkeen", "bhujia", "biscuit", "cookie", "wafer",
+                          "cracker", "puff", "popcorn", "snack", "murukku", "mixture",
+                          "mathri", "sev", "chivda", "fryums", "pretzel", "nachos"],
+    "staples":           ["rice", "atta", "flour", "dal", "oil", "sugar", "salt",
+                          "oats", "poha", "semolina", "sooji", "rawa", "lentil"],
+    "beverages":         ["juice", "drink", "water", "tea", "coffee", "cola", "soda",
+                          "shake", "smoothie", "squash", "syrup", "aerated"],
+    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer",
+                          "ghee", "cream", "lassi", "whey", "egg"],
+    "bakery":            ["bread", "bun", "cake", "muffin", "rusk", "toast", "pav",
+                          "croissant", "pastry", "loaf"],
+    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle"],
+    "instant-food":      ["noodles", "pasta", "maggi", "instant", "ready to eat",
+                          "soup", "ramen", "upma", "porridge"],
+    "personal-care":     ["shampoo", "conditioner", "face wash", "moisturizer", "lotion",
+                          "deodorant", "toothpaste", "toothbrush", "body wash", "sunscreen",
+                          "serum", "hair oil", "hand wash", "sanitizer"],
+    "household":         ["detergent", "dishwash", "cleaner", "scrubber", "bleach",
+                          "freshener", "tissue", "wipes", "laundry", "fabric"],
+    "baby-care":         ["baby", "diaper", "nappy", "infant", "toddler", "teether"],
+    "beauty":            ["lipstick", "mascara", "foundation", "kajal", "eyeliner",
+                          "nail polish", "makeup", "concealer", "primer", "highlighter"],
+    "meat-seafood":      ["chicken", "mutton", "fish", "prawn", "shrimp", "beef",
+                          "pork", "salmon", "tuna", "seafood", "meat"],
+    "fruits-vegetables": ["fresh", "raw", "vegetable", "fruit", "sabzi"],
 }
 
 
 def _detect_expected_category(name: str, current_slug: str) -> Optional[str]:
-    """Return the best-matching category slug for a product name, or None if it matches current."""
+    """
+    Return a suggested category slug only when we are highly confident the product
+    is in the WRONG category.
+
+    Rules:
+    1. If the product name contains an override keyword for its current category → no mismatch.
+    2. Score every category by keyword matches (multi-word phrases score higher).
+       Single-word matches score 1; multi-word phrases score = number of words.
+    3. Only flag a mismatch when:
+       - The current category scores 0 (no keywords match at all), AND
+       - Another category scores >= 1 (any signal), OR
+       - Another category scores strictly more than 2× the current category score.
+    """
     name_lower = name.lower()
-    scores: dict[str, int] = {}
+
+    # Rule 1: override — if name contains a strong indicator for current category, trust it
+    for kw in _CATEGORY_OVERRIDES.get(current_slug, []):
+        if kw in name_lower:
+            return None  # definitely belongs here
+
+    # Score each category; multi-word phrases get weight = number of words
+    scores: dict[str, float] = {}
     for cat_slug, keywords in _CATEGORY_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in name_lower)
+        score = sum(len(kw.split()) for kw in keywords if kw in name_lower)
         if score > 0:
             scores[cat_slug] = score
+
     if not scores:
-        return None
+        return None  # no signal at all → don't flag
+
     best = max(scores, key=lambda k: scores[k])
-    if best != current_slug:
+    current_score = scores.get(current_slug, 0.0)
+    best_score = scores[best]
+
+    # Only flag if best category is different AND signal is strong
+    if best == current_slug:
+        return None
+
+    # Require strong evidence:
+    # - current scores 0 (no keyword matches for current category) AND best has any match, OR
+    # - best scores more than 2× current (overwhelming evidence for different category)
+    if current_score == 0 and best_score >= 1:
         return best
+    if current_score > 0 and best_score > current_score * 2:
+        return best
+
     return None
 
 
