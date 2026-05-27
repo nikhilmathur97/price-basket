@@ -54,6 +54,7 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
             is_available=pp.is_available,
             delivery_time_minutes=pp.delivery_time_minutes,
             platform_product_url=pp.platform_product_url,
+            platform_image_url=pp.platform_image_url if hasattr(pp, "platform_image_url") else None,
             buy_url=intelligence_service.build_buy_url(product.id, pp.platform.id) if pp.platform_product_url else None,
             last_updated=pp.last_updated,
         )
