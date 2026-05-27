@@ -69,6 +69,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await close_redis()
     await engine.dispose()
+    # Gracefully shut down the shared Playwright browser (if it was used)
+    try:
+        from app.scrapers.playwright_pool import shutdown_playwright
+        await shutdown_playwright()
+    except Exception:
+        pass
     log.info("Price Basket API shut down cleanly")
 
 

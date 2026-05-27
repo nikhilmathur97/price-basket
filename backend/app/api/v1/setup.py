@@ -12,7 +12,7 @@ import asyncio
 import re
 import uuid
 from datetime import UTC, datetime
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import quote_plus
 
 import httpx
@@ -25,6 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.cache.redis_client import cache_delete_pattern
 from app.config import settings
 from app.database import get_db
+from app.models.platform import Platform
+from app.models.product import Category, Product
+from app.models.price import PlatformPrice
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -730,6 +733,168 @@ async def start_seed(
 async def seed_status(_key=Depends(_require_seed_key)):
     """Check progress of the running seed job."""
     return _seed_state
+
+
+# ── Bulk price import ─────────────────────────────────────────────────────────
+
+class ScrapedItem(BaseModel):
+    platform: str
+    name: str
+    price: float
+    mrp: float = 0.0
+    image_url: str = ""
+    unit: str = ""
+    in_stock: bool = True
+    query: str = ""
+
+
+class BulkImportRequest(BaseModel):
+    items: List[ScrapedItem]
+
+
+QUERY_TO_CATEGORY = {
+    "milk":             "dairy-breakfast",
+    "bread":            "bakery",
+    "eggs":             "dairy-breakfast",
+    "butter":           "dairy-breakfast",
+    "rice":             "staples",
+    "atta wheat flour": "staples",
+    "sugar":            "staples",
+    "salt":             "staples",
+    "cooking oil":      "oils-spices",
+    "dal lentils":      "staples",
+    "tomato":           "fruits-vegetables",
+    "onion":            "fruits-vegetables",
+    "potato":           "fruits-vegetables",
+    "banana":           "fruits-vegetables",
+    "apple":            "fruits-vegetables",
+    "yogurt curd":      "dairy-breakfast",
+    "cheese":           "dairy-breakfast",
+    "paneer":           "dairy-breakfast",
+    "tea":              "snacks-drinks",
+    "coffee":           "snacks-drinks",
+    "biscuits":         "snacks-drinks",
+    "chips":            "snacks-drinks",
+    "noodles":          "snacks-drinks",
+    "soap":             "personal-care",
+    "shampoo":          "personal-care",
+    "toothpaste":       "personal-care",
+    "detergent":        "household",
+}
+
+
+@router.post("/import-prices", status_code=200)
+async def import_prices(
+    body: BulkImportRequest,
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """
+    Bulk-import scraped product prices into the database.
+    Upserts products and platform_prices rows.
+    Protected by x-seed-key header.
+    """
+    import re as _re
+    from datetime import timezone as _tz
+
+    def _slugify(text: str) -> str:
+        return _re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+    # Load all platforms
+    plat_res = await db.execute(select(Platform))
+    platforms = {p.slug: p for p in plat_res.scalars().all()}
+
+    # Load all categories
+    cat_res = await db.execute(select(Category))
+    categories = {c.slug: c for c in cat_res.scalars().all()}
+
+    # Fallback category
+    fallback_cat = categories.get("snacks-drinks") or next(iter(categories.values()), None)
+
+    saved = 0
+    skipped = 0
+    now = datetime.now(_tz.utc)
+
+    for item in body.items:
+        platform = platforms.get(item.platform)
+        if not platform:
+            skipped += 1
+            continue
+
+        name = item.name.strip()[:255]
+        if not name or item.price <= 0:
+            skipped += 1
+            continue
+
+        cat_slug = QUERY_TO_CATEGORY.get(item.query, "")
+        category = categories.get(cat_slug) or fallback_cat
+
+        prod_slug = _slugify(name)[:255]
+        res = await db.execute(select(Product).where(Product.slug == prod_slug))
+        product = res.scalar_one_or_none()
+        if not product:
+            product = Product(
+                id=uuid.uuid4(),
+                name=name,
+                slug=prod_slug,
+                category_id=category.id if category else None,
+                image_url=item.image_url or None,
+                unit=item.unit or None,
+                is_active=True,
+                is_featured=True,
+            )
+            db.add(product)
+            await db.flush()
+        else:
+            if not product.image_url and item.image_url:
+                product.image_url = item.image_url
+            if not product.unit and item.unit:
+                product.unit = item.unit
+
+        # Upsert platform price
+        pp_res = await db.execute(
+            select(PlatformPrice).where(
+                PlatformPrice.product_id == product.id,
+                PlatformPrice.platform_id == platform.id,
+            )
+        )
+        pp = pp_res.scalar_one_or_none()
+        mrp_val = float(item.mrp) if item.mrp > 0 else float(item.price)
+        price_val = float(item.price)
+        discount = round((mrp_val - price_val) / mrp_val * 100, 1) if mrp_val > price_val else 0.0
+
+        if pp:
+            pp.price = price_val
+            pp.original_price = mrp_val if mrp_val > price_val else None
+            pp.discount_percent = discount
+            pp.is_available = item.in_stock
+            pp.last_updated = now
+            if item.image_url:
+                pp.platform_image_url = item.image_url
+        else:
+            pp = PlatformPrice(
+                id=uuid.uuid4(),
+                product_id=product.id,
+                platform_id=platform.id,
+                price=price_val,
+                original_price=mrp_val if mrp_val > price_val else None,
+                discount_percent=discount,
+                is_available=item.in_stock,
+                last_updated=now,
+                platform_image_url=item.image_url or None,
+                source="scrape",
+            )
+            db.add(pp)
+
+        saved += 1
+
+    await db.commit()
+
+    # Clear featured cache
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+
+    return {"status": "ok", "saved": saved, "skipped": skipped, "total": len(body.items)}
 
 
 class AdminCreate(BaseModel):

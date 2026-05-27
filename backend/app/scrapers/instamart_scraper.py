@@ -1,6 +1,27 @@
-"""Swiggy Instamart scraper — uses Swiggy's internal search API."""
+"""
+Swiggy Instamart scraper — Playwright-based (bypasses Cloudflare).
+
+Strategy
+--------
+1. Open https://www.swiggy.com/instamart/search?query=<query> in Chromium.
+2. Intercept JSON responses from /api/instamart/search (any variant).
+3. Parse the widget/SKU-based response structure.
+
+Response structure (confirmed via network interception):
+  data["data"]["widgets"][x]["data"]["skus"][y]
+    sku["display_name"]                   → product name
+    sku["price"]["offer_price"]           → selling price
+    sku["price"]["mrp"]                   → MRP
+    sku["images"][0]["url"]               → image
+    sku["unit_quantity"]                  → unit e.g. "500 g"
+    sku["is_available"]                   → bool
+"""
+
+import asyncio
+import re
 import uuid
 from typing import Optional
+from urllib.parse import quote_plus
 
 import structlog
 
@@ -9,115 +30,182 @@ from app.services.price_engine import PriceData
 
 log = structlog.get_logger(__name__)
 
-# Default coords: Bengaluru (Swiggy HQ city, best coverage)
-DEFAULT_LAT = "12.9716"
-DEFAULT_LNG = "77.5946"
+SWIGGY_BASE = "https://www.swiggy.com"
+
+
+def _parse_price(val) -> Optional[float]:
+    if val is None:
+        return None
+    try:
+        cleaned = re.sub(r"[^\d.]", "", str(val))
+        return float(cleaned) if cleaned else None
+    except Exception:
+        return None
+
+
+def _extract_skus(data: dict) -> list[dict]:
+    """Walk multiple response shapes to find the SKU list."""
+    # Shape 1: data.data.widgets[].data.skus[]
+    widgets = (
+        data.get("data", {}).get("widgets", [])
+        or data.get("widgets", [])
+        or []
+    )
+    skus = []
+    for widget in widgets:
+        w_skus = widget.get("data", {}).get("skus", []) or widget.get("skus", []) or []
+        skus.extend(w_skus)
+
+    # Shape 2: data.data.skus[]
+    if not skus:
+        skus = data.get("data", {}).get("skus", []) or data.get("skus", []) or []
+
+    return skus
+
+
+def _parse_response(data: dict) -> list[dict]:
+    products = []
+    for sku in _extract_skus(data):
+        name      = sku.get("display_name") or sku.get("name", "")
+        price_obj = sku.get("price", {})
+        if isinstance(price_obj, dict):
+            price = _parse_price(price_obj.get("offer_price") or price_obj.get("mrp"))
+            mrp   = _parse_price(price_obj.get("mrp")) or price
+        else:
+            price = _parse_price(price_obj)
+            mrp   = price
+
+        imgs  = sku.get("images", [])
+        image = imgs[0].get("url", "") if imgs else ""
+        pid   = str(sku.get("id") or sku.get("sku_id") or "")
+
+        if name and price and price > 0:
+            products.append({
+                "name":      name,
+                "price":     price,
+                "mrp":       mrp or price,
+                "unit":      sku.get("unit_quantity", ""),
+                "image_url": image,
+                "in_stock":  sku.get("is_available", True),
+                "pid":       pid,
+                "url":       None,
+            })
+    return products
 
 
 class InstamartScraper(BaseScraper):
     platform_slug = "instamart"
-    BASE_URL = "https://www.swiggy.com/instamart"
-    SEARCH_API = "https://www.swiggy.com/mapi/instamart/search"
 
-    async def fetch_price(self, product_id: uuid.UUID, product_name: str = "") -> Optional[PriceData]:
+    async def fetch_price(
+        self,
+        product_id: uuid.UUID,
+        product_name: str = "",
+    ) -> Optional[PriceData]:
         query = product_name or str(product_id)
+        if not query:
+            return None
+
         try:
-            response = await self._get(
-                self.SEARCH_API,
-                params={
-                    "pageNumber": 0,
-                    "searchResultsOffset": 0,
-                    "query": query,
-                    "layoutType": "GROCERY_SEARCH",
-                    "isPreSearchTag": "false",
-                    "highConfidencePageNo": 0,
-                    "lowConfidencePageNo": 0,
-                },
-                headers={
-                    "Accept": "*/*",
-                    "Content-Type": "application/json",
-                    "_tid": "d7c5bc3f-49f8-4a4b-8f3c-b1c4b9f13a2b",
-                    "rid": "c9d5ac8f-71a4-4c5b-8e61-1f2f3a4b5c6d",
-                    "deviceId": "web-pba001",
-                    "Referer": f"https://www.swiggy.com/instamart/search?query={query}",
-                    "Origin": "https://www.swiggy.com",
-                },
-            )
-            data = response.json()
-
-            # Walk multiple possible response shapes
-            skus = self._extract_skus(data)
-            if not skus:
-                return None
-
-            item = skus[0]
-            mrp = float(item.get("strike_price") or item.get("mrp") or 0)
-            price = float(item.get("price") or item.get("final_price") or mrp)
-            if price <= 0:
-                price = mrp
-            if price <= 0:
-                return None
-
-            avail = item.get("availability") or {}
-            in_stock = (
-                avail.get("available_quantity", 1) > 0
-                if isinstance(avail, dict)
-                else bool(avail)
-            )
-
-            item_id = str(item.get("id") or item.get("product_id") or "")
-            image_url = (
-                item.get("img_url")
-                or item.get("image_url")
-                or (item.get("images") or [{}])[0].get("url")
-            )
-
-            return PriceData(
-                platform_id="",
-                platform_slug=self.platform_slug,
-                price=price,
-                original_price=mrp if mrp > price else None,
-                discount_percent=round((mrp - price) / mrp * 100, 1) if mrp > price else 0,
-                is_available=in_stock,
-                delivery_time_minutes=15,
-                platform_product_id=item_id,
-                platform_product_url=f"{self.BASE_URL}/product/{item_id}" if item_id else None,
-                platform_image_url=image_url,
-                source="scrape",
-            )
+            return await self._fetch_playwright(query)
         except Exception as exc:
-            log.warning("instamart_scrape_error", query=query, error=str(exc))
+            log.warning("instamart_playwright_failed", query=query, error=str(exc))
             raise ScraperError(str(exc)) from exc
 
-    @staticmethod
-    def _extract_skus(data: dict) -> list:
-        """Walk multiple response shapes to find the product list."""
-        # Shape 1: data.widgets[0].data.stores[0].skus
-        try:
-            widgets = data["data"]["widgets"]
-            for widget in widgets:
-                stores = widget.get("data", {}).get("stores", [])
-                if stores:
-                    skus = stores[0].get("skus", [])
-                    if skus:
-                        return skus
-        except (KeyError, IndexError, TypeError):
-            pass
+    async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
+        from app.scrapers.playwright_pool import get_browser
 
-        # Shape 2: data.products or data.results
-        try:
-            items = data.get("data", {}).get("products") or data.get("products") or []
-            if items:
-                return items
-        except (AttributeError, TypeError):
-            pass
+        captured: list[dict] = []
 
-        # Shape 3: flat items list
-        try:
-            items = data.get("items") or data.get("results") or []
-            if items:
-                return items
-        except (AttributeError, TypeError):
-            pass
+        async with get_browser() as browser:
+            context = await browser.new_context(
+                viewport={"width": 390, "height": 844},
+                user_agent=(
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/17.0 Mobile/15E148 Safari/604.1"
+                ),
+                locale="en-IN",
+            )
+            try:
+                page = await context.new_page()
 
-        return []
+                async def on_response(response):
+                    url = response.url
+                    if (
+                        "swiggy.com" in url
+                        and "instamart" in url
+                        and "search" in url
+                        and response.status == 200
+                    ):
+                        ct = response.headers.get("content-type", "")
+                        if "json" in ct:
+                            try:
+                                data = await response.json()
+                                captured.append(data)
+                            except Exception:
+                                pass
+
+                page.on("response", on_response)
+
+                await page.goto(
+                    f"{SWIGGY_BASE}/instamart/search?query={quote_plus(query)}",
+                    wait_until="networkidle",
+                    timeout=30_000,
+                )
+                await asyncio.sleep(3)
+
+                # Fallback: call the API from within the browser context
+                # (has session cookies + CSRF tokens already set)
+                if not captured:
+                    result = await page.evaluate(
+                        """async (q) => {
+                            try {
+                                const r = await fetch(
+                                    '/api/instamart/search/v2?offset=0&ageConsent=false'
+                                    + '&storeId=&primaryStoreId=&secondaryStoreId=',
+                                    {
+                                        method: 'POST',
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({
+                                            facets: [], sortAttribute: '', query: q,
+                                            search_results_offset: '0',
+                                            page_type: 'INSTAMART_SEARCH_PAGE',
+                                            is_pre_search_tag: false
+                                        })
+                                    }
+                                );
+                                if (r.ok) return await r.json();
+                                return null;
+                            } catch(e) { return null; }
+                        }""",
+                        query,
+                    )
+                    if result:
+                        captured.append(result)
+
+                await page.close()
+            finally:
+                await context.close()
+
+        for data in captured:
+            products = _parse_response(data)
+            if products:
+                best  = products[0]
+                price = best["price"]
+                mrp   = best["mrp"]
+                return PriceData(
+                    platform_id="",
+                    platform_slug="instamart",
+                    price=price,
+                    original_price=mrp if mrp > price else None,
+                    discount_percent=round((mrp - price) / mrp * 100, 1) if mrp > price else 0.0,
+                    is_available=best["in_stock"],
+                    delivery_time_minutes=15,
+                    platform_product_id=best["pid"] or None,
+                    platform_product_url=best["url"],
+                    platform_image_url=best["image_url"] or None,
+                    source="scrape",
+                )
+
+        log.info("instamart_no_result", query=query)
+        return None

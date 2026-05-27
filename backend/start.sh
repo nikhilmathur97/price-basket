@@ -5,6 +5,12 @@
 
 set -e
 
+# Install Playwright Chromium browser if not already present
+echo "==> Installing Playwright Chromium browser..."
+python3 -m playwright install chromium --with-deps 2>/dev/null || \
+    python3 -m playwright install chromium 2>/dev/null || \
+    echo "WARNING: Playwright install failed — scrapers will fall back gracefully"
+
 echo "==> Running DB migrations..."
 
 # Check whether alembic_version table exists.
