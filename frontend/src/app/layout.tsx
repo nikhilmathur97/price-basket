@@ -9,6 +9,7 @@ import { TopProgressBar } from "@/components/TopProgressBar";
 import { BottomNav } from "@/components/BottomNav";
 import { Footer } from "@/components/Footer";
 import { ChatBot } from "@/components/ChatBot";
+import { BackendWarmup } from "@/components/BackendWarmup";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body>
         <Providers>
+          <BackendWarmup />
           <TopProgressBar />
           <Header />
           {/* pb-[58px] on mobile reserves space for the fixed BottomNav */}

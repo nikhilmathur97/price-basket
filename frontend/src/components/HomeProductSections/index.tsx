@@ -12,6 +12,7 @@
  *   4. Category sections only render when products exist for that category.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
 import { CATEGORY_SECTIONS } from "@/lib/mockData";
@@ -141,20 +142,15 @@ function EmptyState() {
   );
 }
 
-export function HomeProductSections({
-  initialProducts = [],
-}: {
-  initialProducts?: ProductWithPrices[];
-}) {
+export function HomeProductSections() {
+  const [slowLoad, setSlowLoad] = useState(false);
+
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
       const { data } = await api.getFeatured(20);
       return data ?? [];
     },
-    // Seed the cache with SSR data — renders instantly, zero loading flash
-    initialData: initialProducts.length > 0 ? initialProducts : undefined,
-    initialDataUpdatedAt: initialProducts.length > 0 ? Date.now() : undefined,
     staleTime: 300_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,
@@ -162,10 +158,26 @@ export function HomeProductSections({
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
-  // Only show skeleton if no server data AND client hasn't loaded yet
-  if (isLoading && initialProducts.length === 0) {
+  // After 5 s of loading, show a friendly "waking up" hint
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => setSlowLoad(true), 5_000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
+
+  if (isLoading) {
     return (
       <div className="space-y-6">
+        {slowLoad && (
+          <div className="flex items-center justify-center gap-2 py-2 bg-orange-50 rounded-xl border border-orange-100">
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            <span className="text-[12px] font-medium text-orange-600 ml-1">
+              Waking up servers, please wait a moment…
+            </span>
+          </div>
+        )}
         {[1, 2, 3].map((i) => (
           <div key={i}>
             <div className="h-5 w-40 bg-surface-200 rounded animate-pulse mb-3" />
