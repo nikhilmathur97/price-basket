@@ -966,7 +966,6 @@ async def load_scraped_data(
 
     saved = 0
     skipped = 0
-    now = datetime.now(_tz.utc)
 
     for item in items:
         platform = platforms.get(item.get("platform", ""))
@@ -1002,8 +1001,6 @@ async def load_scraped_data(
                 category_id=category.id if category else None,
                 is_active=True,
                 is_featured=False,
-                created_at=now,
-                updated_at=now,
             )
             db.add(product)
             await db.flush()
@@ -1020,7 +1017,7 @@ async def load_scraped_data(
                 PlatformPrice.platform_id == platform.id,
             )
         )
-        pp = pp_res.scalar_one_or_none()
+        pp = pp_res.scalars().first()
         disc = round(((mrp - price) / mrp) * 100, 1) if mrp > price else 0.0
         if pp:
             pp.price = price
@@ -1029,7 +1026,6 @@ async def load_scraped_data(
             pp.discount_label = f"{int(disc)}% OFF" if disc >= 1 else None
             pp.is_available = True
             pp.platform_image_url = image_url
-            pp.updated_at = now
         else:
             pp = PlatformPrice(
                 id=uuid.uuid4(),
@@ -1041,8 +1037,7 @@ async def load_scraped_data(
                 discount_label=f"{int(disc)}% OFF" if disc >= 1 else None,
                 is_available=True,
                 platform_image_url=image_url,
-                created_at=now,
-                updated_at=now,
+                source="scrape",
             )
             db.add(pp)
         saved += 1
