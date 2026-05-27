@@ -141,13 +141,20 @@ function EmptyState() {
   );
 }
 
-export function HomeProductSections() {
+export function HomeProductSections({
+  initialProducts = [],
+}: {
+  initialProducts?: ProductWithPrices[];
+}) {
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
       const { data } = await api.getFeatured(20);
       return data ?? [];
     },
+    // Seed the cache with SSR data — renders instantly, zero loading flash
+    initialData: initialProducts.length > 0 ? initialProducts : undefined,
+    initialDataUpdatedAt: initialProducts.length > 0 ? Date.now() : undefined,
     staleTime: 300_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,
@@ -155,8 +162,8 @@ export function HomeProductSections() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
-  // Show skeleton rows instantly while loading — never block the page
-  if (isLoading) {
+  // Only show skeleton if no server data AND client hasn't loaded yet
+  if (isLoading && initialProducts.length === 0) {
     return (
       <div className="space-y-6">
         {[1, 2, 3].map((i) => (

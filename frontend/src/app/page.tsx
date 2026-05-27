@@ -4,6 +4,28 @@ import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
 import { LocationBar } from "@/components/LocationBar";
+import type { ProductWithPrices } from "@/types";
+
+// ── Server-side prefetch (ISR: cache for 5 min, revalidate in background) ───
+// This runs on the Next.js server, not in the browser, so the cold-start
+// delay on Render is paid once per cache window — not on every page load.
+async function prefetchFeatured(): Promise<ProductWithPrices[]> {
+  try {
+    const BACKEND =
+      process.env.NEXT_PUBLIC_API_URL ?? "https://pricebasket-api.onrender.com";
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 10_000); // 10 s max
+    const res = await fetch(`${BACKEND}/api/v1/products/featured?limit=20`, {
+      signal: controller.signal,
+      next: { revalidate: 300 }, // ISR: re-fetch in background every 5 min
+    });
+    clearTimeout(t);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return []; // backend cold / timeout → client-side React Query takes over
+  }
+}
 
 // ── Category card colour accents ────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; ring: string; text: string }> = {
@@ -22,7 +44,9 @@ const CAT_COLORS: Record<string, { bg: string; ring: string; text: string }> = {
 };
 
 // ── Page ────────────────────────────────────────────────────────────────────
-export default function HomePage() {
+export default async function HomePage() {
+  const initialProducts = await prefetchFeatured();
+
   return (
     <div className="bg-[#f5f5f5] min-h-screen pb-20 md:pb-8">
 
@@ -146,7 +170,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Product sections (fetches from API, falls back to mock) ── */}
-        <HomeProductSections />
+        <HomeProductSections initialProducts={initialProducts} />
 
       </div>
     </div>
