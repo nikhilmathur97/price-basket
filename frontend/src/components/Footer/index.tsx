@@ -242,6 +242,20 @@ export function Footer() {
                 </svg>
                 <span className="text-surface-300">WhatsApp</span>
               </a>
+
+              {/* YouTube */}
+              <a
+                href="https://www.youtube.com/@pricebasketindia/shorts"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
+                  <rect width="24" height="24" rx="5.5" fill="#FF0000"/>
+                  <path fill="white" d="M19.6 8.2s-.2-1.3-.8-1.9c-.7-.8-1.5-.8-1.9-.8C14.7 5.4 12 5.4 12 5.4s-2.7 0-4.9.1c-.4.1-1.2.1-1.9.8-.6.6-.8 1.9-.8 1.9S4.2 9.6 4.2 11v1.3c0 1.4.2 2.8.2 2.8s.2 1.3.8 1.9c.7.8 1.7.7 2.1.8C8.6 17.9 12 18 12 18s2.7 0 4.9-.2c.4-.1 1.2-.1 1.9-.8.6-.6.8-1.9.8-1.9s.2-1.4.2-2.8V11c0-1.4-.2-2.8-.2-2.8zM10.1 14.1V9.7l5.2 2.2-5.2 2.2z"/>
+                </svg>
+                <span className="text-surface-300">YouTube</span>
+              </a>
             </div>
           </div>
 
