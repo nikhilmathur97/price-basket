@@ -1,11 +1,11 @@
 /**
  * Catch-all proxy: forwards every /api/v1/* request to the backend.
- * Runs on Vercel Edge Runtime — avoids Lambda SSRF/DNS restrictions
- * that block outbound calls to Render's IP range.
+ * Uses Node.js runtime — Edge Runtime blocks outbound calls to Render
+ * (DNS_HOSTNAME_RESOLVED_PRIVATE error).
  */
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 // BACKEND_URL is set in Vercel project env; falls back to Render public URL.
 const BACKEND =
