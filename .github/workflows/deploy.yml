@@ -1,7 +1,7 @@
 name: Deploy Price Basket
 
 #   dev  branch  →  Preview deploy  →  dev.pricebasket.in
-#   main branch  →  Production      →  pricebasket.in
+#   main branch  →  Production      →  pricebasket.in + Render backend
 
 on:
   push:
@@ -118,10 +118,49 @@ jobs:
         run: |
           echo "url=${{ steps.deploy-prod.outputs.url || steps.deploy-dev.outputs.url }}" >> $GITHUB_OUTPUT
 
+  deploy-backend:
+    name: "Backend → Render (main only)"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.branch == 'main' || github.ref_name == 'main' }}
+    outputs:
+      deployed: ${{ steps.trigger.outputs.deployed }}
+
+    steps:
+      - name: "[PROD] Trigger Render deploy"
+        id: trigger
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "⚠️  RENDER_DEPLOY_HOOK_URL secret not set — skipping Render deploy trigger"
+            echo "deployed=false" >> $GITHUB_OUTPUT
+          else
+            echo "🚀 Triggering Render backend deploy..."
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+            echo "Render deploy hook response: $HTTP"
+            echo "deployed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "[PROD] Wait for Render deploy + call mark-featured"
+        if: steps.trigger.outputs.deployed == 'true'
+        run: |
+          echo "⏳ Waiting 3 minutes for Render to finish deploying..."
+          sleep 180
+          echo "🔍 Checking if /setup/mark-featured is available..."
+          for i in 1 2 3 4 5; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              https://pricebasket-api.onrender.com/api/v1/setup/mark-featured \
+              -H "x-seed-key: pricebasket-seed-2024")
+            echo "  Attempt $i: HTTP $HTTP"
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ mark-featured succeeded!"
+              break
+            fi
+            sleep 30
+          done
+
   summary:
     name: "Deployment summary"
     runs-on: ubuntu-latest
-    needs: deploy-frontend
+    needs: [deploy-frontend, deploy-backend]
     if: always()
     steps:
       - name: Write summary
