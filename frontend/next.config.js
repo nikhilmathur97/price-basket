@@ -4,8 +4,10 @@ const nextConfig = {
     unoptimized: true,
     remotePatterns: [
       { hostname: "cdn.blinkit.com" },
+      { hostname: "cdn.grofers.com" },
       { hostname: "cdn.zeptonow.com" },
       { hostname: "www.bigbasket.com" },
+      { hostname: "bb-website-live.s3.amazonaws.com" },
       { hostname: "media-assets.swiggy.com" },
       { hostname: "pricebasket-assets.s3.ap-south-1.amazonaws.com" },
       { hostname: "test.pricebasket.in" },

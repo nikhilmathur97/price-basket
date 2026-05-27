@@ -115,6 +115,7 @@ class PlatformPriceOut(BaseModel):
     is_available: bool
     delivery_time_minutes: Optional[int]
     platform_product_url: Optional[str]
+    platform_image_url: Optional[str] = None
     buy_url: Optional[str] = None
     last_updated: datetime
 

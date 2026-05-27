@@ -33,6 +33,7 @@ export interface PlatformPrice {
   is_available: boolean;
   delivery_time_minutes: number | null;
   platform_product_url: string | null;
+  platform_image_url: string | null;
   buy_url: string | null;
   last_updated: string;
 }
