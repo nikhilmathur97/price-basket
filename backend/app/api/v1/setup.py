@@ -356,6 +356,7 @@ CATEGORIES_DATA = [
     dict(slug="pet-care",          name="Pet Care",            icon="🐾", display_order=10, image_url=FOOD_IMG["pet"],     is_active=True),
     dict(slug="staples",           name="Atta, Rice & Dal",    icon="🌾", display_order=11, image_url=FOOD_IMG["flour"],   is_active=True),
     dict(slug="oils-spices",       name="Oils & Spices",       icon="🫙", display_order=12, image_url=FOOD_IMG["oil"],     is_active=True),
+    dict(slug="electronics",       name="Electronics",         icon="📱", display_order=13, image_url="https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop", is_active=True),
 ]
 
 BLINKIT_QUERIES = [
@@ -1098,3 +1099,140 @@ async def mark_featured_products(
     await cache_delete_pattern("products:*")
 
     return {"status": "ok", "featured": len(top_ids), "limit": limit}
+
+
+@router.post("/fix-electronics", status_code=200)
+async def fix_electronics_category(
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """
+    One-time migration for production Render DB:
+    1. Creates the 'electronics' category if it doesn't exist.
+    2. Moves all electronics products (phones, laptops, tablets, earphones, etc.)
+       from any grocery category into 'electronics'.
+    3. Fixes false-positive 'ram ' keyword matches (Garam Masala → oils-spices, etc.).
+    4. Marks moved electronics products as is_featured=True.
+    5. Clears Redis cache.
+    """
+    import re as _re
+
+    stats: dict = {
+        "electronics_category": "exists",
+        "products_moved_to_electronics": 0,
+        "false_positives_fixed": 0,
+        "featured_marked": 0,
+    }
+
+    # ── 1. Ensure electronics category exists ────────────────────────────────
+    r = await db.execute(select(Category).where(Category.slug == "electronics"))
+    elec_cat = r.scalar_one_or_none()
+    if elec_cat is None:
+        elec_cat = Category(
+            slug="electronics",
+            name="Electronics",
+            icon="📱",
+            display_order=13,
+            image_url="https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop",
+            is_active=True,
+        )
+        db.add(elec_cat)
+        await db.flush()
+        stats["electronics_category"] = "created"
+
+    elec_id = elec_cat.id
+
+    # ── 2. Keywords that identify electronics products ───────────────────────
+    ELECTRONICS_KEYWORDS = [
+        "iphone", "ipad", "macbook", "apple watch", "airpods",
+        "samsung galaxy", "samsung tab", "oneplus", "realme", "redmi",
+        "poco", "oppo", "vivo", "nokia", "motorola", "asus rog",
+        "laptop", "notebook", "chromebook",
+        "earphones", "earbuds", "headphones", "bluetooth speaker",
+        "smartwatch", "fitness band", "mi band",
+        "power bank", "charger cable", "usb cable", "type-c cable",
+        "screen protector", "phone case", "mobile cover",
+        "kindle", "fire tablet",
+        "router wifi", "wifi extender",
+        "pen drive", "memory card", "sd card",
+        "trimmer", "electric shaver", "hair dryer", "straightener",
+        "electric toothbrush",
+        "smart bulb", "led strip",
+    ]
+
+    # ── 3. Move electronics products from non-electronics categories ─────────
+    r = await db.execute(
+        select(Product).where(Product.category_id != elec_id)
+    )
+    all_non_elec = r.scalars().all()
+
+    moved_ids = []
+    for prod in all_non_elec:
+        name_lower = (prod.name or "").lower()
+        slug_lower = (prod.slug or "").lower()
+        combined = name_lower + " " + slug_lower
+        if any(kw in combined for kw in ELECTRONICS_KEYWORDS):
+            prod.category_id = elec_id
+            moved_ids.append(prod.id)
+
+    stats["products_moved_to_electronics"] = len(moved_ids)
+
+    # ── 4. Fix false-positive 'ram ' keyword matches ─────────────────────────
+    # Products that contain "garam", "vikram", "mangat ram", "shri ram" etc.
+    # were incorrectly moved to electronics by the 'ram ' keyword in old scripts.
+    # Re-assign them to their correct categories based on name patterns.
+    FALSE_POSITIVE_FIXES = [
+        # (name_pattern_regex, correct_slug)
+        (r"garam\s*masala",          "oils-spices"),
+        (r"mangat\s*ram",            "staples"),
+        (r"vikram\s*mills",          "staples"),
+        (r"shri\s*ram",              "staples"),
+        (r"\batta\b",                "staples"),
+        (r"\bdal\b",                 "staples"),
+        (r"\bflour\b",               "staples"),
+        (r"\bchakki\b",              "staples"),
+        (r"protein\s*(powder|shake|supplement)", "snacks-drinks"),
+        (r"whey\s*protein",          "snacks-drinks"),
+        (r"mass\s*gainer",           "snacks-drinks"),
+    ]
+
+    # Build slug→id map for target categories
+    r2 = await db.execute(select(Category))
+    cat_map: dict = {c.slug: c.id for c in r2.scalars().all()}
+
+    # Only check products currently in electronics (could have been wrongly placed)
+    r3 = await db.execute(
+        select(Product).where(Product.category_id == elec_id)
+    )
+    elec_products = r3.scalars().all()
+
+    fixed = 0
+    for prod in elec_products:
+        name_lower = (prod.name or "").lower()
+        for pattern, correct_slug in FALSE_POSITIVE_FIXES:
+            if _re.search(pattern, name_lower) and correct_slug in cat_map:
+                prod.category_id = cat_map[correct_slug]
+                fixed += 1
+                break
+
+    stats["false_positives_fixed"] = fixed
+
+    await db.commit()
+
+    # ── 5. Mark all electronics products as featured ─────────────────────────
+    r4 = await db.execute(
+        select(Product).where(Product.category_id == elec_id)
+    )
+    elec_final = r4.scalars().all()
+    for prod in elec_final:
+        prod.is_featured = True
+    stats["featured_marked"] = len(elec_final)
+
+    await db.commit()
+
+    # ── 6. Clear cache ────────────────────────────────────────────────────────
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+    await cache_delete_pattern("categories:*")
+
+    return {"status": "ok", **stats}
