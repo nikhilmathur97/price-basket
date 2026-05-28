@@ -11,7 +11,7 @@ Endpoints:
 import asyncio
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import List, Optional
 from urllib.parse import quote_plus
 
@@ -384,7 +384,7 @@ async def _run_seed():
     from app.models.price import PlatformPrice
 
     _seed_state.update(running=True, done=False, error=None, products=0, prices=0,
-                       started_at=datetime.now(UTC).isoformat(), progress="starting")
+                       started_at=datetime.now(timezone.utc).isoformat(), progress="starting")
 
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
     AsyncSess = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

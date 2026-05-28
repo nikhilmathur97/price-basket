@@ -33,33 +33,148 @@ LON = 75.7873
 CITY = "Jaipur"
 
 SEARCH_QUERIES = [
+    # ── Dairy & Breakfast ─────────────────────────────────────────────────────
     "milk",
-    "bread",
-    "eggs",
     "butter",
+    "eggs",
+    "yogurt curd",
+    "cheese",
+    "paneer",
+    "cream",
+    "cornflakes cereal",
+    "oats",
+    "muesli",
+
+    # ── Staples ───────────────────────────────────────────────────────────────
     "rice",
     "atta wheat flour",
     "sugar",
     "salt",
-    "cooking oil",
     "dal lentils",
+    "chana dal",
+    "urad dal",
+    "moong dal",
+    "poha",
+    "suji semolina",
+    "besan gram flour",
+    "rajma kidney beans",
+
+    # ── Oils & Spices ─────────────────────────────────────────────────────────
+    "cooking oil",
+    "ghee",
+    "mustard oil",
+    "olive oil",
+    "honey",
+    "turmeric haldi",
+    "cumin jeera",
+    "coriander powder dhania",
+    "garam masala",
+    "red chilli powder",
+    "black pepper",
+
+    # ── Fruits & Vegetables ───────────────────────────────────────────────────
     "tomato",
     "onion",
     "potato",
     "banana",
     "apple",
-    "yogurt curd",
-    "cheese",
-    "paneer",
-    "tea",
-    "coffee",
+    "spinach palak",
+    "capsicum shimla mirch",
+    "carrot gajar",
+    "cucumber kheera",
+    "garlic lehsun",
+    "ginger adrak",
+    "green chilli",
+    "coriander dhania leaves",
+    "pineapple",
+    "watermelon",
+    "grapes",
+    "pomegranate anaar",
+    "cauliflower",
+    "brinjal baingan",
+    "bhindi lady finger",
+    "methi fenugreek",
+    "peas matar",
+    "radish mooli",
+    "lemon nimbu",
+
+    # ── Snacks & Drinks ───────────────────────────────────────────────────────
     "biscuits",
     "chips",
     "noodles",
+    "cold drink cola",
+    "mango juice",
+    "energy drink",
+    "nachos",
+    "popcorn",
+    "namkeen mixture",
+    "dry fruits",
+    "cashew nuts",
+    "almonds",
+    "peanuts",
+    "chocolate",
+    "candy",
+
+    # ── Bakery ────────────────────────────────────────────────────────────────
+    "bread",
+    "pav bun",
+    "cake rusk",
+
+    # ── Personal Care ─────────────────────────────────────────────────────────
     "soap",
     "shampoo",
     "toothpaste",
+    "body lotion",
+    "face wash",
+    "face cream",
+    "deodorant",
+    "razor",
+    "baby powder",
+    "sunscreen",
+    "lip balm",
+    "hand wash",
+
+    # ── Household ─────────────────────────────────────────────────────────────
     "detergent",
+    "dishwash bar",
+    "floor cleaner",
+    "toilet cleaner",
+    "antiseptic liquid dettol",
+    "scrub pad",
+    "air freshener",
+    "mosquito repellent",
+    "garbage bags",
+    "tissue paper",
+
+    # ── Beverages ─────────────────────────────────────────────────────────────
+    "tea",
+    "coffee",
+    "green tea",
+    "protein shake",
+
+    # ── Chicken & Meat ────────────────────────────────────────────────────────
+    "chicken breast boneless",
+    "chicken curry cut",
+    "mutton keema",
+    "chicken wings",
+
+    # ── Frozen Foods ─────────────────────────────────────────────────────────
+    "frozen peas",
+    "french fries frozen",
+    "ice cream",
+    "frozen corn",
+    "frozen vegetables mix",
+
+    # ── Baby Care ─────────────────────────────────────────────────────────────
+    "diapers pampers",
+    "baby food cerelac",
+    "baby shampoo johnson",
+    "baby oil",
+
+    # ── Pet Care ──────────────────────────────────────────────────────────────
+    "dog food pedigree",
+    "cat food whiskas",
+    "pet treats",
 ]
 
 
@@ -496,9 +611,264 @@ async def scrape_jiomart(context: BrowserContext, query: str) -> list:
     return results
 
 
+# ── Amazon Fresh Scraper ───────────────────────────────────────────────────────
+async def scrape_amazon(context: BrowserContext, query: str) -> list:
+    """
+    Scrape Amazon Fresh (nowstore) search results via DOM extraction.
+    Amazon blocks direct API calls; Playwright with a real browser session works.
+    """
+    page = await context.new_page()
+    results = []
+
+    try:
+        await page.goto(
+            f"https://www.amazon.in/s?k={query}&i=nowstore",
+            wait_until="networkidle",
+            timeout=35000,
+        )
+        await asyncio.sleep(3)
+
+        products = await page.evaluate(
+            """() => {
+                const out = [];
+                const cards = document.querySelectorAll(
+                    '[data-component-type="s-search-result"][data-asin]'
+                );
+                cards.forEach(card => {
+                    try {
+                        const asin = card.getAttribute('data-asin') || '';
+                        if (!asin) return;
+                        const nameEl = card.querySelector('h2 a span, h2 span');
+                        const name = nameEl?.textContent?.trim();
+                        const priceWhole = card.querySelector('.a-price-whole')?.textContent?.replace(/[^0-9]/g,'');
+                        const priceFrac = card.querySelector('.a-price-fraction')?.textContent?.replace(/[^0-9]/g,'') || '00';
+                        const mrpEl = card.querySelector('.a-price.a-text-price .a-offscreen');
+                        const mrp = mrpEl?.textContent?.replace(/[^0-9.]/g,'');
+                        const img = card.querySelector('img.s-image')?.src || '';
+                        const unit = card.querySelector('.a-size-base.a-color-secondary')?.textContent?.trim() || '';
+                        if (name && priceWhole && parseInt(priceWhole) > 0) {
+                            out.push({
+                                asin, name,
+                                price: parseFloat(priceWhole + '.' + priceFrac),
+                                mrp: mrp ? parseFloat(mrp) : null,
+                                image_url: img,
+                                unit,
+                            });
+                        }
+                    } catch(e) {}
+                });
+                return out;
+            }"""
+        )
+
+        for p in products[:25]:
+            if p.get("name") and p.get("price") and float(p["price"]) > 0:
+                price = float(p["price"])
+                mrp = float(p["mrp"]) if p.get("mrp") else price
+                results.append({
+                    "platform": "amazon",
+                    "name": p["name"][:200],
+                    "price": price,
+                    "mrp": mrp if mrp >= price else price,
+                    "image_url": p.get("image_url", ""),
+                    "unit": p.get("unit", ""),
+                    "in_stock": True,
+                    "query": query,
+                })
+
+        print(f"  Amazon '{query}': {len(results)} products")
+    except Exception as e:
+        print(f"  Amazon '{query}' error: {e}")
+    finally:
+        await page.close()
+
+    return results
+
+
+# ── Flipkart Minutes Scraper ───────────────────────────────────────────────────
+async def scrape_flipkart(context: BrowserContext, query: str) -> list:
+    """
+    Scrape Flipkart Minutes grocery search via DOM + intercepted JSON.
+    """
+    page = await context.new_page()
+    results = []
+    captured = []
+
+    async def on_response(response):
+        url = response.url
+        if ("flipkart.com" in url and response.status == 200 and
+                "api/4/page/fetch" in url):
+            ct = response.headers.get("content-type", "")
+            if "json" in ct:
+                try:
+                    data = await response.json()
+                    captured.append(data)
+                except Exception:
+                    pass
+
+    page.on("response", on_response)
+
+    try:
+        await page.goto(
+            f"https://www.flipkart.com/search?q={query}&marketplace=GROCERY",
+            wait_until="networkidle",
+            timeout=35000,
+        )
+        await asyncio.sleep(3)
+
+        # Parse intercepted JSON responses
+        for data in captured:
+            try:
+                slots = (
+                    data.get("pageData", {}).get("slots", [])
+                    or data.get("slots", [])
+                    or []
+                )
+                for slot in slots:
+                    widget_data = slot.get("widget", {}).get("data", {}) or {}
+                    products_raw = (
+                        widget_data.get("products", [])
+                        or widget_data.get("productSearchResult", {}).get("products", [])
+                        or []
+                    )
+                    for prod in products_raw:
+                        listing = prod.get("productInfo", {}).get("value", {}) or prod
+                        name = (
+                            listing.get("title", "")
+                            or listing.get("titleInfo", {}).get("title", "")
+                        )
+                        pricing = listing.get("pricing", {}) or {}
+                        mrp_val = pricing.get("mrp", {}).get("value", 0) or 0
+                        price_val = pricing.get("finalPrice", {}).get("value", 0) or mrp_val
+                        images = listing.get("media", {}).get("images", []) or []
+                        img = images[0].get("url", "") if images else ""
+                        if name and price_val > 0:
+                            results.append({
+                                "platform": "flipkart",
+                                "name": str(name)[:200],
+                                "price": float(price_val),
+                                "mrp": float(mrp_val) if mrp_val >= price_val else float(price_val),
+                                "image_url": img,
+                                "unit": listing.get("subtitle", ""),
+                                "in_stock": not listing.get("availability", {}).get("isOutOfStock", False),
+                                "query": query,
+                            })
+            except Exception:
+                pass
+
+        # Fallback: DOM scraping if JSON interception yielded nothing
+        if not results:
+            products = await page.evaluate(
+                """() => {
+                    const out = [];
+                    document.querySelectorAll('._1AtVbE, ._13oc-S, [data-id]').forEach(card => {
+                        try {
+                            const name = card.querySelector('._4rR01T, .s1Q9rs, ._2WkVRV')?.textContent?.trim()
+                                      || card.querySelector('a[title]')?.getAttribute('title');
+                            const price = card.querySelector('._30jeq3, ._1_WHN1')?.textContent?.replace(/[^0-9.]/g,'');
+                            const mrp = card.querySelector('._3I9_wc, ._27UcVY')?.textContent?.replace(/[^0-9.]/g,'');
+                            const img = card.querySelector('img._396cs4, img._2r_T1I')?.src || '';
+                            if (name && price && parseFloat(price) > 0)
+                                out.push({name, price: parseFloat(price), mrp: mrp ? parseFloat(mrp) : null, image_url: img});
+                        } catch(e) {}
+                    });
+                    return out;
+                }"""
+            )
+            for p in products[:25]:
+                if p.get("name") and p.get("price"):
+                    price = float(p["price"])
+                    mrp = float(p["mrp"]) if p.get("mrp") else price
+                    results.append({
+                        "platform": "flipkart",
+                        "name": p["name"][:200],
+                        "price": price,
+                        "mrp": mrp if mrp >= price else price,
+                        "image_url": p.get("image_url", ""),
+                        "unit": "",
+                        "in_stock": True,
+                        "query": query,
+                    })
+
+        print(f"  Flipkart '{query}': {len(results)} products")
+    except Exception as e:
+        print(f"  Flipkart '{query}' error: {e}")
+    finally:
+        await page.close()
+
+    return results
+
+
+# ── Query → Category mapping ──────────────────────────────────────────────────
+QUERY_CATEGORY_MAP = {
+    # Dairy & Breakfast
+    "milk": "dairy-breakfast", "butter": "dairy-breakfast", "eggs": "dairy-breakfast",
+    "yogurt curd": "dairy-breakfast", "cheese": "dairy-breakfast", "paneer": "dairy-breakfast",
+    "cream": "dairy-breakfast", "cornflakes cereal": "dairy-breakfast", "oats": "dairy-breakfast",
+    "muesli": "dairy-breakfast",
+    # Staples
+    "rice": "staples", "atta wheat flour": "staples", "sugar": "staples", "salt": "staples",
+    "dal lentils": "staples", "chana dal": "staples", "urad dal": "staples",
+    "moong dal": "staples", "poha": "staples", "suji semolina": "staples",
+    "besan gram flour": "staples", "rajma kidney beans": "staples",
+    # Oils & Spices
+    "cooking oil": "oils-spices", "ghee": "oils-spices", "mustard oil": "oils-spices",
+    "olive oil": "oils-spices", "honey": "oils-spices", "turmeric haldi": "oils-spices",
+    "cumin jeera": "oils-spices", "coriander powder dhania": "oils-spices",
+    "garam masala": "oils-spices", "red chilli powder": "oils-spices",
+    "black pepper": "oils-spices",
+    # Fruits & Vegetables
+    "tomato": "fruits-vegetables", "onion": "fruits-vegetables", "potato": "fruits-vegetables",
+    "banana": "fruits-vegetables", "apple": "fruits-vegetables", "spinach palak": "fruits-vegetables",
+    "capsicum shimla mirch": "fruits-vegetables", "carrot gajar": "fruits-vegetables",
+    "cucumber kheera": "fruits-vegetables", "garlic lehsun": "fruits-vegetables",
+    "ginger adrak": "fruits-vegetables", "green chilli": "fruits-vegetables",
+    "coriander dhania leaves": "fruits-vegetables", "pineapple": "fruits-vegetables",
+    "watermelon": "fruits-vegetables", "grapes": "fruits-vegetables",
+    "pomegranate anaar": "fruits-vegetables", "cauliflower": "fruits-vegetables",
+    "brinjal baingan": "fruits-vegetables", "bhindi lady finger": "fruits-vegetables",
+    "methi fenugreek": "fruits-vegetables", "peas matar": "fruits-vegetables",
+    "radish mooli": "fruits-vegetables", "lemon nimbu": "fruits-vegetables",
+    # Snacks & Drinks
+    "biscuits": "snacks-drinks", "chips": "snacks-drinks", "noodles": "snacks-drinks",
+    "cold drink cola": "snacks-drinks", "mango juice": "snacks-drinks",
+    "energy drink": "snacks-drinks", "nachos": "snacks-drinks", "popcorn": "snacks-drinks",
+    "namkeen mixture": "snacks-drinks", "dry fruits": "snacks-drinks",
+    "cashew nuts": "snacks-drinks", "almonds": "snacks-drinks", "peanuts": "snacks-drinks",
+    "chocolate": "snacks-drinks", "candy": "snacks-drinks",
+    # Bakery
+    "bread": "bakery", "pav bun": "bakery", "cake rusk": "bakery",
+    # Personal Care
+    "soap": "personal-care", "shampoo": "personal-care", "toothpaste": "personal-care",
+    "body lotion": "personal-care", "face wash": "personal-care", "face cream": "personal-care",
+    "deodorant": "personal-care", "razor": "personal-care", "baby powder": "personal-care",
+    "sunscreen": "personal-care", "lip balm": "personal-care", "hand wash": "personal-care",
+    # Household
+    "detergent": "household", "dishwash bar": "household", "floor cleaner": "household",
+    "toilet cleaner": "household", "antiseptic liquid dettol": "household",
+    "scrub pad": "household", "air freshener": "household",
+    "mosquito repellent": "household", "garbage bags": "household", "tissue paper": "household",
+    # Beverages (map to snacks-drinks)
+    "tea": "snacks-drinks", "coffee": "snacks-drinks", "green tea": "snacks-drinks",
+    "protein shake": "snacks-drinks",
+    # Chicken & Meat
+    "chicken breast boneless": "chicken-meat", "chicken curry cut": "chicken-meat",
+    "mutton keema": "chicken-meat", "chicken wings": "chicken-meat",
+    # Frozen Foods
+    "frozen peas": "frozen-foods", "french fries frozen": "frozen-foods",
+    "ice cream": "frozen-foods", "frozen corn": "frozen-foods",
+    "frozen vegetables mix": "frozen-foods",
+    # Baby Care
+    "diapers pampers": "baby-care", "baby food cerelac": "baby-care",
+    "baby shampoo johnson": "baby-care", "baby oil": "baby-care",
+    # Pet Care
+    "dog food pedigree": "pet-care", "cat food whiskas": "pet-care", "pet treats": "pet-care",
+}
+
+
 # ── DB Save ───────────────────────────────────────────────────────────────────
 async def save_to_db(all_results: list):
-    """Save scraped data to the PostgreSQL database."""
+    """Save scraped data to PostgreSQL using raw asyncpg (Python 3.9 compatible)."""
     try:
         from dotenv import load_dotenv
 
@@ -515,91 +885,131 @@ async def save_to_db(all_results: list):
             print("  ⚠️  No DATABASE_URL — data saved to /tmp/scraped_data.json only")
             return
 
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
-        elif db_url.startswith("postgresql://") and "+asyncpg" not in db_url:
-            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # Convert SQLAlchemy URL to plain asyncpg DSN
+        dsn = db_url
+        for prefix in ["postgresql+asyncpg://", "postgresql+psycopg2://"]:
+            if dsn.startswith(prefix):
+                dsn = "postgresql://" + dsn[len(prefix):]
+        if dsn.startswith("postgres://"):
+            dsn = "postgresql://" + dsn[len("postgres://"):]
 
-        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-        from sqlalchemy.orm import sessionmaker
-        from sqlalchemy import select
+        import asyncpg
 
-        from backend.app.models.product import Product, Category
-        from backend.app.models.platform import Platform
-        from backend.app.models.price import PlatformPrice
-
-        engine = create_async_engine(db_url, echo=False)
-        AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-        async with AsyncSessionLocal() as db:
-            platforms = {}
-            for slug in ["blinkit", "zepto", "instamart", "bigbasket", "jiomart"]:
-                res = await db.execute(select(Platform).where(Platform.slug == slug))
-                p = res.scalar_one_or_none()
-                if p:
-                    platforms[slug] = p
-
+        conn = await asyncpg.connect(dsn)
+        try:
+            # Load platforms: slug → id
+            rows = await conn.fetch("SELECT id, slug FROM platforms")
+            platforms = {r["slug"]: str(r["id"]) for r in rows}
             print(f"  Found platforms in DB: {list(platforms.keys())}")
 
-            res = await db.execute(select(Category).where(Category.slug == "groceries"))
-            category = res.scalar_one_or_none()
-            if not category:
-                category = Category(id=uuid.uuid4(), name="Groceries", slug="groceries", icon="🛒")
-                db.add(category)
-                await db.flush()
+            # Load categories: slug → id
+            rows = await conn.fetch("SELECT id, slug FROM categories")
+            cat_map = {r["slug"]: str(r["id"]) for r in rows}
+
+            fallback_cat_id = (
+                cat_map.get("staples")
+                or cat_map.get("dairy-breakfast")
+                or list(cat_map.values())[0]
+            )
 
             saved = 0
+            new_products = 0
+            now = datetime.now(timezone.utc)
+
             for item in all_results:
-                platform = platforms.get(item["platform"])
-                if not platform:
+                plat_id = platforms.get(item["platform"])
+                if not plat_id:
                     continue
 
                 name = item["name"][:200]
-                slug = slugify(name)[:100]
+                slug_val = slugify(name)[:100]
+                query = item.get("query", "")
+                cat_slug = QUERY_CATEGORY_MAP.get(query, "")
+                cat_id = cat_map.get(cat_slug) or fallback_cat_id
 
-                res = await db.execute(select(Product).where(Product.slug == slug))
-                product = res.scalar_one_or_none()
-                if not product:
-                    product = Product(
-                        id=uuid.uuid4(),
-                        name=name,
-                        slug=slug,
-                        category_id=category.id,
-                        image_url=item.get("image_url", ""),
-                        is_active=True,
-                        is_featured=True,
-                    )
-                    db.add(product)
-                    await db.flush()
-
-                res = await db.execute(
-                    select(PlatformPrice).where(
-                        PlatformPrice.product_id == product.id,
-                        PlatformPrice.platform_id == platform.id,
-                    )
+                # Upsert product
+                existing = await conn.fetchrow(
+                    "SELECT id, category_id FROM products WHERE slug = $1", slug_val
                 )
-                pp = res.scalar_one_or_none()
-                now = datetime.now(timezone.utc)
-                if pp:
-                    pp.price = item["price"]
-                    pp.original_price = item.get("mrp", item["price"])
-                    pp.in_stock = item.get("in_stock", True)
-                    pp.last_updated = now
+                if existing:
+                    prod_id = str(existing["id"])
+                    if str(existing["category_id"]) != cat_id:
+                        await conn.execute(
+                            "UPDATE products SET category_id = $1 WHERE id = $2",
+                            uuid.UUID(cat_id), uuid.UUID(prod_id)
+                        )
                 else:
-                    pp = PlatformPrice(
-                        id=uuid.uuid4(),
-                        product_id=product.id,
-                        platform_id=platform.id,
-                        price=item["price"],
-                        original_price=item.get("mrp", item["price"]),
-                        in_stock=item.get("in_stock", True),
-                        last_updated=now,
+                    prod_id = str(uuid.uuid4())
+                    await conn.execute(
+                        """INSERT INTO products (id, name, slug, category_id, image_url,
+                           is_active, is_featured, created_at, updated_at)
+                           VALUES ($1,$2,$3,$4,$5,true,true,$6,$6)""",
+                        uuid.UUID(prod_id), name, slug_val, uuid.UUID(cat_id),
+                        item.get("image_url") or "", now
                     )
-                    db.add(pp)
+                    new_products += 1
+
+                # Upsert platform_price
+                price = float(item["price"])
+                mrp = float(item.get("mrp") or price)
+                is_available = bool(item.get("in_stock", True))
+
+                existing_pp = await conn.fetchrow(
+                    "SELECT id FROM platform_prices WHERE product_id=$1 AND platform_id=$2",
+                    uuid.UUID(prod_id), uuid.UUID(plat_id)
+                )
+                if existing_pp:
+                    await conn.execute(
+                        """UPDATE platform_prices SET price=$1, original_price=$2,
+                           is_available=$3, last_updated=$4
+                           WHERE product_id=$5 AND platform_id=$6""",
+                        price, mrp, is_available, now,
+                        uuid.UUID(prod_id), uuid.UUID(plat_id)
+                    )
+                else:
+                    await conn.execute(
+                        """INSERT INTO platform_prices
+                           (id, product_id, platform_id, price, original_price,
+                            is_available, last_updated)
+                           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                        uuid.uuid4(), uuid.UUID(prod_id), uuid.UUID(plat_id),
+                        price, mrp, is_available, now
+                    )
                 saved += 1
 
-            await db.commit()
-            print(f"  ✅ Saved {saved} prices to database")
+                if saved % 500 == 0:
+                    print(f"  ... {saved} saved so far ({new_products} new products)")
+
+            print(f"  ✅ Saved {saved} prices to database ({new_products} new products)")
+
+            # Print summary
+            total_products = await conn.fetchval("SELECT COUNT(*) FROM products")
+            total_prices = await conn.fetchval("SELECT COUNT(*) FROM platform_prices")
+            print(f"\n{'═'*52}")
+            print(f"  Total products  : {total_products}")
+            print(f"  Total price rows: {total_prices}")
+            rows = await conn.fetch("""
+                SELECT c.name, COUNT(p.id) as cnt
+                FROM categories c LEFT JOIN products p ON p.category_id = c.id
+                GROUP BY c.name ORDER BY cnt DESC
+            """)
+            print("  Products per category:")
+            for r in rows:
+                status = "✅" if r["cnt"] > 0 else "❌"
+                print(f"  {status} {r['name']:<28} {r['cnt']:>4}")
+            rows = await conn.fetch("""
+                SELECT pl.name, COUNT(pp.id) as cnt
+                FROM platforms pl LEFT JOIN platform_prices pp ON pp.platform_id = pl.id
+                GROUP BY pl.name ORDER BY cnt DESC
+            """)
+            print("  Price rows per platform:")
+            for r in rows:
+                status = "✅" if r["cnt"] > 0 else "❌"
+                print(f"  {status} {r['name']:<28} {r['cnt']:>4}")
+            print(f"{'═'*52}")
+
+        finally:
+            await conn.close()
 
     except Exception as e:
         print(f"  ❌ DB error: {e}")
@@ -717,6 +1127,56 @@ async def main():
             results = await scrape_jiomart(context, query)
             all_results.extend(results)
             await asyncio.sleep(1)
+
+        await browser.close()
+
+        # ── Amazon Fresh ──────────────────────────────────────────────────────
+        print("\n🟡 AMAZON FRESH")
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="en-IN",
+            extra_http_headers={
+                "Accept-Language": "en-IN,en;q=0.9",
+            },
+        )
+        warmup = await context.new_page()
+        await warmup.goto("https://www.amazon.in/amazonfresh", wait_until="networkidle", timeout=30000)
+        await asyncio.sleep(2)
+        await warmup.close()
+
+        for query in SEARCH_QUERIES:
+            results = await scrape_amazon(context, query)
+            all_results.extend(results)
+            await asyncio.sleep(1.5)
+
+        await browser.close()
+
+        # ── Flipkart Minutes ──────────────────────────────────────────────────
+        print("\n🔷 FLIPKART MINUTES")
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="en-IN",
+            extra_http_headers={
+                "X-User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 "
+                    "FKUA/website/42/website/Desktop"
+                ),
+            },
+        )
+        warmup = await context.new_page()
+        await warmup.goto("https://www.flipkart.com/grocery-supermart", wait_until="networkidle", timeout=30000)
+        await asyncio.sleep(2)
+        await warmup.close()
+
+        for query in SEARCH_QUERIES:
+            results = await scrape_flipkart(context, query)
+            all_results.extend(results)
+            await asyncio.sleep(1.5)
 
         await browser.close()
 

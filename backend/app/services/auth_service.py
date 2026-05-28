@@ -4,7 +4,7 @@ Auth service — JWT creation/validation, password hashing, token rotation.
 import hashlib
 import secrets
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from typing import Optional
 
 import bcrypt as _bcrypt
@@ -34,8 +34,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def _create_token(payload: dict, expires_delta: timedelta) -> str:
     to_encode = payload.copy()
-    to_encode["exp"] = datetime.now(UTC) + expires_delta
-    to_encode["iat"] = datetime.now(UTC)
+    to_encode["exp"] = datetime.now(timezone.utc) + expires_delta
+    to_encode["iat"] = datetime.now(timezone.utc)
     to_encode["jti"] = str(uuid.uuid4())
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
@@ -98,7 +98,7 @@ async def store_refresh_token(
     rt = RefreshToken(
         user_id=user_id,
         token_hash=_hash_token(raw_token),
-        expires_at=datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         user_agent=user_agent,
         ip_address=ip_address,
     )
@@ -121,7 +121,7 @@ async def rotate_refresh_token(
         select(RefreshToken).where(
             RefreshToken.token_hash == old_hash,
             RefreshToken.is_revoked == False,  # noqa: E712
-            RefreshToken.expires_at > datetime.now(UTC),
+            RefreshToken.expires_at > datetime.now(timezone.utc),
         )
     )
     rt = result.scalar_one_or_none()

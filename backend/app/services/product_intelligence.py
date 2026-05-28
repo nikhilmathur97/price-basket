@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Helpers for deriving canonical product intelligence and affiliate-aware buy links."""
 import re
 import uuid
@@ -16,14 +17,14 @@ QUANTITY_PATTERN = re.compile(r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>kg|g|gm|l|ml
 @dataclass
 class ProductIntelligenceSnapshot:
     normalized_name: str
-    normalized_brand: str | None
-    quantity_value: float | None
-    quantity_unit: str | None
+    normalized_brand: Optional[str]
+    quantity_value: Optional[float]
+    quantity_unit: Optional[str]
     variant_signature: str
     available_platform_count: int
     total_platform_count: int
-    best_price: float | None
-    highest_price: float | None
+    best_price: Optional[float]
+    highest_price: Optional[float]
     savings_amount: float
     price_spread_percent: float
     recommendation_reason: str
@@ -79,7 +80,7 @@ class ProductIntelligenceService:
         )
         return urlunparse(parsed._replace(query=urlencode(query)))
 
-    def _extract_quantity(self, product: Product) -> tuple[float | None, str | None]:
+    def _extract_quantity(self, product: Product) -> Tuple[Optional[float], Optional[str]]:
         source = product.unit or product.name
         match = QUANTITY_PATTERN.search(source or "")
         if not match:
@@ -95,9 +96,9 @@ class ProductIntelligenceService:
     def _normalize_name(
         self,
         name: str,
-        normalized_brand: str | None,
-        quantity_value: float | None,
-        quantity_unit: str | None,
+        normalized_brand: Optional[str],
+        quantity_value: Optional[float],
+        quantity_unit: Optional[str],
     ) -> str:
         normalized = self._normalize_text(name) or ""
         if normalized_brand:
@@ -110,10 +111,10 @@ class ProductIntelligenceService:
 
     def _variant_signature(
         self,
-        normalized_brand: str | None,
+        normalized_brand: Optional[str],
         normalized_name: str,
-        quantity_value: float | None,
-        quantity_unit: str | None,
+        quantity_value: Optional[float],
+        quantity_unit: Optional[str],
     ) -> str:
         parts = [normalized_brand or "generic", normalized_name or "item"]
         if quantity_value is not None and quantity_unit:
@@ -135,7 +136,7 @@ class ProductIntelligenceService:
             return f"Fast local fulfillment available in as little as {fastest_eta} minutes."
         return f"Stable market pricing detected with a current best live price of Rs. {best_price:.2f}."
 
-    def _normalize_text(self, value: str | None) -> str | None:
+    def _normalize_text(self, value: Optional[str]) -> Optional[str]:
         if not value:
             return None
         normalized = value.lower().replace("coca cola", "coke")

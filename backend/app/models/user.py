@@ -1,3 +1,4 @@
+from typing import Optional
 """SQLAlchemy model for application users."""
 import uuid
 from datetime import datetime
@@ -17,30 +18,30 @@ class User(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)  # None for OAuth users
-    full_name: Mapped[str | None] = mapped_column(String(255))
-    phone: Mapped[str | None] = mapped_column(String(20))
-    avatar_url: Mapped[str | None] = mapped_column(Text)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # None for OAuth users
+    full_name: Mapped[Optional[str]] = mapped_column(String(255))
+    phone: Mapped[Optional[str]] = mapped_column(String(20))
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text)
 
     # Location
-    city: Mapped[str | None] = mapped_column(String(100))
-    pincode: Mapped[str | None] = mapped_column(String(10))
-    latitude: Mapped[float | None] = mapped_column()
-    longitude: Mapped[float | None] = mapped_column()
+    city: Mapped[Optional[str]] = mapped_column(String(100))
+    pincode: Mapped[Optional[str]] = mapped_column(String(10))
+    latitude: Mapped[Optional[float]] = mapped_column()
+    longitude: Mapped[Optional[float]] = mapped_column()
 
     # Account state
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    oauth_provider: Mapped[str | None] = mapped_column(
+    oauth_provider: Mapped[Optional[str]] = mapped_column(
         Enum("google", "facebook", name="oauth_provider_enum"), nullable=True
     )
-    oauth_id: Mapped[str | None] = mapped_column(String(255))
+    oauth_id: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Preferences
     notification_email: Mapped[bool] = mapped_column(Boolean, default=True)
     notification_push: Mapped[bool] = mapped_column(Boolean, default=True)
-    preferred_platforms: Mapped[str | None] = mapped_column(Text)  # JSON list of platform slugs
+    preferred_platforms: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of platform slugs
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -49,7 +50,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     carts = relationship("Cart", back_populates="user", cascade="all, delete-orphan")

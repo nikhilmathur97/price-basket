@@ -123,6 +123,10 @@ BLINKIT_QUERIES = [
         "coriander dhania", "pineapple", "watermelon", "grapes", "pomegranate anaar",
         "cauliflower", "brinjal baingan", "bitter gourd karela", "lady finger bhindi",
         "methi fenugreek", "peas matar", "radish mooli",
+        # new additions
+        "mango", "papaya", "guava amrood", "sweet potato shakarkand",
+        "drumstick moringa", "raw banana kachcha kela", "corn maize",
+        "mushroom", "zucchini", "beetroot", "spring onion",
     ]),
     ("dairy-breakfast", [
         "amul gold milk 1l", "amul butter 500g", "mother dairy curd 400g",
@@ -130,6 +134,10 @@ BLINKIT_QUERIES = [
         "epigamia greek yogurt", "mother dairy milk", "nandini milk",
         "go cheese", "britannia cheese", "verka butter",
         "haldirams namkeen", "kellogg cornflakes", "muesli oats",
+        # new additions
+        "amul cream", "amul lassi", "amul milkshake", "whey protein powder",
+        "soy milk", "almond milk", "skimmed milk powder", "condensed milk",
+        "cream cheese spread", "greek yogurt", "flavoured yogurt",
     ]),
     ("snacks-drinks", [
         "lays magic masala chips", "kurkure masala munch", "haldirams aloo bhujia",
@@ -139,12 +147,24 @@ BLINKIT_QUERIES = [
         "doritos nachos chips", "uncle chips spicy", "pringles sour cream",
         "mango slice drink", "frooti mango drink", "maaza mango",
         "mountain dew", "thums up cold drink",
+        # new additions
+        "popcorn ready to eat", "roasted peanuts", "mixed dry fruits",
+        "cashew nuts kaju", "almonds badam", "walnuts akhrot",
+        "dark chocolate bar", "kitkat chocolate", "5 star chocolate",
+        "nimbooz lemon drink", "appy fizz apple drink", "coconut water",
+        "protein bar", "granola bar", "trail mix",
+        "bingo mad angles", "act ii popcorn", "bikaji bhujia",
     ]),
     ("bakery", [
         "harvest gold white bread", "britannia 5050 biscuit", "oreo cream biscuit",
         "mcvities digestive biscuit", "parle hide seek", "sunfeast marie biscuit",
         "britannia bourbon biscuit", "cream roll bread", "pav bun",
         "cake rusk", "good day cashew biscuit",
+        # new additions
+        "whole wheat bread", "multigrain bread", "brown bread",
+        "english muffin", "croissant", "dinner rolls",
+        "glucose biscuit", "cream cracker biscuit", "digestive biscuit",
+        "wafer biscuit", "cookies chocolate chip",
     ]),
     ("staples", [
         "aashirvaad whole wheat atta 5kg", "india gate basmati rice",
@@ -153,6 +173,12 @@ BLINKIT_QUERIES = [
         "poha chivda", "suji rava semolina", "besan gram flour",
         "rajma kidney beans", "kabuli chana chickpeas", "sona masoori rice",
         "daawat basmati rice", "shakti bhog atta",
+        # new additions
+        "masoor dal red lentil", "arhar toor dal", "yellow moong dal",
+        "idli rice", "brown rice", "quinoa",
+        "maida refined flour", "corn flour", "rice flour",
+        "sabudana sago", "vermicelli seviyan", "pasta",
+        "bread crumbs", "baking soda", "baking powder",
     ]),
     ("oils-spices", [
         "fortune sunflower cooking oil", "saffola gold oil 1l", "dabur pure honey",
@@ -161,6 +187,14 @@ BLINKIT_QUERIES = [
         "coriander powder dhania", "garam masala blend",
         "tata salt namak 1kg", "catch black pepper", "mustard oil sarson",
         "olive oil extra virgin", "ghee amul 500g", "coconut oil parachute",
+        # new additions
+        "sesame oil til", "rice bran oil", "groundnut oil",
+        "cardamom elaichi", "cloves laung", "cinnamon dalchini",
+        "bay leaves tej patta", "star anise", "fennel seeds saunf",
+        "carom seeds ajwain", "fenugreek seeds methi dana",
+        "asafoetida hing", "dry mango powder amchur",
+        "chaat masala", "pav bhaji masala", "biryani masala",
+        "vinegar", "soy sauce", "tomato ketchup",
     ]),
     ("household", [
         "vim dishwash bar", "surf excel easy wash detergent",
@@ -170,6 +204,14 @@ BLINKIT_QUERIES = [
         "colgate maxfresh toothpaste", "odonil air freshener",
         "hit cockroach spray", "baygon mosquito spray", "phenyl cleaner",
         "moppe floor cleaner", "domex disinfectant",
+        # new additions
+        "tissue paper napkins", "toilet paper rolls", "kitchen towel",
+        "garbage bags dustbin liner", "zip lock bags",
+        "aluminium foil", "cling wrap", "baking paper",
+        "dishwasher liquid", "glass cleaner", "bathroom cleaner",
+        "washing machine liquid", "fabric softener",
+        "room freshener spray", "car freshener",
+        "candles", "matchbox", "lighter",
     ]),
     ("personal-care", [
         "dove moisturising beauty soap", "head shoulders anti dandruff shampoo",
@@ -180,12 +222,27 @@ BLINKIT_QUERIES = [
         "gillette mach3 razor", "old spice deodorant",
         "johnson baby powder", "lakme sunscreen spf",
         "biotique face cream", "cetaphil moisturiser",
+        # new additions
+        "conditioner hair", "hair oil coconut", "hair serum",
+        "face scrub exfoliator", "face mask sheet",
+        "toner face", "micellar water", "eye cream",
+        "lip balm chapstick", "lip gloss",
+        "nail polish remover", "cotton pads",
+        "feminine hygiene pads", "tampons",
+        "beard oil", "shaving cream foam",
+        "mouthwash", "dental floss", "tongue cleaner",
+        "hand sanitizer", "wet wipes",
     ]),
     ("chicken-meat", [
         "licious fresh chicken breast boneless 500g", "licious chicken curry cut 1kg",
         "country delight brown eggs 6pcs", "licious mutton keema 500g",
         "fresh chicken leg piece 1kg", "raw chicken whole",
         "licious chicken wings", "venky chicken nuggets frozen",
+        # new additions
+        "chicken mince", "chicken liver", "chicken seekh kebab",
+        "fish fillet", "prawns shrimp", "salmon fish",
+        "mutton chops", "lamb leg piece",
+        "sausages chicken", "salami", "ham sliced",
     ]),
     ("frozen-foods", [
         "mccain french fries frozen 400g", "sumeru frozen green peas",
@@ -193,17 +250,34 @@ BLINKIT_QUERIES = [
         "kwality walls cornetto icecream", "igloo ice cream brick",
         "vadilal ice cream tub", "frozen corn niblets",
         "mccain smiles potato", "venky chicken nuggets",
+        # new additions
+        "frozen paratha", "frozen samosa", "frozen spring rolls",
+        "frozen pizza", "frozen burger patty",
+        "frozen fish fingers", "frozen prawns",
+        "kulfi ice cream", "frozen yogurt",
+        "frozen edamame", "frozen broccoli",
     ]),
     ("baby-care", [
         "pampers pants diapers size 4", "huggies dry diapers",
         "johnsons baby shampoo 200ml", "nestle cerelac wheat baby food",
         "nestum rice baby cereal", "mamy poko pants diapers",
         "johnson baby oil", "johnson baby lotion",
+        # new additions
+        "baby wipes wet", "baby rash cream",
+        "baby soap gentle", "baby face cream",
+        "baby food puree", "baby biscuits",
+        "baby formula milk", "toddler milk powder",
+        "baby teether", "baby bottle",
     ]),
     ("pet-care", [
         "pedigree adult dog food", "drools dog food chicken",
         "whiskas adult cat food", "royal canin dog food",
         "chappi dog food mutton", "pedigree puppy dog food",
+        # new additions
+        "cat treats temptations", "dog treats milk bone",
+        "pet shampoo dog", "cat litter",
+        "fish food aquarium", "bird food seeds",
+        "dog collar leash", "pet bowl",
     ]),
 ]
 

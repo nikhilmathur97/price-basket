@@ -2,7 +2,7 @@
 import asyncio
 import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from decimal import Decimal
 from typing import Any, List, Optional
 from urllib.parse import quote_plus
@@ -302,7 +302,7 @@ async def db_overview(
     # signups per day last 30 days
     signup_trend_rows = (await db.execute(
         select(func.date(User.created_at).label("day"), func.count(User.id).label("count"))
-        .where(User.created_at >= datetime.now(UTC) - timedelta(days=30))
+        .where(User.created_at >= datetime.now(timezone.utc) - timedelta(days=30))
         .group_by(func.date(User.created_at))
         .order_by(func.date(User.created_at))
     )).all()
@@ -426,7 +426,7 @@ async def db_overview(
     active_tokens = await scalar(
         select(func.count()).select_from(RefreshToken)
         .where(RefreshToken.is_revoked.is_(False))
-        .where(RefreshToken.expires_at > datetime.now(UTC))
+        .where(RefreshToken.expires_at > datetime.now(timezone.utc))
     )
 
     # ── User Events ──────────────────────────────────────────────────────────
@@ -441,14 +441,14 @@ async def db_overview(
     # events per day last 14 days
     event_trend_rows = (await db.execute(
         select(func.date(UserEvent.created_at).label("day"), func.count(UserEvent.id).label("count"))
-        .where(UserEvent.created_at >= datetime.now(UTC) - timedelta(days=14))
+        .where(UserEvent.created_at >= datetime.now(timezone.utc) - timedelta(days=14))
         .group_by(func.date(UserEvent.created_at))
         .order_by(func.date(UserEvent.created_at))
     )).all()
     event_trend = [{"day": str(r.day), "count": int(r.count)} for r in event_trend_rows]
 
     return {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "users": {
             "total": total_users, "active": active_users, "verified": verified_users,
             "admin_count": admin_users, "oauth_users": oauth_users,
@@ -616,7 +616,7 @@ async def daily_logins(
     _admin=Depends(require_admin),
     days: int = Query(default=7, ge=1, le=60),
 ):
-    since = datetime.now(UTC) - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
 
     daily_result = await db.execute(
         select(
@@ -633,7 +633,7 @@ async def daily_logins(
         await db.execute(
             select(func.count())
             .select_from(User)
-            .where(User.last_login_at >= (datetime.now(UTC) - timedelta(days=1)))
+            .where(User.last_login_at >= (datetime.now(timezone.utc) - timedelta(days=1)))
         )
     ).scalar() or 0
 
@@ -930,7 +930,7 @@ async def trigger_blinkit_scrape(
         return {"status": "already_running", "started_at": _scrape_status["started_at"]}
 
     _scrape_status["running"] = True
-    _scrape_status["started_at"] = datetime.now(UTC).isoformat()
+    _scrape_status["started_at"] = datetime.now(timezone.utc).isoformat()
     _scrape_status["last_result"] = None
 
     async def _job():
@@ -969,7 +969,7 @@ async def trigger_full_scrape(
         return {"status": "already_running", "started_at": _scrape_all_status["started_at"]}
 
     _scrape_all_status["running"]    = True
-    _scrape_all_status["started_at"] = datetime.now(UTC).isoformat()
+    _scrape_all_status["started_at"] = datetime.now(timezone.utc).isoformat()
     _scrape_all_status["last_result"] = None
     _scrape_all_status["progress"]   = "starting"
 

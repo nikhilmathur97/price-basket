@@ -11,7 +11,7 @@ import asyncio
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from typing import List, Optional
 
 import structlog
@@ -55,7 +55,7 @@ class PriceBundle:
     cheapest_platform_id: Optional[str] = None
     fastest_platform_id: Optional[str] = None
     best_value_platform_id: Optional[str] = None  # weighted score: 70% price + 30% speed
-    fetched_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    fetched_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def compute_highlights(self) -> None:
         available = [p for p in self.prices if p.is_available]
@@ -164,7 +164,7 @@ class PriceEngine:
 
     async def _persist_prices(self, product_id: uuid.UUID, bundle: PriceBundle) -> None:
         """Upsert PlatformPrice rows and append to PriceHistory."""
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         try:
             for price_data in bundle.prices:
                 pid = uuid.UUID(price_data.platform_id)

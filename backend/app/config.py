@@ -3,7 +3,7 @@ Application configuration — loaded from environment / .env file.
 All settings are validated by Pydantic at startup.
 """
 from functools import lru_cache
-from typing import List, Literal
+from typing import List, Literal, Union
 
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
-    def _parse_origins(cls, v: str | List[str]) -> List[str]:
+    def _parse_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
             return [o.strip() for o in v.split(",")]
         return v

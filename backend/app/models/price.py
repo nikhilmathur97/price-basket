@@ -1,3 +1,4 @@
+from typing import Optional
 """
 Price models:
   - PlatformPrice  : current price per product per platform
@@ -31,21 +32,21 @@ class PlatformPrice(Base):
 
     # Pricing
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    original_price: Mapped[float | None] = mapped_column(Numeric(10, 2))   # MRP
+    original_price: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))   # MRP
     discount_percent: Mapped[float] = mapped_column(Float, default=0.0)
-    discount_label: Mapped[str | None] = mapped_column(String(100))         # e.g. "20% OFF"
+    discount_label: Mapped[Optional[str]] = mapped_column(String(100))         # e.g. "20% OFF"
 
     # Availability
     is_available: Mapped[bool] = mapped_column(Boolean, default=True)
-    stock_count: Mapped[int | None] = mapped_column(Integer)
+    stock_count: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Platform-specific identifiers (for deep-link checkout)
-    platform_product_id: Mapped[str | None] = mapped_column(String(255))
-    platform_product_url: Mapped[str | None] = mapped_column(Text)
-    platform_image_url: Mapped[str | None] = mapped_column(Text)
+    platform_product_id: Mapped[Optional[str]] = mapped_column(String(255))
+    platform_product_url: Mapped[Optional[str]] = mapped_column(Text)
+    platform_image_url: Mapped[Optional[str]] = mapped_column(Text)
 
     # Delivery
-    delivery_time_minutes: Mapped[int | None] = mapped_column(Integer)
+    delivery_time_minutes: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Freshness
     last_updated: Mapped[datetime] = mapped_column(
@@ -96,7 +97,7 @@ class PriceAlert(Base):
     )
     target_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    triggered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="price_alerts")

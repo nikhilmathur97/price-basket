@@ -1,8 +1,9 @@
+from __future__ import annotations
 """
 Auth router — register, login, refresh, logout.
 All tokens use httpOnly cookies for XSS protection, with CSRF header requirement.
 """
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -78,7 +79,7 @@ async def login(
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
-    user.last_login_at = datetime.now(UTC)
+    user.last_login_at = datetime.now(timezone.utc)
 
     raw_refresh = create_refresh_token_str()
     await store_refresh_token(
@@ -101,7 +102,7 @@ async def refresh_token(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    cookie_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
+    cookie_token: Optional[str] = Cookie(default=None, alias=REFRESH_COOKIE),
 ):
     # Accept from cookie OR Authorization header (mobile clients)
     raw = cookie_token or request.headers.get("X-Refresh-Token")

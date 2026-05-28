@@ -1,3 +1,4 @@
+from typing import Optional
 """Cart, CartItem, Wishlist, WishlistItem, and RefreshToken models."""
 import uuid
 from datetime import datetime
@@ -14,10 +15,10 @@ class Cart(Base):
     __tablename__ = "carts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    session_id: Mapped[str | None] = mapped_column(String(128), index=True)  # guest carts
+    session_id: Mapped[Optional[str]] = mapped_column(String(128), index=True)  # guest carts
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -43,13 +44,13 @@ class CartItem(Base):
         UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
     # Which platform the user explicitly chose for this item (nullable = not yet decided)
-    selected_platform_id: Mapped[uuid.UUID | None] = mapped_column(
+    selected_platform_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("platforms.id"), nullable=True
     )
     quantity: Mapped[int] = mapped_column(Integer, default=1)
 
     # Snapshot of price at time of add (for display consistency)
-    snapshot_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    snapshot_price: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     cart = relationship("Cart", back_populates="items")
@@ -98,7 +99,7 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    user_agent: Mapped[str | None] = mapped_column(Text)
-    ip_address: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
 
     user = relationship("User", back_populates="refresh_tokens")

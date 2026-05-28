@@ -1,3 +1,4 @@
+from typing import Optional
 """
 User Analytics Event model.
 
@@ -51,7 +52,7 @@ class UserEvent(Base):
 
     # ── Identity (at least one must be set) ───────────────────────────────────
     # Registered user (NULL for anonymous)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -60,16 +61,16 @@ class UserEvent(Base):
     # Browser-persistent UUID (sent from frontend localStorage 'pb_client_id')
     client_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     # Short-lived browser session
-    session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     # ── What was interacted with ──────────────────────────────────────────────
-    product_id: Mapped[uuid.UUID | None] = mapped_column(
+    product_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    platform_id: Mapped[uuid.UUID | None] = mapped_column(
+    platform_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("platforms.id", ondelete="SET NULL"),
         nullable=True,
@@ -78,22 +79,22 @@ class UserEvent(Base):
 
     # ── Event-specific payload ────────────────────────────────────────────────
     # Price shown to the user at the moment of the event (e.g. redirect price)
-    price_shown: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    price_shown: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     # Number of items in cart at time of event
-    cart_item_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cart_item_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Search term (for 'search' events)
-    search_query: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    search_query: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # Which page/surface the event originated from
-    referrer_page: Mapped[str | None] = mapped_column(
+    referrer_page: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True
     )  # 'home' | 'search' | 'category' | 'product' | 'cart'
     # Deep-link URL the user was redirected to (for platform_redirect events)
-    redirect_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    redirect_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ── Request metadata (privacy-safe) ──────────────────────────────────────
     # Store hashed IP only — never the raw IP
-    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)  # ISO 3166-1
+    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    country_code: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)  # ISO 3166-1
 
     # ── Timestamp ─────────────────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(

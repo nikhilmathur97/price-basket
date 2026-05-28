@@ -1,6 +1,7 @@
 """Product and Category models."""
 import uuid
 from datetime import datetime
+from typing import List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
@@ -16,12 +17,12 @@ class Category(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    icon: Mapped[str | None] = mapped_column(String(50))      # emoji or icon name
-    image_url: Mapped[str | None] = mapped_column(Text)
+    icon: Mapped[Optional[str]] = mapped_column(String(50))      # emoji or icon name
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
     display_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True
     )
     parent = relationship("Category", remote_side="Category.id", back_populates="children")
@@ -37,24 +38,24 @@ class Product(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    brand: Mapped[str | None] = mapped_column(String(100))
-    description: Mapped[str | None] = mapped_column(Text)
-    image_url: Mapped[str | None] = mapped_column(Text)
-    thumbnail_url: Mapped[str | None] = mapped_column(Text)
+    brand: Mapped[Optional[str]] = mapped_column(String(100))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
 
     # Classification
-    category_id: Mapped[uuid.UUID | None] = mapped_column(
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True
     )
     category = relationship("Category", back_populates="products")
 
     # Physical attributes
-    unit: Mapped[str | None] = mapped_column(String(50))   # e.g. "500g", "1L", "pack of 6"
-    weight_grams: Mapped[int | None] = mapped_column(Integer)
-    barcode: Mapped[str | None] = mapped_column(String(50), index=True)
+    unit: Mapped[Optional[str]] = mapped_column(String(50))   # e.g. "500g", "1L", "pack of 6"
+    weight_grams: Mapped[Optional[int]] = mapped_column(Integer)
+    barcode: Mapped[Optional[str]] = mapped_column(String(50), index=True)
 
     # Search tags
-    tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    tags: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Prices API — real-time price fetch, history, and alerts.
 """
@@ -134,15 +135,15 @@ async def get_product_prices(
 @router.get("/{product_id}/history")
 async def get_price_history(
     product_id: uuid.UUID,
-    platform_id: uuid.UUID | None = Query(default=None),
+    platform_id: Optional[uuid.UUID] = Query(default=None),
     days: int = Query(default=30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
     """Return historical price data for trend charts."""
-    from datetime import UTC, datetime, timedelta
+    from datetime import timezone, datetime, timedelta
     from sqlalchemy.orm import selectinload
 
-    since = datetime.now(UTC) - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
     stmt = (
         select(PriceHistory)
         .where(PriceHistory.product_id == product_id, PriceHistory.recorded_at >= since)
