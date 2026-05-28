@@ -360,7 +360,6 @@ export const MOCK_PRODUCTS: ProductWithPrices[] = [
   // ── Snacks & Drinks ─────────────────────────────────────────────────────
   makeProduct("lays-classic-52g",        "Lay's American Style Cream & Onion",  "Lay's",      "52 g",       "snacks-drinks", "chips",       pp(20,  D.snacks),  20),
   makeProduct("kurkure-masala-90g",      "Kurkure Masala Munch",                "Kurkure",    "90 g",       "snacks-drinks", "snacks2",     pp(35,  D.snacks),  35),
-  makeProduct("haldirams-namkeen-200g",  "Haldiram's Aloo Bhujia",              "Haldiram's", "200 g",      "snacks-drinks", "snacks2",     pp(70,  D.snacks),  70),
   makeProduct("cadbury-dairy-milk-40g",  "Cadbury Dairy Milk Chocolate Bar",    "Cadbury",    "40 g",       "snacks-drinks", "chocolate",   pp(50,  D.snacks),  50),
   makeProduct("5star-chocolate-40g",     "Cadbury 5 Star Chocolate Bar",        "Cadbury",    "40 g",       "snacks-drinks", "chocolate",   pp(20,  D.snacks),  20),
   makeProduct("maggi-noodles-4pk",       "Maggi 2-Minute Noodles Masala",       "Maggi",      "4 × 70 g",   "snacks-drinks", "noodles",     pp(76,  D.noodles), 76),

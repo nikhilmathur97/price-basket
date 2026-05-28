@@ -161,10 +161,11 @@ export function HomeProductSections() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 
-  // After 5 s of loading, show a friendly "waking up" hint
+  // After 15 s of loading, show a friendly "waking up" hint
+  // (Render free tier cold start can take 10-30s; don't alarm users prematurely)
   useEffect(() => {
     if (!isLoading) return;
-    const t = setTimeout(() => setSlowLoad(true), 5_000);
+    const t = setTimeout(() => setSlowLoad(true), 15_000);
     return () => clearTimeout(t);
   }, [isLoading]);
 

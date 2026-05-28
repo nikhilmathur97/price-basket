@@ -107,7 +107,7 @@ export function SearchBar({ className, autoFocus }: SearchBarProps) {
         <button
           onClick={startVoiceSearch}
           className={cn(
-            "text-surface-400 hover:text-brand-600 active:scale-90 transition-all p-0.5 hidden sm:block",
+            "text-surface-400 hover:text-brand-600 active:scale-90 transition-all p-0.5",
             isListening && "text-red-500 animate-pulse"
           )}
           title="Voice search"
