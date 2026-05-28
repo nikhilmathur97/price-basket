@@ -169,6 +169,11 @@ export default function ProductPage() {
   // Set mounted after first client render — unlocks cart-state rendering
   useEffect(() => { setMounted(true); }, []);
 
+  // FIX #5: Scroll to top whenever the product ID changes (navigating between products)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [id]);
+
   // Auto-select cheapest platform on load
   useEffect(() => {
     if (product && !selectedPlatformId) {

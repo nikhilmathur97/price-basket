@@ -23,6 +23,21 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
   const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc" | "fastest">("relevance");
   const [categorySlug, setCategorySlug] = useState<string | undefined>(initialCategory);
 
+  // FIX #6: Sync internal query/category state when URL params change.
+  // When SearchBar calls router.push('/search?q=butter'), the SearchResults
+  // component re-renders with new useSearchParams() values. We must sync
+  // the hook's internal state to match the new URL params so React Query
+  // fires a new fetch with the updated query.
+  useEffect(() => {
+    setQuery(initialQuery);
+    setPage(1);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    setCategorySlug(initialCategory);
+    setPage(1);
+  }, [initialCategory]);
+
   const debouncedQuery = useDebounce(query, 350);
 
   // Track searches — only fire once per distinct debounced query string

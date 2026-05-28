@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Search, Mic, X } from "lucide-react";
 import { useSearch } from "@/hooks/useSearch";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ interface SearchBarProps {
 
 export function SearchBar({ className, autoFocus }: SearchBarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { query, setQuery, suggestions } = useSearch();
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -22,6 +23,15 @@ export function SearchBar({ className, autoFocus }: SearchBarProps) {
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
+
+  // FIX #7: Clear search bar text when navigating away from /search page.
+  // When user is on /search, the text should remain. When they navigate to
+  // home or any other page, the search bar should be blank.
+  useEffect(() => {
+    if (!pathname.startsWith("/search")) {
+      setQuery("");
+    }
+  }, [pathname, setQuery]);
 
   // Close dropdown on outside click
   useEffect(() => {

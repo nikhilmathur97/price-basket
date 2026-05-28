@@ -34,6 +34,7 @@ const CAT_COLORS: Record<string, { bg: string; text: string }> = {
   "pet-care":          { bg: "#EFEBE9", text: "#4E342E" },
   "staples":           { bg: "#FFFDE7", text: "#F57F17" },
   "oils-spices":       { bg: "#FFF3E0", text: "#BF360C" },
+  "electronics":       { bg: "#E8EAF6", text: "#283593" },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -190,7 +191,10 @@ export function HomeProductSections() {
     );
   }
 
-  const products: ProductWithPrices[] = apiProducts ?? [];
+  // FIX #2: Filter out products with no image_url — don't show imageless products on homepage
+  const products: ProductWithPrices[] = (apiProducts ?? []).filter(
+    (p) => p.image_url && p.image_url.trim() !== ""
+  );
   const isFromAPI = products.length > 0;
 
   // Derive sections

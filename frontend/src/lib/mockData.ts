@@ -226,6 +226,7 @@ export const MOCK_CATEGORIES: Category[] = [
   { id: "cat-10", slug: "pet-care",          name: "Pet Care",          icon: "🐾", image_url: C(1108099),  display_order: 10 },  // pet food bowl
   { id: "cat-11", slug: "staples",           name: "Atta, Rice & Dal",  icon: "🌾", image_url: C(31555432), display_order: 11 },  // uncooked rice in bowl
   { id: "cat-12", slug: "oils-spices",       name: "Oils & Spices",     icon: "🫙", image_url: C(2802527),  display_order: 12 },  // colorful spices
+  { id: "cat-13", slug: "electronics",       name: "Electronics",       icon: "📱", image_url: C(1092644),  display_order: 13 },  // smartphone on desk
 ];
 
 // ── Helper ─────────────────────────────────────────────────────────────────
@@ -419,6 +420,7 @@ export const CATEGORY_SECTIONS = [
   { slug: "oils-spices",       label: "🫙 Oils & Spices" },
   { slug: "household",         label: "🧹 Household" },
   { slug: "personal-care",     label: "🧴 Personal Care" },
+  { slug: "electronics",       label: "📱 Electronics" },
 ];
 
 export function getProductsByCategory(slug: string): ProductWithPrices[] {
