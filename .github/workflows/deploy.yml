@@ -143,17 +143,42 @@ jobs:
             echo "deployed=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: "[PROD] Wait for Render deploy + call mark-featured"
+      - name: "[PROD] Wait for Render deploy + call fix-electronics + mark-featured"
         if: steps.trigger.outputs.deployed == 'true'
         run: |
           echo "⏳ Waiting 3 minutes for Render to finish deploying..."
           sleep 180
-          echo "🔍 Checking if /setup/mark-featured is available..."
-          for i in 1 2 3 4 5; do
+          echo "🔍 Checking if Render backend is up..."
+          for i in 1 2 3 4 5 6 7 8; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://pricebasket-api.onrender.com/health)
+            echo "  Health check attempt $i: HTTP $HTTP"
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ Backend is up!"
+              break
+            fi
+            sleep 30
+          done
+
+          echo "🔧 Running fix-electronics migration..."
+          for i in 1 2 3; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              https://pricebasket-api.onrender.com/api/v1/setup/fix-electronics \
+              -H "x-seed-key: pricebasket-seed-2024")
+            echo "  fix-electronics attempt $i: HTTP $HTTP"
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ fix-electronics succeeded!"
+              break
+            fi
+            sleep 30
+          done
+
+          echo "🔍 Running mark-featured..."
+          for i in 1 2 3; do
             HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
               https://pricebasket-api.onrender.com/api/v1/setup/mark-featured \
               -H "x-seed-key: pricebasket-seed-2024")
-            echo "  Attempt $i: HTTP $HTTP"
+            echo "  mark-featured attempt $i: HTTP $HTTP"
             if [ "$HTTP" = "200" ]; then
               echo "✅ mark-featured succeeded!"
               break
