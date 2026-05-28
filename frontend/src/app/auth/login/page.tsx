@@ -40,9 +40,11 @@ export default function LoginPage() {
       setAccessToken(data.access_token);
       const { data: user } = await api.me();
       setUser(user);
-      // Clear any stale cart from a previous session, then fetch this user's cart
+      // Clear any stale cart state from a previous session, then fetch this
+      // user's server-side cart. We await it so the totalItems badge is correct
+      // before the page navigates — prevents the "badge shows 8, cart is blank" bug.
       resetCart();
-      fetchCart().catch(() => {});
+      await fetchCart().catch(() => {});
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";

@@ -50,6 +50,8 @@ export const useCartStore = create<CartState>()(
       closeCart: () => set({ isOpen: false }),
 
       fetchCart: async () => {
+        // Prevent concurrent fetches
+        if (get().isLoading) return;
         set({ isLoading: true });
         try {
           const { data } = await api.getCart();

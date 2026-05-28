@@ -352,13 +352,15 @@ export default function CartPage() {
     }
   }, [hasHydrated, isAuthenticated, router]);
 
-  // Fetch cart on mount — wait for BOTH stores to rehydrate from localStorage
-  // so persisted mock items are restored before we decide to call the API.
+  // Fetch cart on mount — always fetch from server when authenticated so that
+  // cross-device changes (items added on another device/session) are reflected.
+  // We wait for BOTH stores to rehydrate before calling the API.
   useEffect(() => {
-    if (hasHydrated && cartHydrated && isAuthenticated && !cart) {
+    if (hasHydrated && cartHydrated && isAuthenticated) {
       fetchCart();
     }
-  }, [hasHydrated, cartHydrated, isAuthenticated, cart, fetchCart]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasHydrated, cartHydrated, isAuthenticated]);
 
   // ── ALL hooks must be called before any conditional return ──────────────────
   // Fetch all product prices for the platform comparison sidebar

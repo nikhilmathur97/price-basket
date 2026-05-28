@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { X, ShoppingCart, Trash2, Plus, Minus, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,8 +12,18 @@ import toast from "react-hot-toast";
 import { trackEvent } from "@/services/api";
 
 export function CartDrawer() {
-  const { cart, isOpen, closeCart, updateItem, removeItem, clearCart, totalItems } =
+  const { cart, isOpen, isLoading, closeCart, updateItem, removeItem, clearCart, totalItems, fetchCart } =
     useCartStore();
+  const { isAuthenticated } = useAuthStore();
+
+  // When the drawer opens and the user is authenticated but cart hasn't been
+  // loaded yet (e.g. stale totalItems badge from localStorage but cart=null),
+  // fetch the cart from the server so the drawer never shows blank.
+  useEffect(() => {
+    if (isOpen && isAuthenticated && !cart && !isLoading) {
+      fetchCart().catch(() => {});
+    }
+  }, [isOpen, isAuthenticated, cart, isLoading, fetchCart]);
 
   const subtotal =
     cart?.items.reduce(
@@ -68,7 +79,21 @@ export function CartDrawer() {
 
               {/* Items */}
               <div className="flex-1 overflow-y-auto py-4 px-5">
-                {!cart?.items.length ? (
+                {/* Loading skeleton — shown while fetching cart from server */}
+                {isLoading && !cart?.items.length ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex gap-3 animate-pulse">
+                        <div className="w-16 h-16 bg-surface-100 rounded-xl flex-shrink-0" />
+                        <div className="flex-1 space-y-2 py-1">
+                          <div className="h-3 bg-surface-100 rounded w-3/4" />
+                          <div className="h-3 bg-surface-100 rounded w-1/2" />
+                          <div className="h-3 bg-surface-100 rounded w-1/4" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !cart?.items.length ? (
                   <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-4">
                     <div className="text-6xl">🛒</div>
                     <p className="font-semibold text-surface-700">Your cart is empty</p>

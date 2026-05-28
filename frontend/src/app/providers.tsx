@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 
 /** Ensures a stable guest session ID exists in localStorage.
  *  The Axios request interceptor in api.ts reads this and sends it as
@@ -22,18 +23,43 @@ function GuestSession() {
 
 function AuthBootstrap() {
   const { hasHydrated, user, setUser, logout } = useAuthStore();
+  const { fetchCart, resetCart } = useCartStore();
 
   useEffect(() => {
-    // Only run once: when the store has hydrated and there is no locally-stored
-    // user. Do NOT add `user` as a dependency — that would re-run after logout
-    // and silently re-log the user in via the still-live refresh-token cookie.
-    if (!hasHydrated || user) return;
+    // Wait for the persisted auth store to rehydrate before doing anything.
+    if (!hasHydrated) return;
 
+    // Case 1: user object is already in localStorage (returning user / page reload).
+    // Validate the session is still alive via api.me(), then always fetch the
+    // server-side cart so cross-device changes are reflected immediately.
+    if (user) {
+      api.me()
+        .then(({ data }) => {
+          setUser(data);
+          // Always sync cart from server — covers cross-device scenario where
+          // items were added on another device/session.
+          fetchCart().catch(() => {});
+        })
+        .catch(() => {
+          // Session expired — clear everything
+          logout();
+          resetCart();
+        });
+      return;
+    }
+
+    // Case 2: no user in localStorage — try to restore session via refresh-token cookie.
     api.me()
-      .then(({ data }) => setUser(data))
-      .catch(() => logout());
+      .then(({ data }) => {
+        setUser(data);
+        fetchCart().catch(() => {});
+      })
+      .catch(() => {
+        logout();
+        resetCart();
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasHydrated]); // ← intentionally omit user/setUser/logout
+  }, [hasHydrated]); // ← intentionally omit user/setUser/logout/fetchCart/resetCart
 
   return null;
 }
