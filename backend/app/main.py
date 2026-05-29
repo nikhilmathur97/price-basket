@@ -100,8 +100,10 @@ def create_app() -> FastAPI:
         "https://pricebasket.in",
         "https://www.pricebasket.in",
         "https://dev.pricebasket.in",
+        "https://test.pricebasket.in",
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:4040",
     ]
     _allowed_origins = list(dict.fromkeys(_BASE_ORIGINS + list(settings.ALLOWED_ORIGINS)))
     app.add_middleware(

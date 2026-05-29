@@ -15,26 +15,47 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: {
-    default: "Price Basket — Smart Quick Commerce",
+    default: "Price Basket — Compare Prices Across Blinkit, Zepto & More",
     template: "%s | Price Basket",
   },
   description:
-    "Compare grocery prices across Blinkit, Zepto, BigBasket & Swiggy Instamart. Save money with real-time price intelligence.",
-  keywords: ["grocery", "price comparison", "blinkit", "zepto", "quick commerce", "best deals"],
-  metadataBase: new URL("http://test.pricebasket.in"),
+    "Compare grocery & essentials prices across Blinkit, Zepto, BigBasket, Swiggy Instamart, Flipkart, Amazon, JioMart & more. Save up to 40% with real-time price intelligence.",
+  keywords: [
+    "grocery price comparison", "blinkit prices", "zepto prices", "bigbasket",
+    "swiggy instamart", "quick commerce india", "cheapest grocery", "price comparison india",
+    "best deals grocery", "online grocery comparison",
+  ],
+  metadataBase: new URL("https://pricebasket.in"),
   openGraph: {
-    title: "Price Basket",
-    description: "Real-time price comparison across all quick commerce platforms",
-    url: "http://test.pricebasket.in",
+    title: "Price Basket — Compare Prices Across 10 Platforms",
+    description: "Real-time price comparison across Blinkit, Zepto, BigBasket, Instamart & more. Save money on every order.",
+    url: "https://pricebasket.in",
     siteName: "Price Basket",
     type: "website",
     locale: "en_IN",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Price Basket — Compare grocery prices across all platforms",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Price Basket — Compare Prices Across 10 Platforms",
+    description: "Real-time price comparison across Blinkit, Zepto, BigBasket & more.",
+    images: ["/og-image.png"],
   },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
     apple: "/icon.svg",
+  },
+  alternates: {
+    canonical: "https://pricebasket.in",
   },
 };
 

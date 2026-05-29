@@ -33,6 +33,15 @@ export function BottomNav() {
     return null;
   }
 
+  // Hide when running inside the Flutter WebView shell.
+  // Detected via custom User-Agent OR ?source=app query param.
+  if (typeof window !== "undefined") {
+    const isFlutterApp =
+      window.navigator.userAgent.includes("PriceBasketApp") ||
+      new URLSearchParams(window.location.search).get("source") === "app";
+    if (isFlutterApp) return null;
+  }
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden

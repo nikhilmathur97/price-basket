@@ -30,6 +30,50 @@ _playwright = None
 _browser    = None
 _lock       = asyncio.Lock()
 
+# JavaScript injected into every page to mask headless/bot signals
+_STEALTH_JS = """
+() => {
+    // 1. Remove webdriver flag
+    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+    // 2. Spoof plugins (headless has 0 plugins)
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+    });
+
+    // 3. Spoof languages
+    Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-IN', 'en-GB', 'en'],
+    });
+
+    // 4. Spoof platform
+    Object.defineProperty(navigator, 'platform', {get: () => 'MacIntel'});
+
+    // 5. Fix chrome object (headless_shell lacks window.chrome)
+    if (!window.chrome) {
+        window.chrome = {
+            runtime: {},
+            loadTimes: function(){},
+            csi: function(){},
+            app: {},
+        };
+    }
+
+    // 6. Permissions API — return 'granted' for notifications to look real
+    const origQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications'
+            ? Promise.resolve({state: Notification.permission})
+            : origQuery(parameters)
+    );
+
+    // 7. Remove automation-related properties
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+}
+"""
+
 
 async def _ensure_browser():
     """Lazily start Playwright + Chromium (called once per process)."""
@@ -48,15 +92,23 @@ async def _ensure_browser():
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--no-first-run",
-                    "--no-zygote",
-                    "--single-process",          # safer inside Docker
                     "--disable-extensions",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                    "--window-size=1280,800",
+                    # NOTE: --single-process and --no-zygote removed —
+                    # they cause browser crashes when multiple contexts run sequentially
                 ],
             )
             log.info("playwright_browser_started")
         except Exception as exc:
             log.error("playwright_start_failed", error=str(exc))
             raise
+
+
+async def apply_stealth(page) -> None:
+    """Inject stealth JS into a page to bypass bot-detection."""
+    await page.add_init_script(_STEALTH_JS)
 
 
 @contextlib.asynccontextmanager

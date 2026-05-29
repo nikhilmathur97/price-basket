@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   ShoppingCart, Share2, ChevronLeft, Clock, Zap, PackageX,
   CheckCircle2, Plus, Minus, Star,
-  Truck, ShieldCheck, Tag, Info, Package,
+  Truck, ShieldCheck, Tag, Info, Package, Bell, BellOff, RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -17,7 +17,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
-import type { ProductWithPrices } from "@/types";
+import type { ProductWithPrices, PriceAlert } from "@/types";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { PageLoader } from "@/components/PageLoader";
 
@@ -119,6 +119,160 @@ function StarRating({ rating }: { rating: number }) {
       {Array.from({ length: empty }).map((_, i) => (
         <Star key={`e${i}`} className="w-4 h-4 text-surface-200" />
       ))}
+    </div>
+  );
+}
+
+// ── Price Alert Section ────────────────────────────────────────────────────
+function PriceAlertSection({
+  productId,
+  productName,
+  currentBestPrice,
+}: {
+  productId: string;
+  productName: string;
+  currentBestPrice: number | null;
+}) {
+  const { isAuthenticated } = useAuthStore();
+  const queryClient = useQueryClient();
+  const [targetPrice, setTargetPrice] = useState<string>("");
+  const [showForm, setShowForm] = useState(false);
+
+  // Fetch existing alerts to check if one already exists for this product
+  const { data: alerts } = useQuery<PriceAlert[]>({
+    queryKey: ["alerts"],
+    queryFn: async () => (await api.getAlerts()).data,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  });
+
+  const existingAlert = alerts?.find((a) => a.product.id === productId);
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const price = parseFloat(targetPrice);
+      if (isNaN(price) || price <= 0) throw new Error("Enter a valid price");
+      return api.createAlert({ product_id: productId, target_price: price });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      toast.success("Price alert set! We'll notify you when the price drops.");
+      setShowForm(false);
+      setTargetPrice("");
+    },
+    onError: (err: unknown) => {
+      toast.error(extractApiError(err, "Could not set alert"));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteAlert(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      toast.success("Price alert removed");
+    },
+    onError: () => toast.error("Could not remove alert"),
+  });
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mb-4 bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center gap-3">
+        <Bell className="w-5 h-5 text-amber-500 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-800">Get notified when price drops</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            <Link href="/auth/login" className="underline font-medium">Sign in</Link> to set a price alert for {productName}.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (existingAlert) {
+    return (
+      <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+        <div className="w-9 h-9 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Bell className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-green-800">Alert active — target ₹{existingAlert.target_price}</p>
+          <p className="text-xs text-green-600 mt-0.5">
+            We'll email you when any platform drops below ₹{existingAlert.target_price}.
+          </p>
+        </div>
+        <button
+          onClick={() => deleteMutation.mutate(existingAlert.id)}
+          disabled={deleteMutation.isPending}
+          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-semibold
+                     bg-white border border-red-100 rounded-xl px-3 py-1.5 transition-colors flex-shrink-0"
+        >
+          <BellOff className="w-3.5 h-3.5" />
+          Remove
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 bg-amber-50 border border-amber-100 rounded-2xl p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 bg-amber-400 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Bell className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-amber-800">Set a price alert</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            Get notified when price drops below your target.
+            {currentBestPrice && (
+              <span className="ml-1">Current best: <strong>₹{currentBestPrice}</strong></span>
+            )}
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => {
+              setShowForm(true);
+              if (currentBestPrice) setTargetPrice(String(Math.floor(currentBestPrice * 0.9)));
+            }}
+            className="flex-shrink-0 text-xs font-bold bg-amber-500 hover:bg-amber-600
+                       text-white px-3 py-1.5 rounded-xl transition-colors"
+          >
+            Set Alert
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500 font-bold text-sm">₹</span>
+            <input
+              type="number"
+              value={targetPrice}
+              onChange={(e) => setTargetPrice(e.target.value)}
+              placeholder="Target price"
+              min={1}
+              className="w-full pl-7 pr-3 py-2.5 border-2 border-amber-200 rounded-xl text-sm
+                         font-semibold focus:outline-none focus:border-amber-400 bg-white"
+              onKeyDown={(e) => e.key === "Enter" && createMutation.mutate()}
+            />
+          </div>
+          <button
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending || !targetPrice}
+            className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 disabled:opacity-50
+                       text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+          >
+            {createMutation.isPending ? "Saving…" : "Confirm"}
+          </button>
+          <button
+            onClick={() => setShowForm(false)}
+            className="flex-shrink-0 text-surface-400 hover:text-surface-600 text-sm px-2 py-2.5"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -520,10 +674,27 @@ export default function ProductPage() {
 
         {/* ── Platform price comparison ── */}
         <section className="mb-4">
-          <h2 className="text-sm font-extrabold text-surface-800 mb-3 flex items-center gap-2 px-1">
-            <Tag className="w-4 h-4 text-brand-600" />
-            Best Prices Across Platforms
-          </h2>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="text-sm font-extrabold text-surface-800 flex items-center gap-2">
+              <Tag className="w-4 h-4 text-brand-600" />
+              Best Prices Across Platforms
+            </h2>
+            {/* Last updated timestamp */}
+            {sortedPrices[0]?.last_updated && (
+              <span className="flex items-center gap-1 text-[10px] text-surface-400 font-medium">
+                <RefreshCw className="w-3 h-3" />
+                Updated {(() => {
+                  const d = new Date(sortedPrices[0].last_updated);
+                  const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+                  if (diffMin < 1) return "just now";
+                  if (diffMin < 60) return `${diffMin}m ago`;
+                  const diffHr = Math.round(diffMin / 60);
+                  if (diffHr < 24) return `${diffHr}h ago`;
+                  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+                })()}
+              </span>
+            )}
+          </div>
           <div className="grid sm:grid-cols-2 gap-3">
             {sortedPrices.map((pp, idx) => {
               const isCheapest = idx === 0 && pp.price === cheapestPrice;
@@ -623,6 +794,9 @@ export default function ProductPage() {
             })}
           </div>
         </section>
+
+        {/* ── Price Alert CTA ── */}
+        {isUUID && <PriceAlertSection productId={id} productName={product.name} currentBestPrice={cheapestPrice} />}
 
         {/* ── Savings callout ── */}
         {(product.intelligence?.savings_amount ?? 0) > 0 && (

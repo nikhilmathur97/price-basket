@@ -1,6 +1,16 @@
 /**
  * Cart store — manages local cart state with optimistic updates.
  */
+
+/** Notify the Flutter native shell about the current cart item count. */
+function _notifyFlutterCartCount(count: number) {
+  if (typeof window !== "undefined" && window.FlutterBridge) {
+    window.FlutterBridge.postMessage(
+      JSON.stringify({ type: "cart_count", count })
+    );
+  }
+}
+
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Cart, CartItem } from "@/types";
@@ -56,6 +66,7 @@ export const useCartStore = create<CartState>()(
         try {
           const { data } = await api.getCart();
           set({ cart: data, totalItems: data.total_items, isLoading: false });
+          _notifyFlutterCartCount(data.total_items);
         } catch {
           set({ isLoading: false });
         }
@@ -90,6 +101,7 @@ export const useCartStore = create<CartState>()(
               ];
           const updated = makeMockCart(updatedItems);
           set({ cart: updated, totalItems: updated.total_items });
+          _notifyFlutterCartCount(updated.total_items);
           return;
         }
         // ── Real product: call API ─────────────────────────────────────────────
@@ -100,6 +112,7 @@ export const useCartStore = create<CartState>()(
             selected_platform_id: platformId,
           });
           set({ cart: data, totalItems: data.total_items });
+          _notifyFlutterCartCount(data.total_items);
         } catch (err) {
           // Revert by re-fetching
           await get().fetchCart();

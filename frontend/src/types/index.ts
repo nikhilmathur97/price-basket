@@ -2,6 +2,18 @@
  * Shared TypeScript types for the entire frontend.
  */
 
+// ── Flutter WebView bridge ────────────────────────────────────────────────────
+// Declared globally so any component can call window.FlutterBridge?.postMessage()
+// The Flutter app registers this channel via addJavaScriptChannel('FlutterBridge', ...)
+declare global {
+  interface Window {
+    FlutterBridge?: {
+      postMessage: (message: string) => void;
+    };
+  }
+}
+
+
 export interface Platform {
   id: string;
   slug: string;

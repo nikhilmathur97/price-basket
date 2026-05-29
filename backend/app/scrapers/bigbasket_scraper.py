@@ -1,21 +1,17 @@
 """
-BigBasket BB Now scraper — Playwright-based (bypasses Cloudflare).
+BigBasket BB Now scraper — Playwright-based with Cloudflare bypass.
 
 Strategy
 --------
-1. Open https://www.bigbasket.com/ps/?q=<query> in Chromium.
-2. Intercept JSON responses from /product/get-products/ or /api/products/search.
-3. Parse the tab_info-based response structure.
+1. Open https://www.bigbasket.com/ps/?q=<query> in Chromium with stealth JS.
+2. Intercept ALL JSON responses from bigbasket.com that contain product data.
+3. Parse multiple response shapes:
+   a. tab_info-based  (legacy)
+   b. products[].product  (newer shape)
+   c. prod_info[].prod  (another variant)
 
-Response structure (confirmed via network interception):
-  data["tab_info"][x]  (dict with arbitrary keys)
-    → look for list values where items have "sp", "mrp", "desc" keys
-    item["desc"]        → product name
-    item["sp"]          → selling price
-    item["mrp"]         → MRP
-    item["img"]["s"]    → image URL (small)
-    item["w"]           → weight/unit
-    item["oos"]         → out-of-stock flag (0 = in stock)
+Cloudflare bypass: inject stealth JS + use realistic Chrome headers +
+  set extra HTTP headers to mimic a real browser session.
 """
 
 import asyncio
@@ -33,6 +29,22 @@ log = structlog.get_logger(__name__)
 
 BB_BASE = "https://www.bigbasket.com"
 
+_CHROME_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-IN,en-GB;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"macOS"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+
 
 def _parse_price(val) -> Optional[float]:
     if val is None:
@@ -45,17 +57,14 @@ def _parse_price(val) -> Optional[float]:
 
 
 def _parse_tab_info(data: dict) -> list[dict]:
-    """Extract products from BigBasket tab_info response."""
     products = []
     tab_info = data.get("tab_info", [])
-
     for tab in tab_info:
         if not isinstance(tab, dict):
             continue
         for v in tab.values():
             if not (isinstance(v, list) and v and isinstance(v[0], dict)):
                 continue
-            # Check if this list contains product objects
             if not any(k in v[0] for k in ["sp", "mrp", "desc"]):
                 continue
             for p in v:
@@ -65,7 +74,6 @@ def _parse_tab_info(data: dict) -> list[dict]:
                 img   = p.get("img", {})
                 image = img.get("s", "") if isinstance(img, dict) else ""
                 pid   = str(p.get("id") or p.get("product_id") or "")
-
                 if name and price and price > 0:
                     products.append({
                         "name":      name,
@@ -77,8 +85,63 @@ def _parse_tab_info(data: dict) -> list[dict]:
                         "pid":       pid,
                         "url":       f"{BB_BASE}/pd/{p.get('slug', pid)}/" if pid else None,
                     })
-
     return products
+
+
+def _parse_products_list(data: dict) -> list[dict]:
+    products = []
+    for item in data.get("products", []):
+        p = item.get("product", item)
+        name  = p.get("desc", "") or p.get("name", "")
+        price = _parse_price(p.get("sp") or p.get("selling_price"))
+        mrp   = _parse_price(p.get("mrp"))
+        img   = p.get("img", {})
+        image = img.get("s", "") if isinstance(img, dict) else (img if isinstance(img, str) else "")
+        pid   = str(p.get("id") or p.get("product_id") or "")
+        if name and price and price > 0:
+            products.append({
+                "name":      name,
+                "price":     price,
+                "mrp":       mrp or price,
+                "unit":      p.get("w", "") or p.get("unit", ""),
+                "image_url": image,
+                "in_stock":  p.get("oos", 0) == 0,
+                "pid":       pid,
+                "url":       f"{BB_BASE}/pd/{p.get('slug', pid)}/" if pid else None,
+            })
+    return products
+
+
+def _parse_prod_info(data: dict) -> list[dict]:
+    products = []
+    for item in data.get("prod_info", []):
+        p = item.get("prod", item)
+        name  = p.get("desc", "") or p.get("name", "")
+        price = _parse_price(p.get("sp") or p.get("selling_price"))
+        mrp   = _parse_price(p.get("mrp"))
+        img   = p.get("img", {})
+        image = img.get("s", "") if isinstance(img, dict) else ""
+        pid   = str(p.get("id") or "")
+        if name and price and price > 0:
+            products.append({
+                "name":      name,
+                "price":     price,
+                "mrp":       mrp or price,
+                "unit":      p.get("w", ""),
+                "image_url": image,
+                "in_stock":  p.get("oos", 0) == 0,
+                "pid":       pid,
+                "url":       f"{BB_BASE}/pd/{p.get('slug', pid)}/" if pid else None,
+            })
+    return products
+
+
+def _extract_products(data: dict) -> list[dict]:
+    for parser in (_parse_tab_info, _parse_products_list, _parse_prod_info):
+        result = parser(data)
+        if result:
+            return result
+    return []
 
 
 class BigBasketScraper(BaseScraper):
@@ -100,7 +163,7 @@ class BigBasketScraper(BaseScraper):
             raise ScraperError(str(exc)) from exc
 
     async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
-        from app.scrapers.playwright_pool import get_browser
+        from app.scrapers.playwright_pool import get_browser, apply_stealth
 
         captured: list[dict] = []
 
@@ -113,37 +176,54 @@ class BigBasketScraper(BaseScraper):
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
                 locale="en-IN",
+                extra_http_headers=_CHROME_HEADERS,
             )
             try:
                 page = await context.new_page()
+                # Apply stealth before any navigation
+                await apply_stealth(page)
 
+                # Intercept JSON responses
                 async def on_response(response):
                     url = response.url
-                    if (
-                        "bigbasket.com" in url
-                        and ("get-products" in url or "search" in url)
-                        and response.status == 200
-                    ):
-                        ct = response.headers.get("content-type", "")
-                        if "json" in ct:
-                            try:
-                                data = await response.json()
-                                if data.get("tab_info"):
-                                    captured.append(data)
-                            except Exception:
-                                pass
+                    if "bigbasket.com" not in url:
+                        return
+                    if response.status != 200:
+                        return
+                    ct = response.headers.get("content-type", "")
+                    if "json" not in ct:
+                        return
+                    if any(kw in url for kw in ["get-products", "search", "listing", "ps/"]):
+                        try:
+                            data = await response.json()
+                            if data and isinstance(data, dict):
+                                captured.append(data)
+                        except Exception:
+                            pass
 
                 page.on("response", on_response)
 
+                # Step 1: Visit homepage to establish session
+                await page.goto(BB_BASE, wait_until="domcontentloaded", timeout=20_000)
+                await asyncio.sleep(2)
+
+                # Check if we got past Cloudflare
+                title = await page.title()
+                if "access denied" in title.lower() or "cloudflare" in title.lower():
+                    log.warning("bigbasket_cloudflare_block", title=title)
+                    # Try waiting longer for CF challenge to resolve
+                    await asyncio.sleep(5)
+
+                # Step 2: Navigate to search
                 await page.goto(
-                    f"{BB_BASE}/ps/?q={quote_plus(query)}",
+                    f"{BB_BASE}/ps/?q={quote_plus(query)}&nc=as",
                     wait_until="networkidle",
                     timeout=30_000,
                 )
                 await asyncio.sleep(3)
 
-                # Fallback: call the API from within the browser context
-                if not captured:
+                # Fallback: call API from within browser (has session cookies)
+                if not any(_extract_products(d) for d in captured):
                     result = await page.evaluate(
                         """async (q) => {
                             try {
@@ -157,15 +237,52 @@ class BigBasketScraper(BaseScraper):
                         }""",
                         query,
                     )
-                    if result and result.get("tab_info"):
+                    if result and isinstance(result, dict):
                         captured.append(result)
+
+                # Fallback: DOM scraping
+                if not any(_extract_products(d) for d in captured):
+                    dom_products = await page.evaluate(
+                        """() => {
+                            const out = [];
+                            const cards = document.querySelectorAll(
+                                '[class*="SKUDeck"], [class*="product-card"], [class*="ProductCard"], '
+                                + 'li[class*="product"], [data-product-id]'
+                            );
+                            cards.forEach(card => {
+                                try {
+                                    const nameEl = card.querySelector(
+                                        '[class*="Description"], [class*="name"], [class*="title"], h3, h4'
+                                    );
+                                    const name = nameEl?.textContent?.trim();
+                                    const priceEl = card.querySelector(
+                                        '[class*="offer-price"], [class*="selling-price"], '
+                                        + '[class*="discounted"], [class*="Price"]'
+                                    );
+                                    const priceText = priceEl?.textContent?.replace(/[^0-9.]/g, '');
+                                    const price = priceText ? parseFloat(priceText) : 0;
+                                    const mrpEl = card.querySelector('[class*="mrp"], [class*="strike"]');
+                                    const mrpText = mrpEl?.textContent?.replace(/[^0-9.]/g, '');
+                                    const mrp = mrpText ? parseFloat(mrpText) : price;
+                                    const img = card.querySelector('img')?.src || '';
+                                    const pid = card.getAttribute('data-product-id') || '';
+                                    if (name && price > 0) {
+                                        out.push({name, price, mrp: mrp || price, image_url: img, pid});
+                                    }
+                                } catch(e) {}
+                            });
+                            return out;
+                        }"""
+                    )
+                    if dom_products:
+                        captured.append({"products": [{"product": p} for p in dom_products]})
 
                 await page.close()
             finally:
                 await context.close()
 
         for data in captured:
-            products = _parse_tab_info(data)
+            products = _extract_products(data)
             if products:
                 best  = products[0]
                 price = best["price"]
