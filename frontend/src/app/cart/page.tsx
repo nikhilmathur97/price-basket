@@ -29,8 +29,6 @@ const PLATFORM_META: Record<string, {
   flipkart:  { color: "#2874F0", textColor: "#ffffff", homeUrl: "https://www.flipkart.com",              searchUrl: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}` },
   amazon:    { color: "#FF9900", textColor: "#1a1a1a", homeUrl: "https://www.amazon.in",                 searchUrl: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
   jiomart:   { color: "#0046D5", textColor: "#ffffff", homeUrl: "https://www.jiomart.com",               searchUrl: (q) => `https://www.jiomart.com/search#query=${encodeURIComponent(q)}` },
-  myntra:    { color: "#FF3F6C", textColor: "#ffffff", homeUrl: "https://www.myntra.com",                searchUrl: (q) => `https://www.myntra.com/search?rawQuery=${encodeURIComponent(q)}` },
-  nykaa:     { color: "#FC2779", textColor: "#ffffff", homeUrl: "https://www.nykaa.com",                 searchUrl: (q) => `https://www.nykaa.com/search/result/?q=${encodeURIComponent(q)}` },
   dunzo:     { color: "#00D290", textColor: "#1a1a1a", homeUrl: "https://www.dunzo.com",                 searchUrl: (q) => `https://www.dunzo.com/search?q=${encodeURIComponent(q)}` },
 };
 

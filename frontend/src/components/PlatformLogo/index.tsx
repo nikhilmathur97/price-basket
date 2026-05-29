@@ -12,12 +12,10 @@ const LOCAL_LOGOS: Record<string, string> = {
   amazon:    "/logos/amazon.svg",    // wide wordmark (Wikimedia Commons)
   jiomart:   "/logos/jiomart.svg",   // 384×384 square logo (en.wikipedia)
   dunzo:     "/logos/dunzo.svg",     // wide wordmark (en.wikipedia)
-  myntra:    "/logos/myntra.png",    // 180×180 square app icon (myntra.com)
-  nykaa:     "/logos/nykaa.svg",     // wide wordmark (en.wikipedia)
 };
 
 // Logos that are wide wordmarks — rendered at fixed height, auto width
-const WIDE_LOGOS = new Set(["zepto", "bigbasket", "flipkart", "amazon", "dunzo", "nykaa"]);
+const WIDE_LOGOS = new Set(["zepto", "bigbasket", "flipkart", "amazon", "dunzo"]);
 
 // Brand colors for the text-initial fallback (only shown if slug is unknown)
 const BRAND_COLORS: Record<string, string> = {
@@ -29,8 +27,6 @@ const BRAND_COLORS: Record<string, string> = {
   amazon:    "#FF9900",
   jiomart:   "#0057A8",
   dunzo:     "#00D290",
-  myntra:    "#FF3366",
-  nykaa:     "#FC2779",
 };
 
 interface PlatformLogoProps {

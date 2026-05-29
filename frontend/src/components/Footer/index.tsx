@@ -27,7 +27,7 @@ const EXPLORE_LINKS = [
 
 const PLATFORMS = [
   "Blinkit", "Zepto", "Swiggy Instamart", "BigBasket",
-  "Amazon Fresh", "Flipkart Minutes", "Dunzo", "Nykaa", "JioMart", "DMart Ready",
+  "Amazon Fresh", "Flipkart Minutes", "Dunzo", "JioMart", "DMart Ready",
 ];
 
 export function Footer() {

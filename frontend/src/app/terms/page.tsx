@@ -26,7 +26,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-bold text-surface-900 mb-3">2. Description of Service</h2>
           <p className="leading-relaxed">
-            PriceBasket is a price comparison platform that aggregates product prices from multiple Indian quick-commerce and e-commerce platforms including Blinkit, Zepto, Swiggy Instamart, BigBasket, Flipkart, Amazon, JioMart, Myntra, and Nykaa.
+            PriceBasket is a price comparison platform that aggregates product prices from multiple Indian quick-commerce and e-commerce platforms including Blinkit, Zepto, Swiggy Instamart, BigBasket, Flipkart, Amazon, and JioMart.
           </p>
           <p className="mt-3 leading-relaxed">
             PriceBasket is an <strong>independent comparison service</strong>. We are not affiliated with, endorsed by, or officially connected to any of the platforms we compare. All trademarks belong to their respective owners.

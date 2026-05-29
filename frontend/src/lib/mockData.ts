@@ -58,23 +58,23 @@ function foodImg(seed: string): string {
 }
 
 // ── Discount profiles ─────────────────────────────────────────────────────
-// [Blinkit, Zepto, BigBasket, Instamart, Flipkart, Amazon, JioMart, Myntra, Nykaa]
+// [Blinkit, Zepto, BigBasket, Instamart, Flipkart, Amazon, JioMart]
 // 0 = not available on this platform for this category
 const D = {
-  produce:  [5, 6, 10, 4, 4, 8, 7, 0, 0],
-  dairy:    [3, 5,  8, 4, 3, 7, 6, 0, 0],
-  staples:  [5, 7, 12, 6, 5, 9, 8, 0, 0],
-  oils:     [4, 6, 10, 5, 4, 8, 7, 0, 0],
-  spices:   [4, 5,  9, 4, 4, 7, 6, 0, 0],
-  bev:      [5, 7, 10, 5, 5, 9, 7, 0, 0],
-  snacks:   [0, 0,  5, 0, 2, 5, 4, 0, 0],
-  brkfst:   [4, 6, 10, 5, 5, 8, 7, 0, 0],
-  noodles:  [2, 3,  6, 2, 3, 6, 5, 0, 0],
-  pcare:    [5, 8, 15, 7, 8,12,10,10,18],
-  house:    [6, 8, 12, 7, 7,10, 9, 0, 0],
+  produce:  [5, 6, 10, 4, 4, 8, 7],
+  dairy:    [3, 5,  8, 4, 3, 7, 6],
+  staples:  [5, 7, 12, 6, 5, 9, 8],
+  oils:     [4, 6, 10, 5, 4, 8, 7],
+  spices:   [4, 5,  9, 4, 4, 7, 6],
+  bev:      [5, 7, 10, 5, 5, 9, 7],
+  snacks:   [0, 0,  5, 0, 2, 5, 4],
+  brkfst:   [4, 6, 10, 5, 5, 8, 7],
+  noodles:  [2, 3,  6, 2, 3, 6, 5],
+  pcare:    [5, 8, 15, 7, 8,12,10],
+  house:    [6, 8, 12, 7, 7,10, 9],
 } as const;
 
-type DiscProfile = readonly [number,number,number,number,number,number,number,number,number];
+type DiscProfile = readonly [number,number,number,number,number,number,number];
 
 /** Build price entries. A discount of 0 means not available on that platform. */
 function pp(
@@ -90,8 +90,6 @@ function pp(
     { id: "flipkart",  price: r(mrp * (1 - disc[4] / 100)), mins: 10,  available: disc[4] > 0 },
     { id: "amazon",    price: r(mrp * (1 - disc[5] / 100)), mins: 120, available: disc[5] > 0 },
     { id: "jiomart",   price: r(mrp * (1 - disc[6] / 100)), mins: 30,  available: disc[6] > 0 },
-    { id: "myntra",    price: r(mrp * (1 - disc[7] / 100)), mins: 30,  available: disc[7] > 0 },
-    { id: "nykaa",     price: r(mrp * (1 - disc[8] / 100)), mins: 60,  available: disc[8] > 0 },
   ];
   // Return mrp as price when discount is 0 so PriceData still has a value, just unavailable
   return entries;
@@ -181,30 +179,6 @@ export const MOCK_PLATFORMS: Platform[] = [
     min_order_amount: 0,
     delivery_fee: 35,
     free_delivery_threshold: 399,
-    is_active: true,
-  },
-  {
-    id: "myntra",
-    slug: "myntra",
-    name: "Myntra M-Now",
-    logo_url: "https://logo.clearbit.com/myntra.com",
-    color_hex: "#FF3F6C",
-    avg_delivery_minutes: 30,
-    min_order_amount: 0,
-    delivery_fee: 0,
-    free_delivery_threshold: null,
-    is_active: true,
-  },
-  {
-    id: "nykaa",
-    slug: "nykaa",
-    name: "Nykaa Now",
-    logo_url: "https://logo.clearbit.com/nykaa.com",
-    color_hex: "#FC2779",
-    avg_delivery_minutes: 60,
-    min_order_amount: 500,
-    delivery_fee: 50,
-    free_delivery_threshold: 999,
     is_active: true,
   },
 ];

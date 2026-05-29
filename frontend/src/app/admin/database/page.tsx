@@ -18,7 +18,7 @@ import {
 const PLATFORM_COLORS: Record<string, string> = {
   blinkit: "#F8C300", zepto: "#6D3FD8", instamart: "#FC8019",
   bigbasket: "#84C225", flipkart: "#2874F0", amazon: "#FF9900",
-  jiomart: "#0057A8", dunzo: "#00D290", myntra: "#FF3366", nykaa: "#FC2779",
+  jiomart: "#0057A8", dunzo: "#00D290",
 };
 const CHART_COLORS = ["#6366f1","#f59e0b","#10b981","#3b82f6","#ec4899","#8b5cf6","#14b8a6","#f97316","#84cc16","#06b6d4"];
 
