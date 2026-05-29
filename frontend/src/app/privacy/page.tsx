@@ -90,8 +90,8 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-3">
             To exercise these rights, email us at{" "}
-            <a href="mailto:privacy@pricebasket.in" className="text-brand-600 hover:underline font-medium">
-              privacy@pricebasket.in
+            <a href="mailto:founder@pricebasket.in" className="text-brand-600 hover:underline font-medium">
+              founder@pricebasket.in
             </a>.
           </p>
         </section>
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
           </p>
           <div className="mt-3 p-4 bg-surface-50 rounded-xl border border-surface-100 text-sm">
             <p className="font-semibold text-surface-900">PriceBasket</p>
-            <p className="text-surface-600 mt-1">Email: <a href="mailto:privacy@pricebasket.in" className="text-brand-600 hover:underline">privacy@pricebasket.in</a></p>
+            <p className="text-surface-600 mt-1">Email: <a href="mailto:founder@pricebasket.in" className="text-brand-600 hover:underline">founder@pricebasket.in</a></p>
             <p className="text-surface-600">Website: <a href="https://pricebasket.in" className="text-brand-600 hover:underline">pricebasket.in</a></p>
           </div>
         </section>

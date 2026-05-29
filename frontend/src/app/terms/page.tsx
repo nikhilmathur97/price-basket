@@ -108,7 +108,7 @@ export default function TermsPage() {
           <h2 className="text-lg font-bold text-surface-900 mb-3">10. Termination</h2>
           <p className="leading-relaxed">
             We reserve the right to suspend or terminate your account at any time for violation of these Terms, without prior notice. You may delete your account at any time by contacting us at{" "}
-            <a href="mailto:support@pricebasket.in" className="text-brand-600 hover:underline">support@pricebasket.in</a>.
+            <a href="mailto:founder@pricebasket.in" className="text-brand-600 hover:underline">founder@pricebasket.in</a>.
           </p>
         </section>
 
@@ -130,7 +130,7 @@ export default function TermsPage() {
           <h2 className="text-lg font-bold text-surface-900 mb-3">13. Contact</h2>
           <div className="p-4 bg-surface-50 rounded-xl border border-surface-100 text-sm">
             <p className="font-semibold text-surface-900">PriceBasket</p>
-            <p className="text-surface-600 mt-1">Email: <a href="mailto:support@pricebasket.in" className="text-brand-600 hover:underline">support@pricebasket.in</a></p>
+            <p className="text-surface-600 mt-1">Email: <a href="mailto:founder@pricebasket.in" className="text-brand-600 hover:underline">founder@pricebasket.in</a></p>
             <p className="text-surface-600">Website: <a href="https://pricebasket.in" className="text-brand-600 hover:underline">pricebasket.in</a></p>
           </div>
         </section>
