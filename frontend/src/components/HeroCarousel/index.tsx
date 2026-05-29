@@ -26,7 +26,7 @@ type Slide = {
 const SLIDES: Slide[] = [
   {
     id: "hero",
-    bg: "linear-gradient(135deg, #FC5A01 0%, #c94400 100%)",
+    bg: "#FC5A01",
     ctaColor: "#FC5A01",
     tag: "🛒 10 Platforms",
     title: "Compare grocery prices.\nSave every time.",
@@ -38,7 +38,7 @@ const SLIDES: Slide[] = [
       { icon: "💰", text: "Save up to 40%" },
     ],
     hasLocation: true,
-    image: "/hero-basket.jpg",
+    image: "/hero-basket.png",
   },
   {
     id: "vegetables",
