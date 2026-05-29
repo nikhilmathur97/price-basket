@@ -178,7 +178,11 @@ export function HeroCarousel() {
               <div className="absolute top-0 right-1/3 w-24 h-24 bg-white/[0.03] rounded-full pointer-events-none" />
 
               {/* ── Left content ── */}
-              <div className="flex-1 min-w-0 z-10">
+              <div className={`flex-1 min-w-0 z-10 ${
+                slide.image
+                  ? "pr-[130px] sm:pr-[158px] md:pr-[175px] lg:pr-[200px]"
+                  : ""
+              }`}>
                 {/* Tag badge */}
                 <div className="inline-flex items-center gap-1 bg-white/20 text-white
                                 text-[10px] font-bold px-2.5 py-1 rounded-full mb-2
@@ -225,33 +229,39 @@ export function HeroCarousel() {
                 </div>
               </div>
 
-              {/* ── Right: image or emoji ── */}
-              <div className="flex-shrink-0 self-center z-10">
-                {slide.image ? (
-                  <div className="w-[120px] sm:w-[148px] md:w-[168px] lg:w-[185px]">
-                    <Image
-                      src={slide.image}
-                      alt="Grocery basket"
-                      width={370}
-                      height={370}
-                      sizes="(max-width: 640px) 120px, (max-width: 768px) 148px, (max-width: 1024px) 168px, 185px"
-                      className="w-full h-auto object-contain drop-shadow-xl"
-                      priority
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="w-[80px] h-[80px] sm:w-[108px] sm:h-[108px]
-                               md:w-[130px] md:h-[130px] lg:w-[150px] lg:h-[150px]
-                               rounded-full bg-white/15 backdrop-blur-sm border border-white/25
-                               flex items-center justify-center shadow-inner"
-                  >
+              {/* ── Right: emoji (in flex) ── */}
+              {!slide.image && (
+                <div className="flex-shrink-0 self-center z-10">
+                  <div className="w-[80px] h-[80px] sm:w-[108px] sm:h-[108px]
+                                  md:w-[130px] md:h-[130px] lg:w-[150px] lg:h-[150px]
+                                  rounded-full bg-white/15 backdrop-blur-sm border border-white/25
+                                  flex items-center justify-center shadow-inner">
                     <span className="text-[42px] sm:text-[58px] md:text-[68px] lg:text-[78px] select-none leading-none">
                       {slide.bigEmoji}
                     </span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              {/* ── Right: image (absolute, bleeds into edges so no box boundary) ── */}
+              {slide.image && (
+                <div className="absolute right-0 inset-y-0
+                                w-[130px] sm:w-[158px] md:w-[175px] lg:w-[200px]
+                                z-10 pointer-events-none">
+                  <Image
+                    src={slide.image}
+                    alt="Grocery basket"
+                    fill
+                    sizes="(max-width: 640px) 130px, (max-width: 768px) 158px, (max-width: 1024px) 175px, 200px"
+                    className="object-contain object-center"
+                    priority
+                  />
+                  {/* Gradient fade on left edge — hides any colour boundary */}
+                  <div
+                    className="absolute inset-y-0 left-0 w-10 pointer-events-none"
+                    style={{ background: `linear-gradient(to right, ${slide.bg}, transparent)` }}
+                  />
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 
