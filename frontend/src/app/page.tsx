@@ -3,7 +3,7 @@ import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
-import { LocationBar } from "@/components/LocationBar";
+import { HeroCarousel } from "@/components/HeroCarousel";
 
 // ── Category card colour accents ────────────────────────────────────────────
 const CAT_COLORS: Record<string, { bg: string; ring: string; text: string }> = {
@@ -26,62 +26,8 @@ export default function HomePage() {
   return (
     <div className="bg-[#f5f5f5] min-h-screen pb-20 md:pb-8">
 
-      {/* ── Hero poster ── */}
-      <div className="px-3 pt-2 pb-2">
-        <div className="max-w-screen-xl mx-auto">
-          <div className="relative overflow-hidden rounded-3xl px-5 py-5 shadow-lg" style={{ backgroundColor: "#FC5A01" }}>
-
-            <div className="flex items-center gap-2">
-              {/* ── Left: text content ── */}
-              <div className="flex-1 min-w-0 pb-5 z-10">
-                <h1 className="text-[22px] sm:text-3xl font-black text-white leading-tight tracking-tight">
-                  Compare 10 platforms
-                </h1>
-                <p className="text-orange-100 text-[12px] font-semibold mt-1 leading-snug">
-                  Blinkit · Zepto · Instamart<br/>
-                  Flipkart · Amazon · more
-                </p>
-
-                {/* Location bar */}
-                <div className="mt-3 mb-4">
-                  <LocationBar variant="hero" />
-                </div>
-
-                {/* Trust chips */}
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                  {[
-                    { icon: "⚡", text: "10-min delivery" },
-                    { icon: "🏪", text: "10 platforms" },
-                    { icon: "💰", text: "Save up to 40%" },
-                  ].map((chip) => (
-                    <div key={chip.text}
-                      className="flex items-center gap-1.5 flex-shrink-0 bg-white/15 backdrop-blur-sm
-                                 text-white text-[11px] font-semibold px-3 py-1.5
-                                 rounded-full border border-white/25">
-                      <span>{chip.icon}</span>
-                      <span>{chip.text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Right: grocery basket image ── */}
-              <div className="flex-shrink-0 self-center w-[140px] sm:w-[165px]">
-                <Image
-                  src="/hero-basket.jpg"
-                  alt="Grocery basket"
-                  width={330}
-                  height={330}
-                  sizes="(max-width: 640px) 140px, 165px"
-                  className="w-full h-auto object-contain"
-                  priority
-                />
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
+      {/* ── Hero carousel ── */}
+      <HeroCarousel />
 
       <div className="max-w-screen-xl mx-auto px-4">
 
