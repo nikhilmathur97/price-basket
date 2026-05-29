@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
@@ -37,10 +37,12 @@ export default function SignupPage() {
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const signupInProgress = useRef(false);
 
-  // Redirect via useEffect — never call router during render (causes 404 in Next.js 14)
+  // Redirect already-authenticated users away from the signup page
   useEffect(() => {
-    if (hasHydrated && isAuthenticated) {
+    if (hasHydrated && isAuthenticated && !signupInProgress.current) {
       router.replace("/");
     }
   }, [hasHydrated, isAuthenticated, router]);
@@ -61,6 +63,8 @@ export default function SignupPage() {
     if (!/[A-Z]/.test(form.password)) { toast.error("Password must contain at least one uppercase letter"); return; }
     if (!/\d/.test(form.password)) { toast.error("Password must contain at least one number"); return; }
 
+    setEmailError("");
+    signupInProgress.current = true;
     setLoading(true);
     try {
       await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
@@ -69,11 +73,18 @@ export default function SignupPage() {
       const { data: user } = await api.me();
       setUser(user);
       resetCart();
-      fetchCart().catch(() => {});
-      toast.success(`Welcome to Price Basket, ${user.full_name ?? "there"}!`);
-      window.location.href = "/";
+      await fetchCart().catch(() => {});
+      toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
+      // Client-side navigation — keeps store alive so accessToken is never lost
+      router.replace("/");
     } catch (err: any) {
-      toast.error(getSignupErrorMessage(err));
+      signupInProgress.current = false;
+      const status = err?.response?.status;
+      if (status === 409) {
+        setEmailError("This email is already registered. Sign in instead?");
+      } else {
+        toast.error(getSignupErrorMessage(err));
+      }
       setLoading(false);
     }
   }
@@ -121,11 +132,23 @@ export default function SignupPage() {
                 type="email"
                 required
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  if (emailError) setEmailError("");
+                }}
                 placeholder="you@example.com"
-                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className={`w-full border rounded-xl px-4 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-brand-500
+                            ${emailError ? "border-red-400 bg-red-50" : "border-surface-200"}`}
               />
+              {emailError && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  {emailError}
+                  {emailError.includes("Sign in") && (
+                    <a href="/auth/login" className="underline font-semibold ml-1">Sign in</a>
+                  )}
+                </p>
+              )}
             </div>
 
             <div>
