@@ -4,7 +4,6 @@ import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSearch } from "@/hooks/useSearch";
 import { ProductCard } from "@/components/ProductCard";
-import { SearchBar } from "@/components/SearchBar";
 import { PageLoader } from "@/components/PageLoader";
 import { SlidersHorizontal, ChevronDown, Loader2 } from "lucide-react";
 
@@ -59,11 +58,6 @@ function SearchResults() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 page-enter" ref={topRef}>
-      {/* Mobile search bar */}
-      <div className="md:hidden mb-4">
-        <SearchBar autoFocus />
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
