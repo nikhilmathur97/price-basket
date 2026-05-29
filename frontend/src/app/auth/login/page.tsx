@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
@@ -19,10 +19,12 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Prevent the "already authenticated" useEffect from firing during an active login
+  const loginInProgress = useRef(false);
 
-  // Redirect via useEffect — never call router during render (causes 404 in Next.js 14)
+  // Redirect already-authenticated users away from the login page
   useEffect(() => {
-    if (hasHydrated && isAuthenticated) {
+    if (hasHydrated && isAuthenticated && !loginInProgress.current) {
       router.replace("/");
     }
   }, [hasHydrated, isAuthenticated, router]);
@@ -34,6 +36,7 @@ export default function LoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    loginInProgress.current = true;
     setLoading(true);
     try {
       const { data } = await api.login(form);
@@ -48,16 +51,18 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
-      window.location.href = safeNext;
+      // Client-side navigation: no full reload, store stays live, Header updates instantly
+      router.replace(safeNext);
     } catch (err: any) {
-      const detail = err?.response?.data?.detail ?? "Login failed";
+      loginInProgress.current = false;
+      const detail = err?.response?.data?.detail ?? "Login failed. Please check your credentials.";
       toast.error(detail);
       setLoading(false);
     }
   }
 
   if (loading) {
-    return <PageLoader message="Signing you in" />;
+    return <PageLoader message="Logging you in" />;
   }
 
   return (
@@ -74,9 +79,9 @@ export default function LoginPage() {
         </div>
 
         <div className="card p-8">
-          <h1 className="text-xl font-bold text-surface-900 mb-1">Sign in</h1>
+          <h1 className="text-xl font-bold text-surface-900 mb-1">Login</h1>
           <p className="text-sm text-surface-400 mb-6">
-            Compare prices across all platforms
+            Welcome back to PriceBasket
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -123,7 +128,7 @@ export default function LoginPage() {
               type="submit"
               className="btn-primary w-full"
             >
-              Sign In
+              Login
             </button>
           </form>
 

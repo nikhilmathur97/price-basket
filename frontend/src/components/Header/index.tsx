@@ -123,7 +123,10 @@ export function Header() {
           </button>
 
           {/* Auth */}
-          {isAuthenticated ? (
+          {/* Skeleton while store hydrates — prevents flash of Login button for logged-in users */}
+          {!hasHydrated ? (
+            <div className="w-10 h-10 rounded-full bg-surface-100 animate-pulse flex-shrink-0" />
+          ) : isAuthenticated ? (
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -175,6 +178,7 @@ export function Header() {
               Login
             </Link>
           )}
+
         </div>
 
         {/* ── Row 2: Search bar — mobile only (hidden on product pages to avoid duplicate) ── */}
