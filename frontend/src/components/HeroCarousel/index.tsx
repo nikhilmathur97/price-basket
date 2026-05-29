@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { LocationBar } from "@/components/LocationBar";
 
 type Chip = { icon: string; text: string };
 
@@ -18,7 +17,6 @@ type Slide = {
   subtitle: string;
   cta: { label: string; href: string };
   chips: Chip[];
-  hasLocation?: boolean;
   image?: string;
   bigEmoji?: string;
 };
@@ -37,7 +35,6 @@ const SLIDES: Slide[] = [
       { icon: "🏪", text: "10 platforms" },
       { icon: "💰", text: "Save up to 40%" },
     ],
-    hasLocation: true,
     image: "/hero-basket.png",
   },
   {
@@ -197,22 +194,15 @@ export function HeroCarousel() {
 
                 {/* Subtitle */}
                 <p className="text-white/75 text-[11px] sm:text-[12px] md:text-[13px]
-                              font-medium mt-1 leading-snug line-clamp-2">
+                              font-medium mt-1 mb-3 leading-snug line-clamp-2">
                   {slide.subtitle}
                 </p>
-
-                {/* Location bar (first slide only) */}
-                {slide.hasLocation && (
-                  <div className="mt-2 mb-2.5">
-                    <LocationBar variant="hero" />
-                  </div>
-                )}
 
                 {/* CTA button */}
                 <Link
                   href={slide.cta.href}
                   className="inline-flex items-center gap-1 bg-white text-[11px] sm:text-[12px]
-                             font-bold rounded-xl px-3.5 py-2 shadow-md mt-2 mb-3
+                             font-bold rounded-xl px-3.5 py-2 shadow-md mb-3
                              hover:scale-105 active:scale-95 transition-transform duration-150"
                   style={{ color: slide.ctaColor }}
                 >
