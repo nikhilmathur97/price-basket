@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
 import { ShoppingCart, LogOut, User, Bell, Package, Settings } from "lucide-react";
@@ -16,10 +16,14 @@ import toast from "react-hot-toast";
 
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const { totalItems, openCart, resetCart } = useCartStore();
   const { isAuthenticated, user, logout, hasHydrated } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Hide the mobile search bar on product pages — the product page has its own context
+  const isProductPage = pathname?.startsWith("/product/");
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -173,10 +177,12 @@ export function Header() {
           )}
         </div>
 
-        {/* ── Row 2: Search bar — mobile only ── */}
-        <div className="pb-2.5 md:hidden">
-          <SearchBar />
-        </div>
+        {/* ── Row 2: Search bar — mobile only (hidden on product pages to avoid duplicate) ── */}
+        {!isProductPage && (
+          <div className="pb-2.5 md:hidden">
+            <SearchBar />
+          </div>
+        )}
       </div>
     </header>
   );

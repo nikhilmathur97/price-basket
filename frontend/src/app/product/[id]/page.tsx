@@ -785,6 +785,16 @@ export default function ProductPage() {
                         ✓ Selected
                       </span>
                     )}
+                    {pp.source === "estimated" && (
+                      <span
+                        title="Price is estimated — live scraping temporarily unavailable for this platform"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold
+                                   bg-surface-100 text-surface-500 px-2 py-0.5 rounded-full
+                                   border border-surface-200 cursor-help"
+                      >
+                        ~Est.
+                      </span>
+                    )}
                     {!pp.is_available && (
                       <span className="text-[10px] font-semibold text-red-500">Unavailable</span>
                     )}

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Zap, CheckCircle2, Plus, Minus, BarChart2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -15,27 +15,18 @@ import { cn } from "@/lib/utils";
 import { trackEvent, extractApiError } from "@/services/api";
 
 // ── Fallback images ──────────────────────────────────────────────────────────
-// Only used when DB has no image_url AND no thumbnail_url.
-// Images are carefully matched to the actual product — no mismatches.
 const SLUG_IMAGES: Record<string, string> = {
-  // Dairy
   "amul-gold-milk-1l":            "https://images.pexels.com/photos/1675976/pexels-photo-1675976.jpeg?w=400&h=400&fit=crop",
   "amul-butter-500g":             "https://images.pexels.com/photos/7966386/pexels-photo-7966386.jpeg?w=400&h=400&fit=crop",
-  // Bakery
   "britannia-bread-400g":         "https://images.pexels.com/photos/1756061/pexels-photo-1756061.jpeg?w=400&h=400&fit=crop",
-  // Snacks — generic snack/chips images only (no samosa for bhujia)
   "lays-classic-26g":             "https://images.pexels.com/photos/7033644/pexels-photo-7033644.jpeg?w=400&h=400&fit=crop",
   "maggi-noodles-70g":            "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?w=400&h=400&fit=crop",
-  // Beverages
   "coca-cola-750ml":              "https://images.pexels.com/photos/4710978/pexels-photo-4710978.jpeg?w=400&h=400&fit=crop",
   "tropicana-orange-1l":          "https://images.pexels.com/photos/3550044/pexels-photo-3550044.jpeg?w=400&h=400&fit=crop",
-  // Personal care
   "dove-soap-100g":               "https://images.pexels.com/photos/3944844/pexels-photo-3944844.jpeg?w=400&h=400&fit=crop",
   "head-shoulders-shampoo-180ml": "https://images.pexels.com/photos/7440056/pexels-photo-7440056.jpeg?w=400&h=400&fit=crop",
-  // Household
   "vim-dish-wash-bar-200g":       "https://images.pexels.com/photos/4154194/pexels-photo-4154194.jpeg?w=400&h=400&fit=crop",
   "harpic-toilet-cleaner-500ml":  "https://images.pexels.com/photos/4239034/pexels-photo-4239034.jpeg?w=400&h=400&fit=crop",
-  // Beauty
   "lakme-foundation-30ml":        "https://images.pexels.com/photos/3596449/pexels-photo-3596449.jpeg?w=400&h=400&fit=crop",
   "maybelline-mascara-9ml":       "https://images.pexels.com/photos/2533266/pexels-photo-2533266.jpeg?w=400&h=400&fit=crop",
 };
@@ -109,22 +100,27 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
-  // Only use fallback image if DB has no image AND slug matches exactly
   const imgSrc = !imgError
     ? (product.thumbnail_url ?? product.image_url ?? SLUG_IMAGES[product.slug] ?? null)
     : null;
 
+  // Format price compactly — never truncate with ellipsis
+  const formatPrice = (p: number) => {
+    if (p >= 1000) return `₹${(p / 1000).toFixed(p % 1000 === 0 ? 0 : 1)}k`;
+    return `₹${p}`;
+  };
+
   return (
     <>
-      <motion.div
-        whileHover={{ y: -1 }}
-        transition={{ duration: 0.15 }}
+      <div
         className={cn(
           "bg-white rounded-2xl border border-surface-100 overflow-hidden flex flex-col h-full",
-          "shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)]",
-          "transition-shadow duration-200",
+          "shadow-[0_1px_4px_rgba(0,0,0,0.06)]",
+          // GPU-accelerated layer for smooth scrolling
+          "transform-gpu",
           className
         )}
+        style={{ WebkitTapHighlightColor: "transparent", willChange: "transform" }}
       >
         <Link
           href={`/product/${product.id}`}
@@ -138,33 +134,34 @@ export function ProductCard({ product, className }: ProductCardProps) {
             })
           }
         >
-          {/* ── Image ── */}
-          <div className="relative aspect-square bg-[#f9f9f9] overflow-hidden">
+          {/* ── Image — square, compact ── */}
+          <div className="relative bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1" }}>
             {imgSrc ? (
               <Image
                 src={imgSrc}
                 alt={product.name}
                 fill
-                sizes="(max-width: 640px) 50vw, 200px"
-                className="object-contain p-3 hover:scale-105 transition-transform duration-300"
+                sizes="(max-width: 640px) 40vw, 150px"
+                className="object-contain p-2"
                 onError={() => setImgError(true)}
+                loading="lazy"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl select-none">🛒</div>
+              <div className="w-full h-full flex items-center justify-center text-3xl select-none">🛒</div>
             )}
 
             {/* Discount badge */}
             {maxDiscount > 0 && (
-              <div className="absolute top-2 left-2 bg-[#256fef] text-white
-                              text-[10px] font-extrabold px-1.5 py-0.5 rounded-[4px] leading-none">
+              <div className="absolute top-1.5 left-1.5 bg-[#256fef] text-white
+                              text-[9px] font-extrabold px-1.5 py-0.5 rounded-[4px] leading-none">
                 {Math.round(maxDiscount)}% OFF
               </div>
             )}
 
             {/* Store count */}
             {product.platform_prices.length > 1 && (
-              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm
-                              text-[10px] font-bold text-surface-500
+              <div className="absolute top-1.5 right-1.5 bg-white/90
+                              text-[9px] font-bold text-surface-500
                               px-1.5 py-0.5 rounded-[4px] border border-surface-100 leading-none">
                 {product.platform_prices.length} stores
               </div>
@@ -173,123 +170,123 @@ export function ProductCard({ product, className }: ProductCardProps) {
         </Link>
 
         {/* ── Info + Buttons ── */}
-        <div className="p-3 flex flex-col flex-1">
+        <div className="p-1.5 flex flex-col flex-1">
           <Link href={`/product/${product.id}`} className="block flex-1">
             {product.brand && (
-              <p className="text-[11px] text-surface-400 font-medium truncate mb-0.5">
+              <p className="text-[10px] text-surface-400 font-medium truncate mb-0.5">
                 {product.brand}
               </p>
             )}
-            {/* Fixed 2-line height for name so all cards align */}
-            <h3 className="text-[13px] font-semibold text-surface-900 line-clamp-2 leading-snug mb-1 min-h-[2.5rem]">
+            {/* 2-line clamped name */}
+            <h3 className="text-[12px] font-semibold text-surface-900 line-clamp-2 leading-snug mb-0.5 min-h-[2.2rem]">
               {product.name}
             </h3>
             {product.unit && (
-              <p className="text-[11px] text-surface-400 mb-1">{product.unit}</p>
+              <p className="text-[10px] text-surface-400 mb-1 truncate">{product.unit}</p>
             )}
 
-            {/* Badges — fixed min-height so cards without badges still align */}
-            <div className="flex flex-wrap gap-1 mb-2 min-h-[1.25rem]">
+            {/* Badges */}
+            <div className="flex flex-wrap gap-1 mb-1.5 min-h-[1.1rem]">
               {product.cheapest_platform && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold
-                                 text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-100">
-                  <CheckCircle2 className="w-2.5 h-2.5" />Cheapest
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold
+                                 text-green-700 bg-green-50 px-1 py-0.5 rounded-full border border-green-100">
+                  <CheckCircle2 className="w-2 h-2" />Best
                 </span>
               )}
               {fastestMins < Infinity && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold
-                                 text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded-full border border-yellow-100">
-                  <Zap className="w-2.5 h-2.5 fill-yellow-600" />{fastestMins}min
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold
+                                 text-yellow-700 bg-yellow-50 px-1 py-0.5 rounded-full border border-yellow-100">
+                  <Zap className="w-2 h-2 fill-yellow-600" />{fastestMins}m
                 </span>
               )}
             </div>
           </Link>
 
           {/* ── Price + ADD row — fixed height, no overlap ── */}
-          <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-surface-50 h-11">
-            {/* Price — shrinks if needed but never overlaps */}
-            <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center justify-between gap-1 mt-auto pt-1 border-t border-surface-50">
+            {/* Price — uses compact format to prevent overflow */}
+            <div className="min-w-0 shrink-0">
               {cheapestPrice !== null && (
-                <p className="text-[15px] font-extrabold text-surface-900 leading-none truncate">
-                  ₹{cheapestPrice}
+                <p className="text-[14px] font-extrabold text-surface-900 leading-none whitespace-nowrap">
+                  {formatPrice(cheapestPrice)}
                 </p>
               )}
               {mrp > (cheapestPrice ?? 0) && (
-                <p className="text-[10px] text-surface-400 line-through leading-none mt-0.5 truncate">
-                  ₹{mrp}
+                <p className="text-[10px] text-surface-400 line-through leading-none mt-0.5 whitespace-nowrap">
+                  {formatPrice(mrp)}
                 </p>
               )}
             </div>
 
-            {/* ADD / Counter — fixed width, never overlaps price */}
-            <div className="flex-shrink-0">
-              <AnimatePresence mode="wait">
+            {/* ADD / Counter — fixed, never overlaps price */}
+            <div className="flex-shrink-0 ml-1">
+              <AnimatePresence mode="wait" initial={false}>
                 {qty === 0 ? (
                   <motion.div
                     key="add-row"
-                    initial={{ opacity: 0, scale: 0.85 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: 0.12 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.1 }}
                     className="flex items-center gap-1"
                   >
                     <button
                       onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
                       title="Compare platforms"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg
+                      className="w-6 h-6 flex items-center justify-center rounded-lg
                                  border border-surface-200 text-surface-400
                                  hover:text-brand-600 hover:border-brand-400
-                                 active:scale-[0.95] transition-all flex-shrink-0"
+                                 active:scale-[0.95] transition-colors flex-shrink-0"
                     >
-                      <BarChart2 className="w-3.5 h-3.5" />
+                      <BarChart2 className="w-3 h-3" />
                     </button>
                     <button
                       onClick={handleAdd}
-                      className="flex items-center gap-0.5 h-8 px-2.5 rounded-xl
-                                 border-2 border-brand-600 text-brand-600 font-extrabold text-sm
+                      className="flex items-center gap-0.5 h-6 px-2 rounded-xl
+                                 border-2 border-brand-600 text-brand-600 font-extrabold text-[11px]
                                  bg-white hover:bg-brand-600 hover:text-white
-                                 active:scale-[0.95] transition-all select-none flex-shrink-0"
+                                 active:scale-[0.95] transition-colors select-none flex-shrink-0"
                       style={{ touchAction: "manipulation" }}
                     >
-                      <Plus className="w-3.5 h-3.5" />Add
+                      <Plus className="w-3 h-3" />Add
                     </button>
                   </motion.div>
                 ) : (
                   <motion.div
                     key="counter"
-                    initial={{ opacity: 0, scale: 0.85 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: 0.12 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.1 }}
                     className="flex items-center gap-1"
                   >
-                    {/* Compare icon stays visible */}
                     <button
                       onClick={(e) => { e.preventDefault(); setShowCompare(true); }}
                       title="Compare platforms"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg
+                      className="w-6 h-7 flex items-center justify-center rounded-lg
                                  border border-brand-200 text-brand-500
                                  hover:text-brand-700 hover:border-brand-500
-                                 active:scale-[0.95] transition-all flex-shrink-0"
+                                 active:scale-[0.95] transition-colors flex-shrink-0"
                     >
-                      <BarChart2 className="w-3.5 h-3.5" />
+                      <BarChart2 className="w-3 h-3" />
                     </button>
-                    {/* Counter stepper */}
-                    <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-8 flex-shrink-0">
+                    <div className="flex items-center bg-brand-600 rounded-xl overflow-hidden h-6 flex-shrink-0">
                       <button
                         onClick={handleDecrease}
-                        className="flex items-center justify-center w-7 h-8 text-white hover:bg-brand-700 transition-colors"
+                        className="flex items-center justify-center w-6 h-6 text-white hover:bg-brand-700 transition-colors"
+                        style={{ touchAction: "manipulation" }}
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-2.5 h-2.5" />
                       </button>
-                      <span className="text-white font-extrabold text-sm min-w-[20px] text-center px-0.5">
+                      <span className="text-white font-extrabold text-[11px] min-w-[16px] text-center px-0.5">
                         {qty}
                       </span>
                       <button
                         onClick={handleAdd}
-                        className="flex items-center justify-center w-7 h-8 text-white hover:bg-brand-700 transition-colors"
+                        className="flex items-center justify-center w-6 h-6 text-white hover:bg-brand-700 transition-colors"
+                        style={{ touchAction: "manipulation" }}
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-2.5 h-2.5" />
                       </button>
                     </div>
                   </motion.div>
@@ -298,7 +295,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       <PriceCompareModal
         product={showCompare ? product : null}

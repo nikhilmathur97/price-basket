@@ -84,15 +84,18 @@ function SectionHeader({
 
 function ProductRow({ products, loading }: { products: ProductWithPrices[]; loading?: boolean }) {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
+    <div
+      className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory"
+      style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain" }}
+    >
       {products.map((p) => (
         <div
           key={p.id}
-          className={`w-[160px] sm:w-[175px] flex-shrink-0 snap-start transition-opacity duration-300 ${
+          className={`flex-shrink-0 snap-start transition-opacity duration-200 ${
             loading ? "opacity-60" : "opacity-100"
           }`}
-          // equal height: all cards in a row stretch to the tallest
-          style={{ display: "flex", flexDirection: "column" }}
+          // Mobile: ~2.5 cards visible (40vw each); tablet+: fixed 150px
+          style={{ width: "clamp(120px, 40vw, 150px)", display: "flex", flexDirection: "column" }}
         >
           <ProductCard product={p} className="flex-1" />
         </div>
@@ -103,15 +106,18 @@ function ProductRow({ products, loading }: { products: ProductWithPrices[]; load
 
 function SkeletonCard() {
   return (
-    <div className="w-[160px] sm:w-[175px] flex-shrink-0 rounded-2xl overflow-hidden bg-white border border-surface-100 shadow-sm">
+    <div
+      className="flex-shrink-0 rounded-2xl overflow-hidden bg-white border border-surface-100 shadow-sm"
+      style={{ width: "clamp(120px, 40vw, 150px)" }}
+    >
       <div className="aspect-square bg-surface-100 animate-pulse" />
-      <div className="p-3 space-y-2">
-        <div className="h-3 bg-surface-100 rounded animate-pulse w-3/4" />
-        <div className="h-3 bg-surface-100 rounded animate-pulse w-full" />
-        <div className="h-3 bg-surface-100 rounded animate-pulse w-1/2" />
+      <div className="p-2 space-y-2">
+        <div className="h-2.5 bg-surface-100 rounded animate-pulse w-3/4" />
+        <div className="h-2.5 bg-surface-100 rounded animate-pulse w-full" />
+        <div className="h-2.5 bg-surface-100 rounded animate-pulse w-1/2" />
         <div className="flex justify-between items-center pt-1">
-          <div className="h-5 bg-surface-100 rounded animate-pulse w-14" />
-          <div className="h-8 bg-surface-100 rounded-xl animate-pulse w-16" />
+          <div className="h-4 bg-surface-100 rounded animate-pulse w-12" />
+          <div className="h-7 bg-surface-100 rounded-xl animate-pulse w-14" />
         </div>
       </div>
     </div>
@@ -120,7 +126,10 @@ function SkeletonCard() {
 
 function SkeletonRow() {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+    <div
+      className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
       {Array.from({ length: 6 }).map((_, i) => (
         <SkeletonCard key={i} />
       ))}

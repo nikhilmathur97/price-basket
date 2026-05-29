@@ -48,6 +48,7 @@ export interface PlatformPrice {
   platform_image_url: string | null;
   buy_url: string | null;
   last_updated: string;
+  source: string | null;  // "scrape" | "estimated" | "cache" | null
 }
 
 export interface Product {
