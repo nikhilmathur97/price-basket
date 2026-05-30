@@ -18,7 +18,12 @@ const SECURITY_HEADERS = [
 
 const nextConfig = {
   images: {
-    unoptimized: true,
+    // Next.js serves AVIF → WebP → original. Fixes the 2.5 MB image payload & mobile LCP.
+    // Vercel Hobby: 1,000 optimizations/month free; upgrade plan if traffic grows.
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 3600,
     remotePatterns: [
       // Blinkit / Grofers CDN (primary image source for scraped products)
       { hostname: "cdn.blinkit.com" },

@@ -17,11 +17,11 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: {
-    default: "PriceBasket — Compare Blinkit vs Zepto vs BigBasket Prices | Save ₹500/Month",
+    default: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices | Save ₹500/Month",
     template: "%s | PriceBasket",
   },
   description:
-    "India's #1 grocery price comparison. Compare Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart, Amazon Fresh prices in real-time. Save ₹500/month. Free price alerts. No app needed.",
+    "Compare Blinkit, Zepto, Swiggy Instamart, BigBasket & JioMart grocery prices in real-time. Find the cheapest quick-commerce app & save ₹500/month. Free, no app needed.",
   verification: {
     google: process.env.NEXT_PUBLIC_GSC_VERIFICATION ?? undefined,
   },
@@ -86,6 +86,13 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        {/* Preconnect to speed up third-party resources — reduces mobile LCP */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://api.pricebasket.in" />
+      </head>
       {/* ── Google Analytics 4 ── */}
       {GA_ID && (
         <>

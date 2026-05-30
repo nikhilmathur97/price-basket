@@ -269,17 +269,17 @@ export function Footer() {
 
           <div className="flex flex-col gap-2">
             <p className="text-surface-400 text-xs">© Price Basket, 2024–2026 · All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              {/* Instagram — official radial gradient + camera mark */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Instagram */}
               <a
                 href="https://www.instagram.com/pricebasketindia/"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="PriceBasket on Instagram"
                 className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
                   <defs>
-                    {/* Radial gradient: yellow bottom-left → pink → purple top-right (official) */}
                     <radialGradient id="ig-rg" cx="30%" cy="107%" r="150%">
                       <stop offset="0%"   stopColor="#fdf497"/>
                       <stop offset="10%"  stopColor="#fdf497"/>
@@ -289,75 +289,71 @@ export function Footer() {
                     </radialGradient>
                   </defs>
                   <rect width="24" height="24" rx="5.5" fill="url(#ig-rg)"/>
-                  {/* Camera body */}
                   <rect x="4.5" y="4.5" width="15" height="15" rx="4" fill="none" stroke="white" strokeWidth="1.6"/>
-                  {/* Lens ring */}
                   <circle cx="12" cy="12" r="3.5" fill="none" stroke="white" strokeWidth="1.6"/>
-                  {/* Flash dot */}
                   <circle cx="17" cy="7" r="1.3" fill="white"/>
                 </svg>
-                <span className="text-surface-300">@pricebasketindia</span>
+                <span className="text-surface-300">Instagram</span>
               </a>
 
-              {/* WhatsApp — official green circle + speech-bubble phone mark */}
+              {/* X (Twitter) */}
+              <a
+                href="https://twitter.com/pricebasketin"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="PriceBasket on X (Twitter)"
+                className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
+                  <rect width="24" height="24" rx="5.5" fill="#000"/>
+                  <path fill="white" d="M13.3 10.8 18.7 4.5h-1.3l-4.7 5.5L9 4.5H4.5l5.7 8.3L4.5 19.5h1.3l4.9-5.8 3.9 5.8H19l-5.7-8.7Zm-1.7 2-0.6-0.8L6.4 5.4h2l3.8 5.4.6.8 5 7.1h-2l-4.1-5.9Z"/>
+                </svg>
+                <span className="text-surface-300">X / Twitter</span>
+              </a>
+
+              {/* YouTube */}
+              <a
+                href="https://www.youtube.com/@pricebasketindia"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="PriceBasket on YouTube"
+                className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
+                  <path fill="#FF0000" d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.02 3.02 0 00.502 6.19C0 8.07 0 12 0 12s0 3.93.502 5.81a3.02 3.02 0 002.121 2.136C4.495 20.455 12 20.455 12 20.455s7.505 0 9.377-.509a3.02 3.02 0 002.121-2.136C24 15.93 24 12 24 12s0-3.93-.5-5.81z"/>
+                  <path fill="white" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+                <span className="text-surface-300">YouTube</span>
+              </a>
+
+              {/* LinkedIn */}
+              <a
+                href="https://www.linkedin.com/company/pricebasketin"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="PriceBasket on LinkedIn"
+                className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
+                  <rect width="24" height="24" rx="4" fill="#0A66C2"/>
+                  <path fill="white" d="M7.2 9.8H4.8V19H7.2V9.8ZM6 8.6a1.4 1.4 0 100-2.8 1.4 1.4 0 000 2.8ZM19.2 13.6c0-2.2-1.2-3.9-3.2-3.9-1 0-1.9.5-2.4 1.3V9.8H11.2V19h2.4v-5.1c0-1.1.6-1.9 1.6-1.9 1 0 1.6.8 1.6 1.9V19h2.4v-5.4z"/>
+                </svg>
+                <span className="text-surface-300">LinkedIn</span>
+              </a>
+
+              {/* WhatsApp */}
               <a
                 href="https://wa.me/918005828390"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="PriceBasket on WhatsApp"
                 className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
-                  {/* Green circle background — matches the real WhatsApp icon */}
                   <circle cx="12" cy="12" r="12" fill="#25D366"/>
-                  {/* Official WhatsApp speech-bubble + phone mark */}
-                  <path fill="white" d="
-                    M12 4.25
-                    C7.71 4.25 4.25 7.71 4.25 12
-                    c0 1.62.49 3.13 1.33 4.38
-                    L4.25 19.75 8.71 18.44
-                    A7.74 7.74 0 0012 19.75
-                    c4.29 0 7.75-3.46 7.75-7.75
-                    S16.29 4.25 12 4.25z
-                    M16.28 14.9
-                    c-.18.5-.88.92-1.45 1.04
-                    -.38.08-.88.14-2.56-.55
-                    -2.15-.88-3.54-3.07-3.65-3.21
-                    -.11-.14-.89-1.18-.89-2.25
-                    0-1.07.56-1.6.76-1.82
-                    .2-.22.43-.27.57-.27
-                    h.4c.13 0 .31-.05.49.37
-                    .18.43.62 1.51.67 1.62
-                    .05.11.09.24.02.38
-                    -.07.14-.11.23-.22.35
-                    -.11.12-.23.27-.32.36
-                    -.11.1-.22.22-.1.43
-                    .13.21.55.91 1.19 1.47
-                    .82.73 1.5.95 1.71 1.06
-                    .22.11.34.09.47-.05
-                    .13-.14.54-.63.68-.85
-                    .14-.22.29-.18.49-.11
-                    .2.07 1.25.59 1.46.7
-                    .21.11.35.16.41.25
-                    .05.09.05.52-.13 1.02z
-                  "/>
+                  <path fill="white" d="M12 4.25C7.71 4.25 4.25 7.71 4.25 12c0 1.62.49 3.13 1.33 4.38L4.25 19.75l3.46-1.31A7.74 7.74 0 0012 19.75c4.29 0 7.75-3.46 7.75-7.75S16.29 4.25 12 4.25zm3.78 10.65c-.18.5-.88.92-1.45 1.04-.38.08-.88.14-2.56-.55-2.15-.88-3.54-3.07-3.65-3.21-.11-.14-.89-1.18-.89-2.25 0-1.07.56-1.6.76-1.82.2-.22.43-.27.57-.27h.4c.13 0 .31-.05.49.37.18.43.62 1.51.67 1.62.05.11.09.24.02.38-.07.14-.11.23-.22.35-.11.12-.23.27-.32.36-.11.1-.22.22-.1.43.13.21.55.91 1.19 1.47.82.73 1.5.95 1.71 1.06.22.11.34.09.47-.05.13-.14.54-.63.68-.85.14-.22.29-.18.49-.11.2.07 1.25.59 1.46.7.21.11.35.16.41.25.05.09.05.52-.13 1.02z"/>
                 </svg>
                 <span className="text-surface-300">WhatsApp</span>
-              </a>
-
-              {/* YouTube — official red rounded-rect + play mark */}
-              <a
-                href="https://www.youtube.com/@pricebasketindia/shorts"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs font-medium transition-opacity hover:opacity-80"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-7 h-7 flex-shrink-0">
-                  {/* Official YouTube red pill shape */}
-                  <path fill="#FF0000" d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.02 3.02 0 00.502 6.19C0 8.07 0 12 0 12s0 3.93.502 5.81a3.02 3.02 0 002.121 2.136C4.495 20.455 12 20.455 12 20.455s7.505 0 9.377-.509a3.02 3.02 0 002.121-2.136C24 15.93 24 12 24 12s0-3.93-.5-5.81z"/>
-                  {/* White play triangle */}
-                  <path fill="white" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                </svg>
-                <span className="text-surface-300">YouTube</span>
               </a>
             </div>
           </div>

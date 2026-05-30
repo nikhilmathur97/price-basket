@@ -1,0 +1,77 @@
+# PriceBasket
+> India's #1 grocery price comparison platform. Compare Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart & more in real-time. Free forever.
+
+## What is PriceBasket?
+PriceBasket is a free grocery price comparison tool that helps Indian consumers find the cheapest prices across 10+ quick-commerce platforms. Users search for any grocery product and instantly see prices from Blinkit, Zepto, Swiggy Instamart, BigBasket, Amazon Fresh, Flipkart Minutes, JioMart, and DMart Ready — side by side on one screen.
+
+PriceBasket was founded in 2024 and serves users across all major Indian cities. No app download is required — the service works entirely in the browser.
+
+## Key Features
+- Real-time grocery price comparison across 10+ platforms (Blinkit, Zepto, Swiggy Instamart, BigBasket, Amazon Fresh, Flipkart Minutes, JioMart, DMart Ready)
+- Price drop alerts via email — get notified when any product falls below your target price
+- Cart optimizer — split your cart across platforms to maximise savings per order
+- City-specific pricing for Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune, Kolkata, Ahmedabad
+- Product categories: Fruits & Vegetables, Dairy & Breakfast, Snacks & Drinks, Bakery, Household, Personal Care, Chicken & Meat, Frozen Foods, Baby Care, Pet Care, Staples, Oils & Spices
+
+## Platforms Covered
+Blinkit, Zepto, Swiggy Instamart, BigBasket, Amazon Fresh, Flipkart Minutes, JioMart, DMart Ready
+
+## Business Information
+- Website: https://pricebasket.in
+- Contact: hello@pricebasket.in
+- WhatsApp: +91-8005828390
+- Founded: 2024
+- Headquarters: India
+- Service Area: Pan-India (all cities where Blinkit, Zepto, BigBasket & other platforms deliver)
+- Business Model: Free for consumers; earns affiliate commissions from platforms
+
+## Key Statistics
+- Average saving per order: ₹340
+- Average monthly saving: ₹500–₹2,000
+- Platforms tracked: 10+
+- Price update frequency: Every 15–30 minutes
+
+## Important Pages
+- Homepage & Search: https://pricebasket.in
+- Grocery Price Search: https://pricebasket.in/search
+- Price Alerts: https://pricebasket.in/alerts
+- Blog: https://pricebasket.in/blog
+- Contact Us: https://pricebasket.in/contact
+- FAQs: https://pricebasket.in/faqs
+- API Access: https://pricebasket.in/api-docs
+
+## City Pages
+- Mumbai Grocery Prices: https://pricebasket.in/grocery-prices-mumbai
+- Delhi Grocery Prices: https://pricebasket.in/grocery-prices-delhi
+- Bangalore Grocery Prices: https://pricebasket.in/grocery-prices-bangalore
+- Hyderabad Grocery Prices: https://pricebasket.in/grocery-prices-hyderabad
+- Chennai Grocery Prices: https://pricebasket.in/grocery-prices-chennai
+- Pune Grocery Prices: https://pricebasket.in/grocery-prices-pune
+
+## Product Comparison Pages
+- Blinkit vs Zepto: https://pricebasket.in/compare/blinkit-vs-zepto
+- Zepto vs Swiggy Instamart: https://pricebasket.in/compare/zepto-vs-instamart
+- Blinkit vs BigBasket: https://pricebasket.in/compare/blinkit-vs-bigbasket
+- BigBasket vs JioMart: https://pricebasket.in/compare/bigbasket-vs-jiomart
+
+## Social Profiles
+- Instagram: https://www.instagram.com/pricebasketindia
+- Twitter/X: https://twitter.com/pricebasketin
+- YouTube: https://www.youtube.com/@pricebasketin
+- LinkedIn: https://www.linkedin.com/company/pricebasketin
+
+## Frequently Asked Questions
+Q: Which grocery app is cheapest in India?
+A: It depends on the product. JioMart and BigBasket tend to be cheapest for staples (atta, rice, oil), while Blinkit and Zepto are competitive on fresh produce. PriceBasket compares all platforms in real-time so you always know who is cheapest right now.
+
+Q: How do I compare Blinkit vs Zepto prices?
+A: Visit https://pricebasket.in, search for any product, and instantly see prices from all platforms side by side.
+
+Q: Is PriceBasket free?
+A: Yes. PriceBasket is 100% free for consumers. We earn a small affiliate commission when you click through to a platform, but this never affects the prices shown.
+
+Q: How often are prices updated?
+A: Prices are refreshed every 15–30 minutes.
+
+Q: Which cities does PriceBasket cover?
+A: All cities where Blinkit, Zepto, BigBasket and other platforms deliver — including Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune, Kolkata, Ahmedabad and more.

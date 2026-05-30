@@ -7,30 +7,33 @@ import { HomeProductSections } from "@/components/HomeProductSections";
 import { HeroCarousel } from "@/components/HeroCarousel";
 
 export const metadata: Metadata = {
-  title: "PriceBasket — Compare Grocery Prices: Blinkit vs Zepto vs BigBasket vs Instamart",
+  title: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices",
   description:
-    "India's #1 grocery price comparison. Compare Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart prices in real-time. Save ₹500/month. Free price alerts. Cart optimizer.",
+    "Compare Blinkit vs Zepto, BigBasket, Swiggy Instamart & JioMart grocery prices in real-time. Find the cheapest quick-commerce app & save ₹500/month. Free.",
   keywords: [
+    "compare blinkit zepto prices",
     "blinkit vs zepto price comparison",
-    "cheapest grocery app india",
-    "grocery price comparison india",
+    "pricebasket compare grocery india",
     "blinkit zepto bigbasket price compare",
     "swiggy instamart vs blinkit",
+    "zepto swiggy price compare",
+    "instamart bigbasket compare",
+    "cheapest grocery app india",
+    "grocery price comparison india",
     "quick commerce price comparison",
     "online grocery deals india",
     "save money groceries india",
     "grocery price tracker india",
     "blinkit price check",
     "zepto price check",
-    "bigbasket vs blinkit",
-    "zepto vs swiggy instamart",
-    "grocery delivery price comparison",
+    "flipkart minutes price compare",
+    "fruits veggies cheapest price india",
     "pricebasket india",
   ],
   alternates: { canonical: "https://pricebasket.in" },
   openGraph: {
-    title: "PriceBasket — Blinkit vs Zepto vs BigBasket Price Comparison",
-    description: "Compare grocery prices across 8 quick-commerce apps. Save ₹500/month. Free forever.",
+    title: "PriceBasket — Compare Blinkit vs Zepto vs BigBasket Prices",
+    description: "Compare Blinkit, Zepto, BigBasket & Instamart grocery prices in real-time. Save ₹500/month. Free forever.",
     url: "https://pricebasket.in",
     siteName: "PriceBasket",
     type: "website",
@@ -266,20 +269,23 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── SEO keyword-rich trust section (hidden visually but crawlable) ── */}
+        {/* ── SEO keyword-rich trust section ── */}
         <section className="bg-white rounded-3xl border border-surface-100 p-6 mb-6">
-          <h2 className="text-lg font-extrabold text-surface-900 mb-2">
-            India&apos;s Smartest Grocery Price Comparison
-          </h2>
+          <h1 className="text-lg font-extrabold text-surface-900 mb-2">
+            India&apos;s Smartest Grocery Price Comparison — Blinkit vs Zepto vs BigBasket
+          </h1>
           <p className="text-sm text-surface-600 leading-relaxed mb-4">
             PriceBasket compares real-time grocery prices across <strong>Blinkit, Zepto,
             Swiggy Instamart, BigBasket, Amazon Fresh, Flipkart Minutes, JioMart</strong> and
-            DMart Ready — 8 platforms in one place. The same 500ml Dettol can costs ₹89 on
-            Blinkit and ₹72 on JioMart. PriceBasket finds that in 2 seconds, for free.
+            DMart Ready — 10 platforms in one place. The same 500ml Dettol can costs ₹89 on
+            Blinkit and ₹72 on JioMart. PriceBasket finds that in 2 seconds, for free. Stop
+            overpaying for fruits, vegetables, dairy, snacks and household essentials — compare
+            Blinkit vs Zepto prices or BigBasket vs Swiggy Instamart in one tap.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
-              { emoji: "🔍", title: "Real-Time Prices",  desc: "Live data from 8 apps" },
+              { emoji: "🔍", title: "Real-Time Prices",  desc: "Live data from 10 apps" },
               { emoji: "🔔", title: "Price Alerts",      desc: "Get notified on drops" },
               { emoji: "🛒", title: "Cart Optimizer",    desc: "Max savings per order" },
               { emoji: "💰", title: "Save ₹500/month",   desc: "Average user saving" },
@@ -289,6 +295,72 @@ export default function HomePage() {
                 <p className="text-xs font-extrabold text-surface-800">{f.title}</p>
                 <p className="text-[10px] text-surface-500 mt-0.5">{f.desc}</p>
               </div>
+            ))}
+          </div>
+
+          <h2 className="text-base font-extrabold text-surface-900 mb-2">How PriceBasket Works</h2>
+          <ol className="text-sm text-surface-600 leading-relaxed space-y-1.5 list-decimal list-inside mb-4">
+            <li><strong>Search</strong> any grocery product — atta, milk, eggs, vegetables, or any brand.</li>
+            <li><strong>Compare</strong> live prices from Blinkit, Zepto, BigBasket, Instamart, JioMart & more side by side.</li>
+            <li><strong>Buy</strong> from the cheapest platform — save ₹340 on average per order, ₹500–₹2,000 per month.</li>
+          </ol>
+
+          <h2 className="text-base font-extrabold text-surface-900 mb-2">Why Use PriceBasket?</h2>
+          <p className="text-sm text-surface-600 leading-relaxed">
+            Quick-commerce apps like Blinkit, Zepto and Swiggy Instamart charge different prices
+            for the same product — sometimes a 20–40% difference. PriceBasket tracks prices for
+            thousands of products across all major platforms and shows you who is cheapest right now.
+            Set price alerts for your favourite products, optimise your cart to split orders across
+            platforms, and never pay more than you have to for fresh fruits, vegetables, dairy,
+            packaged staples or household items. 100% free, no app download needed.
+          </p>
+        </section>
+
+        {/* ── Visible FAQ section — increases text content + targets featured snippets ── */}
+        <section className="bg-white rounded-3xl border border-surface-100 p-6 mb-6">
+          <h2 className="text-base font-extrabold text-surface-900 mb-4">
+            Frequently Asked Questions
+          </h2>
+          <div className="space-y-3">
+            {[
+              {
+                q: "Which grocery app is cheapest in India — Blinkit, Zepto or BigBasket?",
+                a: "It depends on the product. JioMart and BigBasket tend to be cheapest for staples like atta, rice and cooking oil. Blinkit and Zepto are often competitive on fresh produce and dairy. PriceBasket compares all platforms in real-time so you always know who is cheapest right now — without opening multiple apps.",
+              },
+              {
+                q: "How do I compare Blinkit vs Zepto prices?",
+                a: "Search for any product on PriceBasket (e.g. 'Amul Butter 500g' or 'tomatoes'). You instantly see prices from Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart and more — all on one screen. No app download required.",
+              },
+              {
+                q: "How much can I save using PriceBasket?",
+                a: "Users save an average of ₹340 per order and ₹500–₹2,000 per month. For a family spending ₹5,000/month on groceries, switching to the cheapest platform for each item typically saves 10–15% on the total bill.",
+              },
+              {
+                q: "Is PriceBasket free to use?",
+                a: "Yes, 100% free. We earn a small affiliate commission when you click through to buy from a platform, but this never affects the prices you see — we always show the real, current price.",
+              },
+              {
+                q: "How often are grocery prices updated?",
+                a: "Prices are refreshed every 15–30 minutes using automated data collection. You always see near-real-time prices across all 10 platforms.",
+              },
+              {
+                q: "Which cities does PriceBasket cover?",
+                a: "PriceBasket covers all cities where Blinkit, Zepto, BigBasket and other platforms deliver — including Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune, Kolkata, Ahmedabad and more.",
+              },
+            ].map(({ q, a }) => (
+              <details key={q} className="group border border-surface-100 rounded-2xl overflow-hidden">
+                <summary className="flex items-center justify-between px-4 py-3 cursor-pointer
+                                    text-sm font-semibold text-surface-800 select-none
+                                    hover:bg-orange-50 transition-colors list-none">
+                  {q}
+                  <span className="ml-3 flex-shrink-0 text-brand-500 group-open:rotate-180 transition-transform duration-200">
+                    ▾
+                  </span>
+                </summary>
+                <p className="px-4 pb-4 pt-1 text-sm text-surface-600 leading-relaxed border-t border-surface-100">
+                  {a}
+                </p>
+              </details>
             ))}
           </div>
         </section>

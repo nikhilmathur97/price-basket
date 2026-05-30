@@ -2,7 +2,8 @@
  * StructuredData — injects JSON-LD schema markup for rich Google results.
  *
  * Schemas included:
- *  - Organization (sitelinks, logo, social profiles)
+ *  - Organization (identity schema — sitelinks, logo, social profiles)
+ *  - LocalBusiness (local SEO + GEO identity)
  *  - WebSite (sitelinks searchbox)
  *  - SoftwareApplication (app store ratings)
  *  - FAQPage (common grocery comparison questions)
@@ -67,10 +68,56 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
     },
     sameAs: [
       "https://twitter.com/pricebasketin",
-      "https://www.instagram.com/pricebasketin",
+      "https://www.instagram.com/pricebasketindia",
+      "https://www.youtube.com/@pricebasketindia",
+      "https://www.linkedin.com/company/pricebasketin",
+    ],
+  };
+
+  // ── LocalBusiness (satisfies "Add Local Business Schema" + "Add Identity Schema") ──
+  const localBusinessSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${SITE_URL}/#localbusiness`,
+    name: "PriceBasket",
+    alternateName: "Price Basket India",
+    url: SITE_URL,
+    logo: LOGO_URL,
+    image: LOGO_URL,
+    description:
+      "India's #1 grocery price comparison platform. Compare Blinkit, Zepto, BigBasket, Swiggy Instamart, JioMart prices in real-time. Free price alerts. Save ₹500/month.",
+    email: "hello@pricebasket.in",
+    telephone: "+91-8005828390",
+    foundingDate: "2024",
+    priceRange: "Free",
+    currenciesAccepted: "INR",
+    paymentAccepted: "Free",
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "IN",
+      addressLocality: "India",
+    },
+    areaServed: {
+      "@type": "Country",
+      name: "India",
+    },
+    serviceArea: {
+      "@type": "Country",
+      name: "India",
+    },
+    sameAs: [
+      "https://twitter.com/pricebasketin",
+      "https://www.instagram.com/pricebasketindia",
       "https://www.youtube.com/@pricebasketin",
       "https://www.linkedin.com/company/pricebasketin",
     ],
+    hasMap: "https://pricebasket.in",
+    openingHoursSpecification: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      opens: "00:00",
+      closes: "23:59",
+    },
   };
 
   // ── WebSite + Sitelinks Searchbox ─────────────────────────────────────────
@@ -236,6 +283,7 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
 
   const schemas = [
     organizationSchema,
+    localBusinessSchema,
     websiteSchema,
     appSchema,
     faqSchema,
