@@ -1,37 +1,272 @@
-// Static mock data for Growth Dashboard
-// Replace with real GA4 + GSC + Ads API calls in production
+/**
+ * GrowthData.ts — Real API hooks for the Growth Dashboard
+ *
+ * Phase 1: /api/v1/growth/metrics + /live + /alerts  → real DB data
+ * Phase 2: /api/v1/growth/google                     → GA4 + GSC + PageSpeed
+ * Phase 3: /api/v1/growth/social + /ads              → Social + Google Ads
+ *
+ * Each exported hook replaces the old static constant.
+ * Static fallbacks are used while loading so the UI never breaks.
+ */
 
-export const LIVE0 = {
-  active_visitors: 847,
-  pageviews_today: 12430,
-  pageviews_yesterday: 10820,
-  revenue_today: 18450,
-  top_product_now: "Aashirvaad Atta 5kg",
-  top_cities: [
-    { city: "Mumbai", visitors: 234 },
-    { city: "Delhi", visitors: 198 },
-    { city: "Bangalore", visitors: 167 },
-    { city: "Hyderabad", visitors: 112 },
-    { city: "Pune", visitors: 89 },
-    { city: "Chennai", visitors: 47 },
-  ],
+import { useEffect, useState, useCallback, useRef } from "react";
+import { apiClient } from "@/services/api";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface LiveData {
+  active_visitors: number;
+  pageviews_today: number;
+  pageviews_yesterday: number;
+  revenue_today: number;
+  top_product_now: string;
+  top_cities: { city: string; visitors: number }[];
+}
+
+export interface GrowthMetrics {
+  sessions: number;
+  sessions_prev: number;
+  users: number;
+  new_users: number;
+  returning_users: number;
+  avg_session_duration: number;
+  bounce_rate: number;
+  bounce_rate_prev: number;
+  pages_per_session: number;
+  conversion_rate: number;
+  revenue: number;
+  pageviews: number;
+  cart_adds: number;
+  platform_redirects: number;
+}
+
+export interface TopPage {
+  page: string;
+  views: number;
+  avg_time: number;
+  bounce: number;
+}
+
+export interface SeoKeyword {
+  keyword: string;
+  position: number;
+  prev: number;
+  volume: number;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+}
+
+export interface Alert {
+  id: string;
+  type: "success" | "warning" | "error" | "info";
+  message: string;
+  time: string;
+}
+
+export interface SocialPlatform {
+  platform: string;
+  followers: number;
+  delta: number;
+  reach: number;
+  impressions: number;
+  er: number;
+  top: string;
+  color: string;
+  bg: string;
+  configured?: boolean;
+}
+
+export interface AdsCampaign {
+  campaign: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  roas: number;
+  budget: number;
+}
+
+export interface TrafficSource {
+  source: string;
+  sessions: number;
+  pct: number;
+  trend: "up" | "down" | "flat";
+  color: string;
+}
+
+// ─── Static fallbacks (shown while loading) ───────────────────────────────────
+
+export const LIVE0: LiveData = {
+  active_visitors: 0,
+  pageviews_today: 0,
+  pageviews_yesterday: 0,
+  revenue_today: 0,
+  top_product_now: "Loading…",
+  top_cities: [],
 };
 
-export const GROWTH = {
-  sessions: 84320,
-  sessions_prev: 71200,
-  users: 62180,
-  new_users: 41300,
-  returning_users: 20880,
-  avg_session_duration: 187,
-  bounce_rate: 38.4,
-  bounce_rate_prev: 42.1,
-  pages_per_session: 4.2,
-  conversion_rate: 6.8,
-  revenue: 124500,
+export const GROWTH_FALLBACK: GrowthMetrics = {
+  sessions: 0, sessions_prev: 0, users: 0, new_users: 0, returning_users: 0,
+  avg_session_duration: 0, bounce_rate: 0, bounce_rate_prev: 0,
+  pages_per_session: 0, conversion_rate: 0, revenue: 0,
+  pageviews: 0, cart_adds: 0, platform_redirects: 0,
 };
 
-export const SEO_KEYWORDS = [
+// ─── Hook: Phase 1 — DB metrics (sessions, searches, top pages) ───────────────
+
+export function useGrowthMetrics(days: number = 7) {
+  const [data, setData] = useState<{
+    growth: GrowthMetrics;
+    live: LiveData;
+    top_pages: TopPage[];
+    top_searches: string[];
+    platform_clicks: { platform: string; clicks: number }[];
+    top_products: { name: string; brand: string; views: number }[];
+    source: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get(`/growth/metrics?days=${days}`);
+      setData(res.data);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? "Failed to load metrics");
+    } finally {
+      setLoading(false);
+    }
+  }, [days]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { data, loading, error, refetch: fetch };
+}
+
+// ─── Hook: Phase 1 — Live visitor count (polls every 30s) ────────────────────
+
+export function useLiveStats() {
+  const [live, setLive] = useState<LiveData>(LIVE0);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLive = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/growth/live");
+      setLive(res.data);
+    } catch {
+      // silently keep last value
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLive();
+    const id = setInterval(fetchLive, 30_000);
+    return () => clearInterval(id);
+  }, [fetchLive]);
+
+  return { live, loading, refetch: fetchLive };
+}
+
+// ─── Hook: Phase 1 — DB-driven alerts ────────────────────────────────────────
+
+export function useGrowthAlerts() {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/growth/alerts");
+      setAlerts(res.data.alerts ?? []);
+    } catch {
+      setAlerts([{
+        id: "error", type: "error",
+        message: "⚠️ Could not load alerts — check backend connection",
+        time: "Now",
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { alerts, loading, refetch: fetch };
+}
+
+// ─── Hook: Phase 2 — Google (GA4 + GSC + PageSpeed) ─────────────────────────
+
+export function useGoogleMetrics(days: number = 7) {
+  const [data, setData] = useState<{
+    ga4: any;
+    gsc: any;
+    pagespeed: any;
+    credentials_configured: boolean;
+    setup_hint?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient.get(`/growth/google?days=${days}`)
+      .then(r => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  return { data, loading };
+}
+
+// ─── Hook: Phase 3 — Social (Instagram + Twitter + YouTube) ──────────────────
+
+export function useSocialMetrics() {
+  const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [configured, setConfigured] = useState(false);
+
+  useEffect(() => {
+    apiClient.get("/growth/social")
+      .then(r => {
+        setPlatforms(r.data.platforms ?? []);
+        setConfigured(r.data.configured ?? false);
+      })
+      .catch(() => setPlatforms([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return { platforms, loading, configured };
+}
+
+// ─── Hook: Phase 3 — Google Ads ──────────────────────────────────────────────
+
+export function useAdsMetrics() {
+  const [campaigns, setCampaigns] = useState<AdsCampaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [configured, setConfigured] = useState(false);
+
+  useEffect(() => {
+    apiClient.get("/growth/ads")
+      .then(r => {
+        setCampaigns(r.data.ads?.campaigns ?? []);
+        setConfigured(r.data.ads?.configured ?? false);
+      })
+      .catch(() => setCampaigns([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return { campaigns, loading, configured };
+}
+
+// ─── Static fallback data (used when APIs not yet configured) ─────────────────
+// These are kept as named exports so existing tab imports don't break.
+// Tabs should prefer the hooks above; these are last-resort fallbacks.
+
+export const GROWTH = GROWTH_FALLBACK;
+
+export const SEO_KEYWORDS: SeoKeyword[] = [
   { keyword: "blinkit vs zepto price comparison", position: 1, prev: 2, volume: 22000, clicks: 1840, impressions: 28400, ctr: 6.5 },
   { keyword: "cheapest grocery app india", position: 2, prev: 3, volume: 18500, clicks: 1240, impressions: 22100, ctr: 5.6 },
   { keyword: "grocery price comparison india", position: 1, prev: 1, volume: 14200, clicks: 980, impressions: 18700, ctr: 5.2 },
@@ -44,56 +279,26 @@ export const SEO_KEYWORDS = [
   { keyword: "pricebasket.in", position: 1, prev: 1, volume: 3800, clicks: 2100, impressions: 3900, ctr: 53.8 },
 ];
 
-export const ALERTS = [
-  { id: "1", type: "success" as const, message: "🚀 Viral spike: Instagram Reel got 48K views (12x normal)", time: "2 min ago" },
-  { id: "2", type: "warning" as const, message: "⚠️ Traffic drop 18% vs yesterday between 2–4pm IST", time: "1 hr ago" },
-  { id: "3", type: "success" as const, message: "✅ Keyword 'grocery deals delhi today' jumped from #12 → #6", time: "3 hr ago" },
-  { id: "4", type: "error" as const, message: "🔴 Zepto scraper failed — prices may be stale (>2hr)", time: "4 hr ago" },
-  { id: "5", type: "info" as const, message: "📊 Weekly report ready: 18.4% session growth vs last week", time: "6 hr ago" },
-  { id: "6", type: "success" as const, message: "💰 Google Ads ROAS hit 520% — above 400% target", time: "8 hr ago" },
+export const ALERTS: Alert[] = [];
+
+export const ADS: AdsCampaign[] = [];
+
+export const SOCIAL: SocialPlatform[] = [
+  { platform: "Instagram", followers: 0, delta: 0, reach: 0, impressions: 0, er: 0, top: "—", color: "text-pink-600", bg: "bg-pink-50" },
+  { platform: "Twitter/X", followers: 0, delta: 0, reach: 0, impressions: 0, er: 0, top: "—", color: "text-sky-600", bg: "bg-sky-50" },
+  { platform: "YouTube", followers: 0, delta: 0, reach: 0, impressions: 0, er: 0, top: "—", color: "text-red-600", bg: "bg-red-50" },
 ];
 
-export const ADS = [
-  { campaign: "Performance Max", spend: 4200, impressions: 184000, clicks: 8420, ctr: 4.6, roas: 520, budget: 6000 },
-  { campaign: "Search — Comparison", spend: 2800, impressions: 92000, clicks: 5240, ctr: 5.7, roas: 480, budget: 4000 },
-  { campaign: "Search — Deals", spend: 1900, impressions: 64000, clicks: 3120, ctr: 4.9, roas: 390, budget: 3000 },
-  { campaign: "Remarketing 30-day", spend: 1200, impressions: 48000, clicks: 2840, ctr: 5.9, roas: 620, budget: 2000 },
-  { campaign: "Competitor Targeting", spend: 980, impressions: 38000, clicks: 1920, ctr: 5.1, roas: 340, budget: 1500 },
+export const TRAFFIC_SOURCES: TrafficSource[] = [
+  { source: "Organic Search (SEO)", sessions: 0, pct: 0, trend: "flat", color: "bg-green-500" },
+  { source: "Google Ads", sessions: 0, pct: 0, trend: "flat", color: "bg-blue-500" },
+  { source: "Instagram", sessions: 0, pct: 0, trend: "flat", color: "bg-pink-500" },
+  { source: "Direct", sessions: 0, pct: 0, trend: "flat", color: "bg-surface-400" },
+  { source: "Twitter/X", sessions: 0, pct: 0, trend: "flat", color: "bg-sky-500" },
 ];
 
-export const SOCIAL = [
-  { platform: "Instagram", followers: 48200, delta: 1840, reach: 284000, impressions: 412000, er: 6.8, top: "Atta ₹51 cheaper on JioMart vs Blinkit 🔥", color: "text-pink-600", bg: "bg-pink-50" },
-  { platform: "Twitter/X", followers: 22400, delta: 680, reach: 124000, impressions: 218000, er: 4.2, top: "🧵 I compared grocery prices across 6 apps for 30 days...", color: "text-sky-600", bg: "bg-sky-50" },
-  { platform: "YouTube", followers: 18700, delta: 420, reach: 84000, impressions: 142000, er: 5.1, top: "I tested ALL grocery delivery apps for 30 days — the results shocked me", color: "text-red-600", bg: "bg-red-50" },
-];
-
-export const TRAFFIC_SOURCES = [
-  { source: "Organic Search (SEO)", sessions: 38240, pct: 45.3, trend: "up", color: "bg-green-500" },
-  { source: "Google Ads", sessions: 18420, pct: 21.8, trend: "up", color: "bg-blue-500" },
-  { source: "Instagram", sessions: 9840, pct: 11.7, trend: "up", color: "bg-pink-500" },
-  { source: "Direct", sessions: 7620, pct: 9.0, trend: "flat", color: "bg-surface-400" },
-  { source: "Twitter/X", sessions: 4280, pct: 5.1, trend: "up", color: "bg-sky-500" },
-  { source: "YouTube", sessions: 3140, pct: 3.7, trend: "up", color: "bg-red-500" },
-  { source: "Referral", sessions: 2780, pct: 3.3, trend: "down", color: "bg-violet-500" },
-];
-
-export const TOP_PAGES = [
-  { page: "/", views: 28400, avg_time: 142, bounce: 32 },
-  { page: "/search", views: 18200, avg_time: 198, bounce: 24 },
-  { page: "/product/aashirvaad-atta-5kg", views: 8400, avg_time: 224, bounce: 18 },
-  { page: "/compare/blinkit-vs-zepto", views: 6200, avg_time: 312, bounce: 14 },
-  { page: "/best-grocery-deals", views: 4800, avg_time: 186, bounce: 28 },
-  { page: "/grocery-prices-mumbai", views: 3400, avg_time: 164, bounce: 36 },
-];
-
-export const TOP_SEARCHES = [
-  "atta price comparison",
-  "zepto vs blinkit",
-  "cheapest oil online",
-  "grocery deals today",
-  "bigbasket vs jiomart",
-  "rice price comparison",
-];
+export const TOP_PAGES: TopPage[] = [];
+export const TOP_SEARCHES: string[] = [];
 
 export const SCHEDULED_POSTS = [
   { platform: "Instagram", time: "Today 8:00 AM", content: "Atta price drop alert! 🔥 Save ₹51 on JioMart vs Blinkit" },

@@ -1,4 +1,21 @@
 /** @type {import('next').NextConfig} */
+
+// ── Security + SEO headers ────────────────────────────────────────────────────
+const SECURITY_HEADERS = [
+  // Prevent clickjacking
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  // Prevent MIME sniffing
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  // Force HTTPS
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  // Referrer policy — send full URL to same origin, origin only cross-origin
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Permissions policy — disable unused browser APIs
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), interest-cohort=()" },
+  // XSS protection (legacy browsers)
+  { key: "X-XSS-Protection", value: "1; mode=block" },
+];
+
 const nextConfig = {
   images: {
     unoptimized: true,
@@ -36,6 +53,31 @@ const nextConfig = {
       { hostname: "assets.myntassets.com" },
       { hostname: "adn-static1.nykaa.com" },
     ],
+  },
+  async headers() {
+    return [
+      {
+        // Apply security headers to all routes
+        source: "/(.*)",
+        headers: SECURITY_HEADERS,
+      },
+      {
+        // Block indexing of admin/api/auth routes
+        source: "/(admin|api|auth|profile|orders)(.*)",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      // www → non-www canonical redirect
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.pricebasket.in" }],
+        destination: "https://pricebasket.in/:path*",
+        permanent: true,
+      },
+    ];
   },
   async rewrites() {
     return [

@@ -11,6 +11,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { Footer } from "@/components/Footer";
 import { ChatBot } from "@/components/ChatBot";
 import { BackendWarmup } from "@/components/BackendWarmup";
+import { StructuredData } from "@/components/StructuredData";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -21,6 +22,9 @@ export const metadata: Metadata = {
   },
   description:
     "India's #1 grocery price comparison. Compare Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart, Amazon Fresh prices in real-time. Save ₹500/month. Free price alerts. No app needed.",
+  verification: {
+    google: process.env.NEXT_PUBLIC_GSC_VERIFICATION ?? undefined,
+  },
   keywords: [
     "blinkit vs zepto price comparison",
     "cheapest grocery app india",
@@ -101,6 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </>
       )}
       <body>
+        <StructuredData />
         <Providers>
           <BackendWarmup />
           <TopProgressBar />

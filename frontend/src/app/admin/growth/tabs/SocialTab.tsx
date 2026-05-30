@@ -1,36 +1,70 @@
 "use client";
-import { SOCIAL, SCHEDULED_POSTS } from "../GrowthData";
+import { useSocialMetrics, SCHEDULED_POSTS } from "../GrowthData";
 
 export function SocialTab() {
+  const { platforms, loading, configured } = useSocialMetrics();
+
   return (
     <div className="space-y-6">
+      {!configured && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          <strong>Phase 3 Social APIs not configured.</strong> Set{" "}
+          <code className="bg-amber-100 px-1 rounded">INSTAGRAM_ACCESS_TOKEN</code>,{" "}
+          <code className="bg-amber-100 px-1 rounded">TWITTER_BEARER_TOKEN</code>,{" "}
+          <code className="bg-amber-100 px-1 rounded">YOUTUBE_API_KEY</code> env vars.
+          See <code className="bg-amber-100 px-1 rounded">growth/automation/master-guide.md</code>.
+        </div>
+      )}
+
       <div className="grid md:grid-cols-3 gap-4">
-        {SOCIAL.map((s) => (
-          <div key={s.platform} className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className={`text-sm font-black ${s.color}`}>{s.platform}</p>
-              <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                +{s.delta.toLocaleString("en-IN")} this week
-              </span>
-            </div>
-            <p className="text-3xl font-black text-surface-900">{s.followers.toLocaleString("en-IN")}</p>
-            <p className="text-xs text-surface-400 mb-4">followers</p>
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className={`rounded-xl p-2 ${s.bg}`}>
-                <p className="text-sm font-black text-surface-900">{(s.reach / 1000).toFixed(0)}K</p>
-                <p className="text-xs text-surface-500">Reach</p>
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="card p-5 animate-pulse">
+                <div className="h-4 w-24 bg-surface-100 rounded mb-4" />
+                <div className="h-8 w-20 bg-surface-100 rounded mb-2" />
+                <div className="h-3 w-16 bg-surface-100 rounded" />
               </div>
-              <div className={`rounded-xl p-2 ${s.bg}`}>
-                <p className="text-sm font-black text-surface-900">{s.er}%</p>
-                <p className="text-xs text-surface-500">Eng. Rate</p>
+            ))
+          : platforms.map((s) => (
+              <div key={s.platform} className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className={`text-sm font-black ${s.color}`}>{s.platform}</p>
+                  {s.configured ? (
+                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                      ✓ Live
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                      Not configured
+                    </span>
+                  )}
+                </div>
+                <p className="text-3xl font-black text-surface-900">
+                  {s.followers > 0 ? s.followers.toLocaleString("en-IN") : "—"}
+                </p>
+                <p className="text-xs text-surface-400 mb-4">followers</p>
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className={`rounded-xl p-2 ${s.bg}`}>
+                    <p className="text-sm font-black text-surface-900">
+                      {s.reach > 0 ? `${(s.reach / 1000).toFixed(0)}K` : "—"}
+                    </p>
+                    <p className="text-xs text-surface-500">Reach</p>
+                  </div>
+                  <div className={`rounded-xl p-2 ${s.bg}`}>
+                    <p className="text-sm font-black text-surface-900">
+                      {s.er > 0 ? `${s.er}%` : "—"}
+                    </p>
+                    <p className="text-xs text-surface-500">Eng. Rate</p>
+                  </div>
+                </div>
+                {s.top && s.top !== "—" && (
+                  <div className="mt-3 p-2 bg-surface-50 rounded-xl">
+                    <p className="text-xs text-surface-400 mb-0.5">Top post this week</p>
+                    <p className="text-xs font-semibold text-surface-700 line-clamp-2">{s.top}</p>
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="mt-3 p-2 bg-surface-50 rounded-xl">
-              <p className="text-xs text-surface-400 mb-0.5">Top post this week</p>
-              <p className="text-xs font-semibold text-surface-700 line-clamp-2">{s.top}</p>
-            </div>
-          </div>
-        ))}
+            ))}
       </div>
 
       <div className="card p-5">
@@ -91,20 +125,18 @@ export function SocialTab() {
           </p>
           <div className="space-y-3">
             {[
-              { label: "Deals Shared via WhatsApp", value: "8,420", trend: "+24%" },
-              { label: "WhatsApp Subscribers", value: "12,840", trend: "+18%" },
-              { label: "Avg Shares per Deal", value: "3.2", trend: "+8%" },
-              { label: "Viral Coefficient", value: "1.4x", trend: "+12%" },
+              { label: "Deals Shared via WhatsApp", value: "—", trend: "" },
+              { label: "WhatsApp Subscribers", value: "—", trend: "" },
+              { label: "Avg Shares per Deal", value: "—", trend: "" },
+              { label: "Viral Coefficient", value: "—", trend: "" },
             ].map((w) => (
               <div key={w.label} className="flex items-center justify-between">
                 <span className="text-sm text-surface-700">{w.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-surface-900">{w.value}</span>
-                  <span className="text-xs font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full">{w.trend}</span>
-                </div>
+                <span className="text-sm font-black text-surface-400">{w.value}</span>
               </div>
             ))}
           </div>
+          <p className="text-xs text-surface-400 mt-3">Connect WhatsApp Business API to track sharing metrics</p>
         </div>
       </div>
     </div>

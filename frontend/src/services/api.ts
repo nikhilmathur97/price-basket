@@ -143,6 +143,14 @@ export const api = {
   // Analytics (admin)
   getAnalyticsStats: (days = 7) => apiClient.get(`/analytics/stats?days=${days}`),
   getClientJourney: (clientId: string) => apiClient.get(`/analytics/client/${clientId}`),
+
+  // Growth dashboard — Phase 1/2/3
+  getGrowthMetrics: (days = 7) => apiClient.get(`/growth/metrics?days=${days}`),
+  getGrowthLive: () => apiClient.get("/growth/live"),
+  getGrowthAlerts: () => apiClient.get("/growth/alerts"),
+  getGrowthGoogle: (days = 7) => apiClient.get(`/growth/google?days=${days}`),
+  getGrowthSocial: () => apiClient.get("/growth/social"),
+  getGrowthAds: () => apiClient.get("/growth/ads"),
 };
 
 // ── Analytics / event tracking ────────────────────────────────────────────────

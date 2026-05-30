@@ -1,14 +1,77 @@
 User-agent: *
 Allow: /
 
-# Disallow admin, API, and auth routes from indexing
+# Block admin, API, auth, and private user routes
 Disallow: /admin/
 Disallow: /api/
 Disallow: /auth/
 Disallow: /cart/
 Disallow: /orders/
 Disallow: /profile/
-Disallow: /alerts/
+Disallow: /indexnow/
 
-# Sitemap
+# Allow important SEO pages explicitly
+Allow: /search
+Allow: /blog/
+Allow: /product/
+Allow: /compare/
+Allow: /best-grocery-deals
+Allow: /save-money-groceries
+
+# Staple product pages
+Allow: /cheapest-atta-online
+Allow: /cheapest-milk-online
+Allow: /cheapest-oil-online
+Allow: /cheapest-rice-online
+Allow: /cheapest-dal-online
+Allow: /cheapest-sugar-online
+Allow: /cheapest-ghee-online
+Allow: /cheapest-eggs-online
+
+# City pages
+Allow: /grocery-prices-mumbai
+Allow: /grocery-prices-delhi
+Allow: /grocery-prices-bangalore
+Allow: /grocery-prices-hyderabad
+Allow: /grocery-prices-chennai
+Allow: /grocery-prices-pune
+Allow: /grocery-prices-kolkata
+Allow: /grocery-prices-ahmedabad
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
+
+# Sitemaps
 Sitemap: https://pricebasket.in/sitemap.xml
+
+# Google-specific (no crawl delay — let Google crawl freely)
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Crawl-delay: 0
+
+# Bing
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Crawl-delay: 1
+
+# Block AI scrapers that don't respect robots.txt
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /

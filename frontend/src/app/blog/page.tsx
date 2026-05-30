@@ -5,9 +5,24 @@ import { BLOG_CATEGORIES } from "@/lib/blog";
 import { getAllPosts } from "@/lib/server-api";
 
 export const metadata: Metadata = {
-  title: "Blog – PriceBasket",
+  title: "Grocery Saving Tips & Price Comparison Blog — PriceBasket",
   description:
-    "Tips, guides, and insights on saving money on groceries across Blinkit, Zepto, Swiggy Instamart, BigBasket and more.",
+    "Expert tips to save money on groceries in India. Compare Blinkit vs Zepto vs BigBasket prices. Price alerts, cart optimizer guides, and weekly deal roundups.",
+  keywords: [
+    "grocery saving tips india",
+    "blinkit vs zepto blog",
+    "grocery price comparison guide",
+    "save money groceries india",
+    "quick commerce tips india",
+    "grocery deals india blog",
+  ],
+  alternates: { canonical: "https://pricebasket.in/blog" },
+  openGraph: {
+    title: "Grocery Saving Tips & Price Comparison Blog — PriceBasket",
+    description: "Expert tips to save money on groceries. Compare Blinkit, Zepto, BigBasket prices. Free.",
+    url: "https://pricebasket.in/blog",
+    type: "website",
+  },
 };
 
 // Revalidate so newly auto-generated deal posts appear without a rebuild.

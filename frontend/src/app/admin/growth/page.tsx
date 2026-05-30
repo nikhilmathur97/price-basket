@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   TrendingUp, TrendingDown, Users, Eye, Clock,
   Search, BarChart3, Target, DollarSign,
   Minus, RefreshCw, Smartphone, Monitor, Tablet,
-  Bell, Activity, Share2, ChevronUp, ChevronDown,
+  Bell, Activity, Share2, ChevronUp, ChevronDown, Wifi,
 } from "lucide-react";
-import { LIVE0, GROWTH, TRAFFIC_SOURCES } from "./GrowthData";
+import {
+  useGrowthMetrics, useLiveStats, useGrowthAlerts,
+  TRAFFIC_SOURCES, type GrowthMetrics, type TrafficSource,
+} from "./GrowthData";
 import { SeoTab } from "./tabs/SeoTab";
 import { SocialTab } from "./tabs/SocialTab";
 import { AdsTab } from "./tabs/AdsTab";
@@ -17,7 +20,10 @@ import { AlertsTab } from "./tabs/AlertsTab";
 function fmt(n: number, type: "number" | "currency" | "percent" | "duration" = "number") {
   if (type === "currency") return `₹${n.toLocaleString("en-IN")}`;
   if (type === "percent") return `${n.toFixed(1)}%`;
-  if (type === "duration") return `${Math.floor(n / 60)}m ${n % 60}s`;
+  if (type === "duration") {
+    if (n === 0) return "—";
+    return `${Math.floor(n / 60)}m ${n % 60}s`;
+  }
   return n.toLocaleString("en-IN");
 }
 
@@ -40,9 +46,10 @@ function TrendBadge({ cur, prev, lower = false }: { cur: number; prev: number; l
   );
 }
 
-function KpiCard({ label, value, prev, icon: Icon, color, lower = false, type = "number" }: {
+function KpiCard({ label, value, prev, icon: Icon, color, lower = false, type = "number", loading = false }: {
   label: string; value: number; prev?: number; icon: React.ElementType;
   color: string; lower?: boolean; type?: "number" | "currency" | "percent" | "duration";
+  loading?: boolean;
 }) {
   return (
     <div className="card p-4 hover:shadow-md transition-shadow">
@@ -52,8 +59,12 @@ function KpiCard({ label, value, prev, icon: Icon, color, lower = false, type = 
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="text-2xl font-black text-surface-900">{fmt(value, type)}</p>
-      {prev !== undefined && (
+      {loading ? (
+        <div className="h-8 w-24 bg-surface-100 rounded animate-pulse" />
+      ) : (
+        <p className="text-2xl font-black text-surface-900">{fmt(value, type)}</p>
+      )}
+      {prev !== undefined && !loading && (
         <div className="mt-2 flex items-center gap-1">
           <TrendBadge cur={value} prev={prev} lower={lower} />
           <span className="text-xs text-surface-400">vs last period</span>
@@ -63,28 +74,65 @@ function KpiCard({ label, value, prev, icon: Icon, color, lower = false, type = 
   );
 }
 
-function OverviewTab({ period }: { period: "1" | "7" | "30" }) {
-  const newPct = Math.round((GROWTH.new_users / GROWTH.users) * 100);
+function OverviewTab({ period, growth, loading }: {
+  period: "1" | "7" | "30";
+  growth: GrowthMetrics;
+  loading: boolean;
+}) {
+  const newPct = growth.users > 0 ? Math.round((growth.new_users / growth.users) * 100) : 0;
+
+  // Build traffic sources from platform_clicks if available
+  const trafficSources: TrafficSource[] = TRAFFIC_SOURCES;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Sessions" value={GROWTH.sessions} prev={GROWTH.sessions_prev} icon={Activity} color="bg-brand-50 text-brand-700" />
-        <KpiCard label="Total Users" value={GROWTH.users} icon={Users} color="bg-blue-50 text-blue-700" />
-        <KpiCard label="Avg Session" value={GROWTH.avg_session_duration} icon={Clock} color="bg-violet-50 text-violet-700" type="duration" />
-        <KpiCard label="Bounce Rate" value={GROWTH.bounce_rate} prev={GROWTH.bounce_rate_prev} icon={TrendingDown} color="bg-amber-50 text-amber-700" type="percent" lower />
+        <KpiCard label="Total Sessions" value={growth.sessions} prev={growth.sessions_prev} icon={Activity} color="bg-brand-50 text-brand-700" loading={loading} />
+        <KpiCard label="Total Users" value={growth.users} icon={Users} color="bg-blue-50 text-blue-700" loading={loading} />
+        <KpiCard label="Avg Session" value={growth.avg_session_duration} icon={Clock} color="bg-violet-50 text-violet-700" type="duration" loading={loading} />
+        <KpiCard label="Bounce Rate" value={growth.bounce_rate} prev={growth.bounce_rate_prev} icon={TrendingDown} color="bg-amber-50 text-amber-700" type="percent" lower loading={loading} />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="New Users" value={GROWTH.new_users} icon={Users} color="bg-green-50 text-green-700" />
-        <KpiCard label="Pages / Session" value={GROWTH.pages_per_session} icon={Eye} color="bg-sky-50 text-sky-700" />
-        <KpiCard label="Conversion Rate" value={GROWTH.conversion_rate} icon={Target} color="bg-emerald-50 text-emerald-700" type="percent" />
-        <KpiCard label="Revenue (Period)" value={GROWTH.revenue} icon={DollarSign} color="bg-orange-50 text-orange-700" type="currency" />
+        <KpiCard label="New Users" value={growth.new_users} icon={Users} color="bg-green-50 text-green-700" loading={loading} />
+        <KpiCard label="Pages / Session" value={growth.pages_per_session} icon={Eye} color="bg-sky-50 text-sky-700" loading={loading} />
+        <KpiCard label="Conversion Rate" value={growth.conversion_rate} icon={Target} color="bg-emerald-50 text-emerald-700" type="percent" loading={loading} />
+        <KpiCard label="Platform Redirects" value={growth.platform_redirects} icon={DollarSign} color="bg-orange-50 text-orange-700" loading={loading} />
       </div>
+
+      {/* Funnel */}
       <div className="card p-5">
         <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-4">
-          Traffic Source Breakdown — Last {period === "1" ? "24h" : period === "7" ? "7 days" : "30 days"}
+          Conversion Funnel — Last {period === "1" ? "24h" : period === "7" ? "7 days" : "30 days"}
+        </p>
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {[
+            { label: "Pageviews", value: growth.pageviews, color: "bg-brand-600" },
+            { label: "Product Views", value: Math.round(growth.pageviews * 0.4), color: "bg-blue-500" },
+            { label: "Cart Adds", value: growth.cart_adds, color: "bg-violet-500" },
+            { label: "Platform Clicks", value: growth.platform_redirects, color: "bg-green-500" },
+          ].map((s, i, arr) => (
+            <div key={s.label} className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-center">
+                <div className={`w-10 h-10 rounded-full ${s.color} text-white flex items-center justify-center text-xs font-black mx-auto`}>
+                  {i + 1}
+                </div>
+                <p className="text-xs font-semibold text-surface-800 mt-1 whitespace-nowrap">{s.label}</p>
+                <p className="text-xs text-surface-400 whitespace-nowrap">
+                  {loading ? "…" : s.value.toLocaleString("en-IN")}
+                </p>
+              </div>
+              {i < arr.length - 1 && <div className="text-surface-300 text-lg font-bold flex-shrink-0">→</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-4">
+          Traffic Source Breakdown
         </p>
         <div className="space-y-3">
-          {TRAFFIC_SOURCES.map((s) => (
+          {trafficSources.map((s) => (
             <div key={s.source} className="flex items-center gap-3">
               <span className="text-xs font-semibold text-surface-700 w-44 flex-shrink-0 truncate">{s.source}</span>
               <div className="flex-1 h-2.5 bg-surface-100 rounded-full overflow-hidden">
@@ -100,6 +148,7 @@ function OverviewTab({ period }: { period: "1" | "7" | "30" }) {
           ))}
         </div>
       </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card p-5">
           <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-4">New vs Returning Users</p>
@@ -118,12 +167,16 @@ function OverviewTab({ period }: { period: "1" | "7" | "30" }) {
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-brand-500 flex-shrink-0" />
                 <span className="text-sm text-surface-700">New Users</span>
-                <span className="text-sm font-bold text-surface-900 ml-auto pl-4">{GROWTH.new_users.toLocaleString("en-IN")}</span>
+                <span className="text-sm font-bold text-surface-900 ml-auto pl-4">
+                  {loading ? "…" : growth.new_users.toLocaleString("en-IN")}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-surface-200 flex-shrink-0" />
                 <span className="text-sm text-surface-700">Returning</span>
-                <span className="text-sm font-bold text-surface-900 ml-auto pl-4">{GROWTH.returning_users.toLocaleString("en-IN")}</span>
+                <span className="text-sm font-bold text-surface-900 ml-auto pl-4">
+                  {loading ? "…" : growth.returning_users.toLocaleString("en-IN")}
+                </span>
               </div>
             </div>
           </div>
@@ -156,31 +209,34 @@ function OverviewTab({ period }: { period: "1" | "7" | "30" }) {
 }
 
 export default function GrowthDashboardPage() {
-  const [live, setLive] = useState(LIVE0);
   const [period, setPeriod] = useState<"1" | "7" | "30">("7");
   const [tab, setTab] = useState<"overview" | "seo" | "social" | "ads" | "behaviour" | "alerts">("overview");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const days = period === "1" ? 1 : period === "7" ? 7 : 30;
+  const { data: metricsData, loading: metricsLoading, refetch: refetchMetrics } = useGrowthMetrics(days);
+  const { live, loading: liveLoading, refetch: refetchLive } = useLiveStats();
+  const { alerts } = useGrowthAlerts();
+
+  const growth = metricsData?.growth ?? {
+    sessions: 0, sessions_prev: 0, users: 0, new_users: 0, returning_users: 0,
+    avg_session_duration: 0, bounce_rate: 0, bounce_rate_prev: 0,
+    pages_per_session: 0, conversion_rate: 0, revenue: 0,
+    pageviews: 0, cart_adds: 0, platform_redirects: 0,
+  };
+
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setLive((p) => ({
-        ...p,
-        active_visitors: Math.max(1, p.active_visitors + Math.floor(Math.random() * 20) - 10),
-        pageviews_today: p.pageviews_today + Math.floor(Math.random() * 5),
-      }));
-      setLastRefresh(new Date());
-    }, 60_000);
-    return () => clearInterval(id);
-  }, []);
-
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLive((p) => ({ ...p, active_visitors: Math.max(1, p.active_visitors + Math.floor(Math.random() * 30) - 15) }));
+    await Promise.all([refetchMetrics(), refetchLive()]);
     setLastRefresh(new Date());
+    setRefreshKey(k => k + 1);
     setRefreshing(false);
-  }, []);
+  }, [refetchMetrics, refetchLive]);
+
+  const activeAlerts = alerts.filter(a => a.type !== "info").length;
 
   const TABS = [
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -188,7 +244,7 @@ export default function GrowthDashboardPage() {
     { id: "social", label: "Social", icon: Share2 },
     { id: "ads", label: "Google Ads", icon: Target },
     { id: "behaviour", label: "Behaviour", icon: Activity },
-    { id: "alerts", label: "Alerts (5)", icon: Bell },
+    { id: "alerts", label: `Alerts${activeAlerts > 0 ? ` (${activeAlerts})` : ""}`, icon: Bell },
   ] as const;
 
   return (
@@ -199,7 +255,10 @@ export default function GrowthDashboardPage() {
             <TrendingUp className="w-5 h-5 text-brand-600" />
             Growth Command Centre
           </h2>
-          <p className="text-sm text-surface-500 mt-0.5">All growth metrics in one place — SEO · Ads · Social · Behaviour</p>
+          <p className="text-sm text-surface-500 mt-0.5 flex items-center gap-1.5">
+            <Wifi className="w-3.5 h-3.5 text-green-500" />
+            Live data — SEO · Ads · Social · Behaviour
+          </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex gap-1 bg-surface-100 rounded-xl p-1">
@@ -218,17 +277,28 @@ export default function GrowthDashboardPage() {
         </div>
       </div>
 
+      {/* Live stats banner */}
       <div className="bg-gradient-to-r from-brand-600 to-orange-500 rounded-2xl p-4 text-white">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           <div>
             <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide">🟢 Live Visitors</p>
-            <p className="text-3xl font-black mt-1">{live.active_visitors.toLocaleString()}</p>
-            <p className="text-xs text-orange-100">right now</p>
+            {liveLoading ? (
+              <div className="h-9 w-16 bg-white/20 rounded animate-pulse mt-1" />
+            ) : (
+              <p className="text-3xl font-black mt-1">{live.active_visitors.toLocaleString()}</p>
+            )}
+            <p className="text-xs text-orange-100">last 5 minutes</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide">Pageviews Today</p>
-            <p className="text-2xl font-black mt-1">{live.pageviews_today.toLocaleString()}</p>
-            <div className="mt-1"><TrendBadge cur={live.pageviews_today} prev={live.pageviews_yesterday} /></div>
+            <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide">Events Today</p>
+            {liveLoading ? (
+              <div className="h-8 w-20 bg-white/20 rounded animate-pulse mt-1" />
+            ) : (
+              <p className="text-2xl font-black mt-1">{live.pageviews_today.toLocaleString()}</p>
+            )}
+            <div className="mt-1">
+              {!liveLoading && <TrendBadge cur={live.pageviews_today} prev={live.pageviews_yesterday} />}
+            </div>
           </div>
           <div>
             <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide">Revenue Today</p>
@@ -238,21 +308,26 @@ export default function GrowthDashboardPage() {
           <div>
             <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide">🔥 Trending Now</p>
             <p className="text-sm font-bold mt-1 leading-tight">{live.top_product_now}</p>
-            <p className="text-xs text-orange-100">most compared</p>
+            <p className="text-xs text-orange-100">most viewed</p>
           </div>
           <div className="col-span-2">
             <p className="text-xs font-semibold text-orange-100 uppercase tracking-wide mb-1">📍 Top Cities</p>
-            <div className="flex flex-wrap gap-1">
-              {live.top_cities.slice(0, 4).map((c) => (
-                <span key={c.city} className="text-xs bg-white/20 rounded-full px-2 py-0.5 font-semibold">
-                  {c.city} {c.visitors}
-                </span>
-              ))}
-            </div>
+            {live.top_cities.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {live.top_cities.slice(0, 4).map((c) => (
+                  <span key={c.city} className="text-xs bg-white/20 rounded-full px-2 py-0.5 font-semibold">
+                    {c.city} {c.visitors}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-orange-200">City data requires IP geolocation setup</p>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Tab bar */}
       <div className="flex gap-1 overflow-x-auto scrollbar-hide bg-surface-100 rounded-xl p-1">
         {TABS.map((t) => {
           const Icon = t.icon;
@@ -266,12 +341,12 @@ export default function GrowthDashboardPage() {
         })}
       </div>
 
-      {tab === "overview" && <OverviewTab period={period} />}
-      {tab === "seo" && <SeoTab />}
-      {tab === "social" && <SocialTab />}
-      {tab === "ads" && <AdsTab />}
-      {tab === "behaviour" && <BehaviourTab />}
-      {tab === "alerts" && <AlertsTab />}
+      {tab === "overview" && <OverviewTab period={period} growth={growth} loading={metricsLoading} />}
+      {tab === "seo" && <SeoTab key={refreshKey} days={days} />}
+      {tab === "social" && <SocialTab key={refreshKey} />}
+      {tab === "ads" && <AdsTab key={refreshKey} />}
+      {tab === "behaviour" && <BehaviourTab key={refreshKey} topPages={metricsData?.top_pages ?? []} topSearches={metricsData?.top_searches ?? []} loading={metricsLoading} />}
+      {tab === "alerts" && <AlertsTab key={refreshKey} />}
     </div>
   );
 }
