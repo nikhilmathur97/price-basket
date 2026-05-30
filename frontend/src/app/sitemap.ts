@@ -29,24 +29,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Static / marketing routes ──────────────────────────────────────────
   const staticRoutes: MetadataRoute.Sitemap = [
     // Core pages — highest priority
-    { url: base,                                  lastModified: now, changeFrequency: "daily",   priority: 1.0 },
-    { url: `${base}/search`,                      lastModified: now, changeFrequency: "daily",   priority: 0.9 },
-    { url: `${base}/best-grocery-deals`,          lastModified: now, changeFrequency: "daily",   priority: 0.9 },
-    { url: `${base}/save-money-groceries`,        lastModified: now, changeFrequency: "weekly",  priority: 0.9 },
-    { url: `${base}/blog`,                        lastModified: now, changeFrequency: "daily",   priority: 0.8 },
+    { url: base,                                       lastModified: now, changeFrequency: "daily",   priority: 1.0 },
+    { url: `${base}/search`,                           lastModified: now, changeFrequency: "daily",   priority: 0.9 },
+    { url: `${base}/best-grocery-deals`,               lastModified: now, changeFrequency: "daily",   priority: 0.9 },
+    { url: `${base}/save-money-groceries`,             lastModified: now, changeFrequency: "weekly",  priority: 0.9 },
+    { url: `${base}/blog`,                             lastModified: now, changeFrequency: "daily",   priority: 0.8 },
+
+    // ── City pages — local SEO (high intent) ──────────────────────────────
+    { url: `${base}/grocery-prices-mumbai`,            lastModified: now, changeFrequency: "weekly",  priority: 0.88 },
+    { url: `${base}/grocery-prices-delhi`,             lastModified: now, changeFrequency: "weekly",  priority: 0.88 },
+    { url: `${base}/grocery-prices-bangalore`,         lastModified: now, changeFrequency: "weekly",  priority: 0.88 },
+    { url: `${base}/grocery-prices-hyderabad`,         lastModified: now, changeFrequency: "weekly",  priority: 0.85 },
+    { url: `${base}/grocery-prices-chennai`,           lastModified: now, changeFrequency: "weekly",  priority: 0.85 },
+    { url: `${base}/grocery-prices-pune`,              lastModified: now, changeFrequency: "weekly",  priority: 0.85 },
+
+    // ── Product SEO pages — buyer intent ──────────────────────────────────
+    { url: `${base}/cheapest-atta-online`,             lastModified: now, changeFrequency: "weekly",  priority: 0.87 },
+    { url: `${base}/cheapest-milk-online`,             lastModified: now, changeFrequency: "weekly",  priority: 0.87 },
+    { url: `${base}/cheapest-oil-online`,              lastModified: now, changeFrequency: "weekly",  priority: 0.87 },
+
     // Feature pages
-    { url: `${base}/alerts`,                      lastModified: now, changeFrequency: "weekly",  priority: 0.7 },
-    { url: `${base}/cart`,                        lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/alerts`,                           lastModified: now, changeFrequency: "weekly",  priority: 0.7 },
+    { url: `${base}/cart`,                             lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     // Business pages
-    { url: `${base}/advertise`,                   lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${base}/partner`,                     lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${base}/press`,                       lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${base}/advertise`,                        lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/partner`,                          lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/press`,                            lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     // Auth
-    { url: `${base}/auth/login`,                  lastModified: now, changeFrequency: "monthly", priority: 0.4 },
-    { url: `${base}/auth/signup`,                 lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${base}/auth/login`,                       lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${base}/auth/signup`,                      lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     // Legal
-    { url: `${base}/privacy`,                     lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
-    { url: `${base}/terms`,                       lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${base}/privacy`,                          lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${base}/terms`,                            lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
   ];
 
   // ── Compare pages — high SEO priority (target 90K+ searches/month) ──────

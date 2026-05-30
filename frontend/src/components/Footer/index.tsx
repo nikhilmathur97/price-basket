@@ -23,7 +23,18 @@ const EXPLORE_LINKS = [
   { label: "Compare Prices",        href: "/search" },
   { label: "Best Grocery Deals",    href: "/best-grocery-deals" },
   { label: "Save Money Groceries",  href: "/save-money-groceries" },
-  { label: "Track My Savings",      href: "/profile" },
+  { label: "Cheapest Atta Online",  href: "/cheapest-atta-online" },
+  { label: "Cheapest Milk Online",  href: "/cheapest-milk-online" },
+  { label: "Cheapest Oil Online",   href: "/cheapest-oil-online" },
+];
+
+const CITY_LINKS = [
+  { label: "Mumbai",    href: "/grocery-prices-mumbai" },
+  { label: "Delhi",     href: "/grocery-prices-delhi" },
+  { label: "Bangalore", href: "/grocery-prices-bangalore" },
+  { label: "Hyderabad", href: "/grocery-prices-hyderabad" },
+  { label: "Chennai",   href: "/grocery-prices-chennai" },
+  { label: "Pune",      href: "/grocery-prices-pune" },
 ];
 
 // SEO-rich comparison links — these pages rank for high-intent searches
@@ -109,8 +120,8 @@ export function Footer() {
       <div className="bg-white">
         <div className="max-w-screen-xl mx-auto px-4">
 
-          {/* Links grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-8 border-b border-surface-200">
+          {/* Links grid — 5 columns on desktop */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 py-8 border-b border-surface-200">
             <div>
               <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider mb-4">Useful Links</h3>
               <ul className="space-y-2.5">
@@ -158,6 +169,20 @@ export function Footer() {
                   <li key={l.label}>
                     <Link href={l.href} className="text-surface-500 hover:text-brand-600 text-sm transition-colors">
                       {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* City pages — local SEO internal links */}
+            <div>
+              <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider mb-4">By City</h3>
+              <ul className="space-y-2.5">
+                {CITY_LINKS.map((l) => (
+                  <li key={l.label}>
+                    <Link href={l.href} className="text-surface-500 hover:text-brand-600 text-sm transition-colors">
+                      📍 {l.label}
                     </Link>
                   </li>
                 ))}
@@ -221,7 +246,17 @@ export function Footer() {
             <Link href="/compare/zepto-vs-instamart" className="hover:text-brand-600 underline underline-offset-2">Zepto vs Swiggy Instamart</Link>,{" "}
             <Link href="/compare/blinkit-vs-bigbasket" className="hover:text-brand-600 underline underline-offset-2">Blinkit vs BigBasket</Link>,{" "}
             <Link href="/compare/bigbasket-vs-jiomart" className="hover:text-brand-600 underline underline-offset-2">BigBasket vs JioMart</Link> and more.
-            Find the cheapest grocery delivery app in Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune and all major Indian cities.
+            Find the cheapest grocery delivery in{" "}
+            <Link href="/grocery-prices-mumbai" className="hover:text-brand-600 underline underline-offset-2">Mumbai</Link>,{" "}
+            <Link href="/grocery-prices-delhi" className="hover:text-brand-600 underline underline-offset-2">Delhi</Link>,{" "}
+            <Link href="/grocery-prices-bangalore" className="hover:text-brand-600 underline underline-offset-2">Bangalore</Link>,{" "}
+            <Link href="/grocery-prices-hyderabad" className="hover:text-brand-600 underline underline-offset-2">Hyderabad</Link>,{" "}
+            <Link href="/grocery-prices-chennai" className="hover:text-brand-600 underline underline-offset-2">Chennai</Link> and{" "}
+            <Link href="/grocery-prices-pune" className="hover:text-brand-600 underline underline-offset-2">Pune</Link>.
+            Compare{" "}
+            <Link href="/cheapest-atta-online" className="hover:text-brand-600 underline underline-offset-2">cheapest atta</Link>,{" "}
+            <Link href="/cheapest-milk-online" className="hover:text-brand-600 underline underline-offset-2">cheapest milk</Link> and{" "}
+            <Link href="/cheapest-oil-online" className="hover:text-brand-600 underline underline-offset-2">cheapest cooking oil</Link> online.
             Set free price alerts and save ₹500–₹2,000 every month on groceries.
           </p>
         </div>

@@ -83,10 +83,19 @@ jobs:
                 \"https://pricebasket.in/compare/blinkit-vs-instamart\",
                 \"https://pricebasket.in/compare/amazon-vs-blinkit\",
                 \"https://pricebasket.in/compare/flipkart-vs-zepto\",
+                \"https://pricebasket.in/grocery-prices-mumbai\",
+                \"https://pricebasket.in/grocery-prices-delhi\",
+                \"https://pricebasket.in/grocery-prices-bangalore\",
+                \"https://pricebasket.in/grocery-prices-hyderabad\",
+                \"https://pricebasket.in/grocery-prices-chennai\",
+                \"https://pricebasket.in/grocery-prices-pune\",
+                \"https://pricebasket.in/cheapest-atta-online\",
+                \"https://pricebasket.in/cheapest-milk-online\",
+                \"https://pricebasket.in/cheapest-oil-online\",
                 \"https://pricebasket.in/blog\"
               ]
             }"
-          echo "✅ IndexNow submitted"
+          echo "✅ IndexNow submitted (21 URLs)"
 
       - name: Notify Telegram on Deploy
         env:
