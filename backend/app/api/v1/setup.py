@@ -19,7 +19,7 @@ import httpx
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis_client import cache_delete_pattern
@@ -1236,3 +1236,389 @@ async def fix_electronics_category(
     await cache_delete_pattern("categories:*")
 
     return {"status": "ok", **stats}
+
+
+# ── Static seed data for categories that are hard to scrape reliably ──────────
+
+_SPARSE_PRODUCTS = [
+    # ── Chicken & Meat ────────────────────────────────────────────────────────
+    {
+        "slug": "licious-chicken-curry-cut-500g",
+        "name": "Licious Chicken Curry Cut",
+        "brand": "Licious", "unit": "500g", "category": "chicken-meat",
+        "image_url": "https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 230, "mrp": 250, "mins": 10},
+            {"platform": "zepto",     "price": 225, "mrp": 250, "mins": 10},
+            {"platform": "instamart", "price": 235, "mrp": 250, "mins": 15},
+            {"platform": "bigbasket", "price": 218, "mrp": 250, "mins": 30},
+        ],
+    },
+    {
+        "slug": "licious-boneless-chicken-breast-500g",
+        "name": "Licious Boneless Chicken Breast",
+        "brand": "Licious", "unit": "500g", "category": "chicken-meat",
+        "image_url": "https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 255, "mrp": 279, "mins": 10},
+            {"platform": "zepto",     "price": 250, "mrp": 279, "mins": 10},
+            {"platform": "instamart", "price": 259, "mrp": 279, "mins": 15},
+            {"platform": "bigbasket", "price": 244, "mrp": 279, "mins": 30},
+        ],
+    },
+    {
+        "slug": "country-delight-farm-fresh-eggs-6",
+        "name": "Country Delight Farm Fresh Eggs",
+        "brand": "Country Delight", "unit": "6 pcs", "category": "chicken-meat",
+        "image_url": "https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 72,  "mrp": 78,  "mins": 10},
+            {"platform": "zepto",     "price": 70,  "mrp": 78,  "mins": 10},
+            {"platform": "instamart", "price": 74,  "mrp": 78,  "mins": 15},
+            {"platform": "bigbasket", "price": 68,  "mrp": 78,  "mins": 30},
+            {"platform": "jiomart",   "price": 65,  "mrp": 78,  "mins": 30},
+        ],
+    },
+    {
+        "slug": "keggfarms-gold-eggs-6",
+        "name": "Keggfarms Gold Eggs",
+        "brand": "Keggfarms", "unit": "6 pcs", "category": "chicken-meat",
+        "image_url": "https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 85,  "mrp": 90,  "mins": 10},
+            {"platform": "zepto",     "price": 83,  "mrp": 90,  "mins": 10},
+            {"platform": "bigbasket", "price": 78,  "mrp": 90,  "mins": 30},
+        ],
+    },
+    {
+        "slug": "licious-mutton-keema-500g",
+        "name": "Licious Mutton Keema",
+        "brand": "Licious", "unit": "500g", "category": "chicken-meat",
+        "image_url": "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 449, "mrp": 499, "mins": 10},
+            {"platform": "zepto",     "price": 445, "mrp": 499, "mins": 10},
+            {"platform": "instamart", "price": 455, "mrp": 499, "mins": 15},
+            {"platform": "bigbasket", "price": 439, "mrp": 499, "mins": 30},
+        ],
+    },
+    # ── Frozen Foods ──────────────────────────────────────────────────────────
+    {
+        "slug": "mccain-smiles-400g",
+        "name": "McCain Smiles",
+        "brand": "McCain", "unit": "400g", "category": "frozen-foods",
+        "image_url": "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 195, "mrp": 220, "mins": 10},
+            {"platform": "zepto",     "price": 190, "mrp": 220, "mins": 10},
+            {"platform": "instamart", "price": 199, "mrp": 220, "mins": 15},
+            {"platform": "bigbasket", "price": 182, "mrp": 220, "mins": 30},
+            {"platform": "jiomart",   "price": 179, "mrp": 220, "mins": 30},
+        ],
+    },
+    {
+        "slug": "mccain-aloo-tikki-400g",
+        "name": "McCain Aloo Tikki",
+        "brand": "McCain", "unit": "400g", "category": "frozen-foods",
+        "image_url": "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 185, "mrp": 210, "mins": 10},
+            {"platform": "zepto",     "price": 180, "mrp": 210, "mins": 10},
+            {"platform": "instamart", "price": 189, "mrp": 210, "mins": 15},
+            {"platform": "bigbasket", "price": 174, "mrp": 210, "mins": 30},
+        ],
+    },
+    {
+        "slug": "sumeru-frozen-peas-500g",
+        "name": "Sumeru Frozen Green Peas",
+        "brand": "Sumeru", "unit": "500g", "category": "frozen-foods",
+        "image_url": "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 85,  "mrp": 95,  "mins": 10},
+            {"platform": "zepto",     "price": 82,  "mrp": 95,  "mins": 10},
+            {"platform": "bigbasket", "price": 76,  "mrp": 95,  "mins": 30},
+            {"platform": "jiomart",   "price": 74,  "mrp": 95,  "mins": 30},
+        ],
+    },
+    {
+        "slug": "kwality-walls-cornetto-59ml",
+        "name": "Kwality Walls Cornetto Chocolate",
+        "brand": "Kwality Walls", "unit": "59ml", "category": "frozen-foods",
+        "image_url": "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 40,  "mrp": 45,  "mins": 10},
+            {"platform": "zepto",     "price": 40,  "mrp": 45,  "mins": 10},
+            {"platform": "instamart", "price": 42,  "mrp": 45,  "mins": 15},
+            {"platform": "bigbasket", "price": 38,  "mrp": 45,  "mins": 30},
+        ],
+    },
+    {
+        "slug": "amul-chocobar-60ml",
+        "name": "Amul Chocobar Ice Cream",
+        "brand": "Amul", "unit": "60ml", "category": "frozen-foods",
+        "image_url": "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 30,  "mrp": 30,  "mins": 10},
+            {"platform": "zepto",     "price": 30,  "mrp": 30,  "mins": 10},
+            {"platform": "instamart", "price": 30,  "mrp": 30,  "mins": 15},
+            {"platform": "bigbasket", "price": 28,  "mrp": 30,  "mins": 30},
+            {"platform": "jiomart",   "price": 27,  "mrp": 30,  "mins": 30},
+        ],
+    },
+    # ── Baby Care ─────────────────────────────────────────────────────────────
+    {
+        "slug": "pampers-active-baby-diapers-s-20",
+        "name": "Pampers Active Baby Diapers Small",
+        "brand": "Pampers", "unit": "20 count", "category": "baby-care",
+        "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 399, "mrp": 449, "mins": 10},
+            {"platform": "zepto",     "price": 395, "mrp": 449, "mins": 10},
+            {"platform": "instamart", "price": 405, "mrp": 449, "mins": 15},
+            {"platform": "bigbasket", "price": 385, "mrp": 449, "mins": 30},
+            {"platform": "jiomart",   "price": 379, "mrp": 449, "mins": 30},
+        ],
+    },
+    {
+        "slug": "huggies-wonder-pants-medium-42",
+        "name": "Huggies Wonder Pants Medium",
+        "brand": "Huggies", "unit": "42 count", "category": "baby-care",
+        "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 549, "mrp": 620, "mins": 10},
+            {"platform": "zepto",     "price": 540, "mrp": 620, "mins": 10},
+            {"platform": "instamart", "price": 559, "mrp": 620, "mins": 15},
+            {"platform": "bigbasket", "price": 525, "mrp": 620, "mins": 30},
+            {"platform": "jiomart",   "price": 515, "mrp": 620, "mins": 30},
+        ],
+    },
+    {
+        "slug": "johnsons-baby-shampoo-200ml",
+        "name": "Johnson's Baby Shampoo",
+        "brand": "Johnson's", "unit": "200ml", "category": "baby-care",
+        "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 195, "mrp": 230, "mins": 10},
+            {"platform": "zepto",     "price": 190, "mrp": 230, "mins": 10},
+            {"platform": "instamart", "price": 199, "mrp": 230, "mins": 15},
+            {"platform": "bigbasket", "price": 182, "mrp": 230, "mins": 30},
+            {"platform": "amazon",    "price": 178, "mrp": 230, "mins": 120},
+        ],
+    },
+    {
+        "slug": "nestle-cerelac-wheat-300g",
+        "name": "Nestle Cerelac Wheat",
+        "brand": "Nestle", "unit": "300g", "category": "baby-care",
+        "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 185, "mrp": 200, "mins": 10},
+            {"platform": "zepto",     "price": 182, "mrp": 200, "mins": 10},
+            {"platform": "bigbasket", "price": 175, "mrp": 200, "mins": 30},
+            {"platform": "jiomart",   "price": 172, "mrp": 200, "mins": 30},
+            {"platform": "amazon",    "price": 170, "mrp": 200, "mins": 120},
+        ],
+    },
+    {
+        "slug": "mamy-poko-pants-medium-9",
+        "name": "Mamy Poko Pants Medium",
+        "brand": "Mamy Poko", "unit": "9 count", "category": "baby-care",
+        "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 149, "mrp": 175, "mins": 10},
+            {"platform": "zepto",     "price": 145, "mrp": 175, "mins": 10},
+            {"platform": "instamart", "price": 152, "mrp": 175, "mins": 15},
+            {"platform": "bigbasket", "price": 139, "mrp": 175, "mins": 30},
+        ],
+    },
+    # ── Pet Care ──────────────────────────────────────────────────────────────
+    {
+        "slug": "pedigree-adult-dog-food-chicken-3kg",
+        "name": "Pedigree Adult Dog Food Chicken & Vegetables",
+        "brand": "Pedigree", "unit": "3kg", "category": "pet-care",
+        "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 685, "mrp": 750, "mins": 10},
+            {"platform": "zepto",     "price": 675, "mrp": 750, "mins": 10},
+            {"platform": "bigbasket", "price": 658, "mrp": 750, "mins": 30},
+            {"platform": "jiomart",   "price": 645, "mrp": 750, "mins": 30},
+            {"platform": "amazon",    "price": 635, "mrp": 750, "mins": 120},
+        ],
+    },
+    {
+        "slug": "whiskas-adult-cat-food-ocean-fish-1-2kg",
+        "name": "Whiskas Adult Cat Food Ocean Fish",
+        "brand": "Whiskas", "unit": "1.2kg", "category": "pet-care",
+        "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 425, "mrp": 475, "mins": 10},
+            {"platform": "zepto",     "price": 420, "mrp": 475, "mins": 10},
+            {"platform": "bigbasket", "price": 408, "mrp": 475, "mins": 30},
+            {"platform": "amazon",    "price": 399, "mrp": 475, "mins": 120},
+        ],
+    },
+    {
+        "slug": "drools-focus-super-premium-adult-dog-food-3kg",
+        "name": "Drools Focus Super Premium Adult Dog Food",
+        "brand": "Drools", "unit": "3kg", "category": "pet-care",
+        "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 695, "mrp": 799, "mins": 10},
+            {"platform": "bigbasket", "price": 672, "mrp": 799, "mins": 30},
+            {"platform": "jiomart",   "price": 659, "mrp": 799, "mins": 30},
+            {"platform": "amazon",    "price": 649, "mrp": 799, "mins": 120},
+        ],
+    },
+    {
+        "slug": "me-o-cat-food-tuna-1-1kg",
+        "name": "Me-O Adult Cat Food Tuna Flavour",
+        "brand": "Me-O", "unit": "1.1kg", "category": "pet-care",
+        "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 375, "mrp": 420, "mins": 10},
+            {"platform": "zepto",     "price": 370, "mrp": 420, "mins": 10},
+            {"platform": "bigbasket", "price": 358, "mrp": 420, "mins": 30},
+            {"platform": "amazon",    "price": 349, "mrp": 420, "mins": 120},
+        ],
+    },
+    {
+        "slug": "royal-canin-adult-dog-food-3kg",
+        "name": "Royal Canin Adult Dog Food",
+        "brand": "Royal Canin", "unit": "3kg", "category": "pet-care",
+        "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=400&fit=crop",
+        "prices": [
+            {"platform": "blinkit",   "price": 1850, "mrp": 2100, "mins": 10},
+            {"platform": "bigbasket", "price": 1799, "mrp": 2100, "mins": 30},
+            {"platform": "amazon",    "price": 1749, "mrp": 2100, "mins": 120},
+        ],
+    },
+]
+
+
+@router.post("/fix-sparse-categories", status_code=200)
+async def fix_sparse_categories(
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """
+    Populates chicken-meat, frozen-foods, baby-care, and pet-care with
+    hardcoded seed products if those categories have fewer than 3 products.
+    Safe to run repeatedly — only inserts missing products, never overwrites
+    existing data (images/prices are preserved if already present).
+    """
+    from datetime import timezone as _tz
+
+    # Load platforms and categories
+    plat_res = await db.execute(select(Platform))
+    plat_map = {p.slug: p for p in plat_res.scalars().all()}
+
+    cat_res = await db.execute(select(Category))
+    cat_map = {c.slug: c for c in cat_res.scalars().all()}
+
+    # Check which of the target categories are truly sparse (< 3 products)
+    target_slugs = {"chicken-meat", "frozen-foods", "baby-care", "pet-care"}
+    sparse_slugs: set[str] = set()
+    for slug in target_slugs:
+        cat = cat_map.get(slug)
+        if cat is None:
+            sparse_slugs.add(slug)
+            continue
+        count_r = await db.execute(
+            select(func.count(Product.id)).where(Product.category_id == cat.id, Product.is_active == True)  # noqa: E712
+        )
+        if (count_r.scalar() or 0) < 3:
+            sparse_slugs.add(slug)
+
+    if not sparse_slugs:
+        await cache_delete_pattern("featured:*")
+        await cache_delete_pattern("products:*")
+        return {"status": "ok", "message": "All target categories already have products", "inserted": 0}
+
+    inserted_products = 0
+    inserted_prices = 0
+    now = datetime.now(_tz.utc)
+
+    for item in _SPARSE_PRODUCTS:
+        if item["category"] not in sparse_slugs:
+            continue
+
+        cat = cat_map.get(item["category"])
+        if cat is None:
+            continue
+
+        # Upsert product
+        prod_r = await db.execute(
+            select(Product).where(Product.slug == item["slug"])
+        )
+        prod = prod_r.scalar_one_or_none()
+        if prod is None:
+            prod = Product(
+                slug=item["slug"],
+                name=item["name"],
+                brand=item["brand"],
+                unit=item["unit"],
+                category_id=cat.id,
+                image_url=item["image_url"],
+                thumbnail_url=item["image_url"],
+                tags=[item["name"].lower(), (item["brand"] or "").lower(), item["category"]],
+                is_active=True,
+                is_featured=True,
+                description=f"{item['name']} — {item['unit']}",
+            )
+            db.add(prod)
+            await db.flush()
+            inserted_products += 1
+        else:
+            prod.is_active = True
+            prod.is_featured = True
+            if not prod.image_url:
+                prod.image_url = item["image_url"]
+                prod.thumbnail_url = item["image_url"]
+            await db.flush()
+
+        # Upsert prices
+        for price_row in item["prices"]:
+            plat = plat_map.get(price_row["platform"])
+            if not plat:
+                continue
+            mrp = float(price_row["mrp"])
+            sp = float(price_row["price"])
+            disc = round((mrp - sp) / mrp * 100, 1) if mrp > sp else 0.0
+            pp_r = await db.execute(
+                select(PlatformPrice).where(
+                    PlatformPrice.product_id == prod.id,
+                    PlatformPrice.platform_id == plat.id,
+                )
+            )
+            pp = pp_r.scalar_one_or_none()
+            if pp is None:
+                db.add(PlatformPrice(
+                    product_id=prod.id,
+                    platform_id=plat.id,
+                    price=sp,
+                    original_price=mrp if mrp > sp else None,
+                    discount_percent=disc,
+                    discount_label=f"{int(disc)}% OFF" if disc >= 1 else None,
+                    is_available=True,
+                    delivery_time_minutes=price_row["mins"],
+                    source="seed",
+                ))
+                inserted_prices += 1
+            else:
+                # Keep existing live-scraped prices; only backfill if missing
+                if pp.price <= 0:
+                    pp.price = sp
+                    pp.original_price = mrp if mrp > sp else None
+                    pp.discount_percent = disc
+                pp.is_available = True
+
+    await db.commit()
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+    await cache_delete_pattern("categories:*")
+
+    return {
+        "status": "ok",
+        "sparse_categories_found": sorted(sparse_slugs),
+        "inserted_products": inserted_products,
+        "inserted_prices": inserted_prices,
+    }

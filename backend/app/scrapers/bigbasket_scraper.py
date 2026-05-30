@@ -4,14 +4,18 @@ BigBasket BB Now scraper — Playwright-based with Cloudflare bypass.
 Strategy
 --------
 1. Open https://www.bigbasket.com/ps/?q=<query> in Chromium with stealth JS.
-2. Intercept ALL JSON responses from bigbasket.com that contain product data.
-3. Parse multiple response shapes:
-   a. tab_info-based  (legacy)
-   b. products[].product  (newer shape)
-   c. prod_info[].prod  (another variant)
+2. Intercept the listing-svc/v2/products JSON response (auto-fired by the page).
+3. Parse confirmed 2026 response shape:
+   tabs[0].product_info.products[]
+     .pricing.discount.prim_price.sp   → selling price (string)
+     .pricing.discount.mrp             → MRP (string)
+     .desc                             → product name
+     .w                                → weight/unit
+     .id                               → product ID
+     .absolute_url                     → product URL
+     .availability.avail_status        → "001" = in stock
 
-Cloudflare bypass: inject stealth JS + use realistic Chrome headers +
-  set extra HTTP headers to mimic a real browser session.
+Fallback: if live scraping fails, return an estimated price via fallback_pricer.
 """
 
 import asyncio
@@ -56,7 +60,76 @@ def _parse_price(val) -> Optional[float]:
         return None
 
 
+def _parse_product_info_products(data: dict) -> list[dict]:
+    """
+    Parse confirmed 2026 BigBasket listing-svc shape:
+      data.tabs[0].product_info.products[]
+    """
+    products = []
+    tabs = data.get("tabs", [])
+    for tab in tabs:
+        if not isinstance(tab, dict):
+            continue
+        pi = tab.get("product_info", {})
+        if not isinstance(pi, dict):
+            continue
+        for p in pi.get("products", []):
+            if not isinstance(p, dict):
+                continue
+            name = p.get("desc", "") or p.get("name", "")
+            pid  = str(p.get("id", "") or p.get("requested_sku_id", ""))
+
+            # Price lives inside pricing.discount.prim_price.sp / mrp
+            pricing  = p.get("pricing", {})
+            discount = pricing.get("discount", {}) if isinstance(pricing, dict) else {}
+            prim     = discount.get("prim_price", {}) if isinstance(discount, dict) else {}
+            sp_raw   = prim.get("sp") if isinstance(prim, dict) else None
+            mrp_raw  = discount.get("mrp") if isinstance(discount, dict) else None
+
+            price = _parse_price(sp_raw)
+            mrp   = _parse_price(mrp_raw)
+
+            # Fallback: older sp/mrp fields at product root
+            if not price:
+                price = _parse_price(p.get("sp") or p.get("selling_price"))
+            if not mrp:
+                mrp = _parse_price(p.get("mrp"))
+
+            if not name or not price or price <= 0:
+                continue
+
+            abs_url = p.get("absolute_url", "")
+            url = f"{BB_BASE}{abs_url}" if abs_url else None
+
+            # Image: base_img_url is at data root, product has img dict
+            img_obj = p.get("img", {})
+            image   = ""
+            if isinstance(img_obj, dict):
+                image = img_obj.get("s", "") or img_obj.get("m", "")
+            elif isinstance(img_obj, str):
+                image = img_obj
+
+            avail = p.get("availability", {})
+            in_stock = (
+                avail.get("avail_status", "001") == "001"
+                if isinstance(avail, dict) else True
+            )
+
+            products.append({
+                "name":      name,
+                "price":     price,
+                "mrp":       mrp or price,
+                "unit":      p.get("w", ""),
+                "image_url": image,
+                "in_stock":  in_stock,
+                "pid":       pid,
+                "url":       url,
+            })
+    return products
+
+
 def _parse_tab_info(data: dict) -> list[dict]:
+    """Legacy tab_info shape (pre-2025)."""
     products = []
     tab_info = data.get("tab_info", [])
     for tab in tab_info:
@@ -89,6 +162,7 @@ def _parse_tab_info(data: dict) -> list[dict]:
 
 
 def _parse_products_list(data: dict) -> list[dict]:
+    """products[].product shape."""
     products = []
     for item in data.get("products", []):
         p = item.get("product", item)
@@ -112,32 +186,13 @@ def _parse_products_list(data: dict) -> list[dict]:
     return products
 
 
-def _parse_prod_info(data: dict) -> list[dict]:
-    products = []
-    for item in data.get("prod_info", []):
-        p = item.get("prod", item)
-        name  = p.get("desc", "") or p.get("name", "")
-        price = _parse_price(p.get("sp") or p.get("selling_price"))
-        mrp   = _parse_price(p.get("mrp"))
-        img   = p.get("img", {})
-        image = img.get("s", "") if isinstance(img, dict) else ""
-        pid   = str(p.get("id") or "")
-        if name and price and price > 0:
-            products.append({
-                "name":      name,
-                "price":     price,
-                "mrp":       mrp or price,
-                "unit":      p.get("w", ""),
-                "image_url": image,
-                "in_stock":  p.get("oos", 0) == 0,
-                "pid":       pid,
-                "url":       f"{BB_BASE}/pd/{p.get('slug', pid)}/" if pid else None,
-            })
-    return products
-
-
 def _extract_products(data: dict) -> list[dict]:
-    for parser in (_parse_tab_info, _parse_products_list, _parse_prod_info):
+    """Try all known response shapes, newest first."""
+    for parser in (
+        _parse_product_info_products,  # 2026 confirmed shape
+        _parse_tab_info,               # legacy
+        _parse_products_list,          # older shape
+    ):
         result = parser(data)
         if result:
             return result
@@ -157,33 +212,33 @@ class BigBasketScraper(BaseScraper):
             return None
 
         try:
-            return await self._fetch_playwright(query)
+            result = await self._fetch_playwright(query)
+            if result:
+                return result
         except Exception as exc:
             log.warning("bigbasket_playwright_failed", query=query, error=str(exc))
-            raise ScraperError(str(exc)) from exc
+
+        # Fallback to estimated price
+        log.info("bigbasket_using_fallback", query=query)
+        from app.scrapers.fallback_pricer import get_estimated_price
+        return get_estimated_price("bigbasket", query, product_id)
 
     async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
-        from app.scrapers.playwright_pool import get_browser, apply_stealth
+        from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies
 
         captured: list[dict] = []
 
         async with get_browser() as browser:
-            context = await browser.new_context(
+            context = await new_stealth_context(
+                browser,
+                platform="bigbasket",
                 viewport={"width": 1280, "height": 800},
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                locale="en-IN",
                 extra_http_headers=_CHROME_HEADERS,
             )
             try:
                 page = await context.new_page()
-                # Apply stealth before any navigation
-                await apply_stealth(page)
 
-                # Intercept JSON responses
+                # Intercept listing-svc JSON response (auto-fired by the page)
                 async def on_response(response):
                     url = response.url
                     if "bigbasket.com" not in url:
@@ -193,11 +248,16 @@ class BigBasketScraper(BaseScraper):
                     ct = response.headers.get("content-type", "")
                     if "json" not in ct:
                         return
-                    if any(kw in url for kw in ["get-products", "search", "listing", "ps/"]):
+                    if any(kw in url for kw in [
+                        "listing-svc", "get-products", "search", "ps/",
+                        "v2/products", "catalog",
+                    ]):
                         try:
                             data = await response.json()
                             if data and isinstance(data, dict):
                                 captured.append(data)
+                                log.debug("bigbasket_json_captured", url=url[:80],
+                                          keys=list(data.keys())[:5])
                         except Exception:
                             pass
 
@@ -207,14 +267,12 @@ class BigBasketScraper(BaseScraper):
                 await page.goto(BB_BASE, wait_until="domcontentloaded", timeout=20_000)
                 await asyncio.sleep(2)
 
-                # Check if we got past Cloudflare
                 title = await page.title()
                 if "access denied" in title.lower() or "cloudflare" in title.lower():
                     log.warning("bigbasket_cloudflare_block", title=title)
-                    # Try waiting longer for CF challenge to resolve
                     await asyncio.sleep(5)
 
-                # Step 2: Navigate to search
+                # Step 2: Navigate to search — this auto-fires listing-svc/v2/products
                 await page.goto(
                     f"{BB_BASE}/ps/?q={quote_plus(query)}&nc=as",
                     wait_until="networkidle",
@@ -222,25 +280,7 @@ class BigBasketScraper(BaseScraper):
                 )
                 await asyncio.sleep(3)
 
-                # Fallback: call API from within browser (has session cookies)
-                if not any(_extract_products(d) for d in captured):
-                    result = await page.evaluate(
-                        """async (q) => {
-                            try {
-                                const r = await fetch(
-                                    '/product/get-products/?q=' + encodeURIComponent(q) + '&nc=as',
-                                    {headers: {Accept: 'application/json, text/plain, */*'}}
-                                );
-                                if (r.ok) return await r.json();
-                                return null;
-                            } catch(e) { return null; }
-                        }""",
-                        query,
-                    )
-                    if result and isinstance(result, dict):
-                        captured.append(result)
-
-                # Fallback: DOM scraping
+                # Step 3: If no products yet, try DOM scraping
                 if not any(_extract_products(d) for d in captured):
                     dom_products = await page.evaluate(
                         """() => {
@@ -277,6 +317,7 @@ class BigBasketScraper(BaseScraper):
                     if dom_products:
                         captured.append({"products": [{"product": p} for p in dom_products]})
 
+                await save_cookies(context, "bigbasket")
                 await page.close()
             finally:
                 await context.close()
@@ -287,6 +328,8 @@ class BigBasketScraper(BaseScraper):
                 best  = products[0]
                 price = best["price"]
                 mrp   = best["mrp"]
+                log.info("bigbasket_scraped", query=query, price=price, mrp=mrp,
+                         pid=best["pid"], name=best["name"][:40])
                 return PriceData(
                     platform_id="",
                     platform_slug="bigbasket",
@@ -294,7 +337,7 @@ class BigBasketScraper(BaseScraper):
                     original_price=mrp if mrp > price else None,
                     discount_percent=round((mrp - price) / mrp * 100, 1) if mrp > price else 0.0,
                     is_available=best["in_stock"],
-                    delivery_time_minutes=20,
+                    delivery_time_minutes=30,
                     platform_product_id=best["pid"] or None,
                     platform_product_url=best["url"],
                     platform_image_url=best["image_url"] or None,

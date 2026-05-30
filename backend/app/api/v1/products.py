@@ -133,6 +133,41 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
     return out
 
 
+@router.get("/sitemap")
+async def sitemap_products(
+    limit: int = Query(default=50000, le=50000),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lightweight product list for the frontend XML sitemap.
+
+    Returns only id/slug/updated_at for every active product so the
+    Next.js sitemap can enumerate all indexable product URLs without
+    pulling full price payloads. Cached for 6 hours.
+    """
+    cache_key = f"sitemap:products:v1:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    result = await db.execute(
+        select(Product.id, Product.slug, Product.updated_at)
+        .where(Product.is_active == True)  # noqa: E712
+        .order_by(Product.updated_at.desc())
+        .limit(limit)
+    )
+    rows = result.all()
+    out = [
+        {
+            "id": str(r.id),
+            "slug": r.slug,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in rows
+    ]
+    await cache_set(cache_key, json.dumps(out), 21600)  # 6h
+    return out
+
+
 @router.get("/featured", response_model=List[ProductWithPrices])
 async def featured_products(
     limit: int = Query(default=60, le=100),

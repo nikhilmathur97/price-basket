@@ -127,6 +127,7 @@ async def get_product_prices(
             delivery_time_minutes=pp.delivery_time_minutes,
             platform_product_url=pp.platform_product_url,
             last_updated=pp.last_updated,
+            source=getattr(pp, "source", None),
         )
         for pp in prices
     ]

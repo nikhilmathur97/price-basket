@@ -20,7 +20,7 @@ from app.cache.redis_client import close_redis, init_redis
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
 from app.middleware.rate_limiter import RateLimitMiddleware
-from app.api.v1 import auth, products, cart, prices, users, admin, websocket, analytics, setup
+from app.api.v1 import auth, products, cart, prices, users, admin, websocket, analytics, setup, content
 from app.models.product import Product
 
 log = structlog.get_logger(__name__)
@@ -147,6 +147,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router,    prefix=f"{PREFIX}/admin",    tags=["Admin"])
     app.include_router(analytics.router, prefix=f"{PREFIX}/analytics", tags=["Analytics"])
     app.include_router(setup.router,     prefix=f"{PREFIX}/setup",     tags=["Setup"])
+    app.include_router(content.router,   prefix=f"{PREFIX}/content",   tags=["Content"])
     app.include_router(websocket.router, prefix="/ws",               tags=["WebSocket"])
 
     # ── Health check ──────────────────────────────────────────────────────────

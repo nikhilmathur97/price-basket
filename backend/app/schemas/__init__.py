@@ -118,6 +118,7 @@ class PlatformPriceOut(BaseModel):
     platform_image_url: Optional[str] = None
     buy_url: Optional[str] = None
     last_updated: datetime
+    source: Optional[str] = None   # "scrape" | "estimated" | "cache" | None
 
 
 class ProductOut(BaseModel):

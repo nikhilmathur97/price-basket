@@ -723,8 +723,14 @@ SCRAPE_CATEGORY_QUERIES = [
     ("oils-spices",       ["fortune sunflower oil", "saffola oil", "everest red chilli powder", "mdh masala", "turmeric powder", "salt"]),
     ("household",         ["vim dishwash bar", "surf excel", "harpic power plus", "lizol floor cleaner", "dettol liquid", "ariel detergent"]),
     ("personal-care",     ["dove soap", "head shoulders shampoo", "colgate toothpaste", "nivea lotion", "dettol soap", "vaseline"]),
-    ("chicken-meat",      ["licious chicken breast", "licious chicken curry cut", "brown eggs country delight"]),
-    ("frozen-foods",      ["mccain french fries", "frozen corn", "igloo ice cream"]),
+    ("chicken-meat",      ["licious chicken breast", "licious chicken curry cut",
+                           "brown eggs country delight", "keggfarms eggs", "licious mutton keema"]),
+    ("frozen-foods",      ["mccain french fries", "frozen peas sumeru", "igloo ice cream",
+                           "kwality walls cornetto", "mccain aloo tikki"]),
+    ("baby-care",         ["pampers diapers", "huggies wonder pants", "johnsons baby shampoo",
+                           "nestle cerelac", "mamy poko pants"]),
+    ("pet-care",          ["pedigree adult dog food", "whiskas cat food", "drools dog food",
+                           "me-o cat food"]),
 ]
 
 
@@ -1106,8 +1112,11 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "surface cleaner", "scrubber", "bleach", "air freshener",
                           "garbage bag", "tissue paper", "paper towel", "wet wipes",
                           "dish soap", "laundry", "fabric softener"],
-    "baby-care":         ["baby", "diaper", "nappy", "infant formula", "toddler",
-                          "baby food", "baby wipes", "teether", "baby lotion", "baby shampoo"],
+    "baby-care":         ["diaper", "nappy", "infant formula", "toddler formula",
+                          "baby diaper", "baby wipes", "baby lotion", "baby shampoo",
+                          "baby food", "baby powder", "baby oil", "baby soap", "baby cream",
+                          "teether", "cerelac", "huggies", "pampers", "mamy poko",
+                          "johnsons baby", "johnson baby"],
     "beauty":            ["lipstick", "mascara", "foundation", "blush", "kajal", "eyeliner",
                           "nail polish", "makeup", "concealer", "primer", "highlighter",
                           "face mask", "toner", "micellar", "bb cream", "cc cream"],
@@ -1151,7 +1160,10 @@ _CATEGORY_OVERRIDES: dict[str, list[str]] = {
                           "nail polish", "makeup", "concealer", "primer", "highlighter"],
     "meat-seafood":      ["chicken", "mutton", "fish", "prawn", "shrimp", "beef",
                           "pork", "salmon", "tuna", "seafood", "meat"],
-    "fruits-vegetables": ["fresh", "raw", "vegetable", "fruit", "sabzi"],
+    "fruits-vegetables": ["fresh", "raw", "vegetable", "fruit", "sabzi",
+                          "baby corn", "baby potato", "baby onion", "baby spinach",
+                          "baby carrot", "baby banana", "baby apple", "baby tomato",
+                          "baby peas", "baby"],
 }
 
 

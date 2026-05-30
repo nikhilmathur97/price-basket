@@ -142,8 +142,8 @@ class PriceEngine:
         bundle.prices = [r for r in price_results if r is not None]
         bundle.compute_highlights()
 
-        # Persist to DB asynchronously (fire and forget via task)
-        asyncio.create_task(self._persist_prices(product_id, bundle))
+        # Persist inline (same session, already in the request context)
+        await self._persist_prices(product_id, bundle)
 
         return bundle
 
@@ -163,61 +163,62 @@ class PriceEngine:
             return None
 
     async def _persist_prices(self, product_id: uuid.UUID, bundle: PriceBundle) -> None:
-        """Upsert PlatformPrice rows and append to PriceHistory."""
+        """Upsert PlatformPrice rows and append to PriceHistory using a fresh session."""
+        from app.database import AsyncSessionLocal
         now = datetime.now(timezone.utc)
         try:
-            for price_data in bundle.prices:
-                pid = uuid.UUID(price_data.platform_id)
-                result = await self.db.execute(
-                    select(PlatformPrice).where(
-                        PlatformPrice.product_id == product_id,
-                        PlatformPrice.platform_id == pid,
+            async with AsyncSessionLocal() as db:
+                for price_data in bundle.prices:
+                    pid = uuid.UUID(price_data.platform_id)
+                    result = await db.execute(
+                        select(PlatformPrice).where(
+                            PlatformPrice.product_id == product_id,
+                            PlatformPrice.platform_id == pid,
+                        )
                     )
-                )
-                existing = result.scalar_one_or_none()
-                if existing:
-                    existing.price = price_data.price
-                    existing.original_price = price_data.original_price
-                    existing.discount_percent = price_data.discount_percent
-                    existing.discount_label = price_data.discount_label
-                    existing.is_available = price_data.is_available
-                    existing.delivery_time_minutes = price_data.delivery_time_minutes
-                    existing.platform_product_id = price_data.platform_product_id
-                    existing.platform_product_url = price_data.platform_product_url
-                    existing.last_updated = now
-                    existing.source = price_data.source
-                else:
-                    new_pp = PlatformPrice(
-                        product_id=product_id,
-                        platform_id=pid,
-                        price=price_data.price,
-                        original_price=price_data.original_price,
-                        discount_percent=price_data.discount_percent,
-                        discount_label=price_data.discount_label,
-                        is_available=price_data.is_available,
-                        delivery_time_minutes=price_data.delivery_time_minutes,
-                        platform_product_id=price_data.platform_product_id,
-                        platform_product_url=price_data.platform_product_url,
-                        last_updated=now,
-                        source=price_data.source,
-                    )
-                    self.db.add(new_pp)
+                    existing = result.scalar_one_or_none()
+                    if existing:
+                        existing.price = price_data.price
+                        existing.original_price = price_data.original_price
+                        existing.discount_percent = price_data.discount_percent
+                        existing.discount_label = price_data.discount_label
+                        existing.is_available = price_data.is_available
+                        existing.delivery_time_minutes = price_data.delivery_time_minutes
+                        existing.platform_product_id = price_data.platform_product_id
+                        existing.platform_product_url = price_data.platform_product_url
+                        existing.last_updated = now
+                        existing.source = price_data.source
+                    else:
+                        new_pp = PlatformPrice(
+                            product_id=product_id,
+                            platform_id=pid,
+                            price=price_data.price,
+                            original_price=price_data.original_price,
+                            discount_percent=price_data.discount_percent,
+                            discount_label=price_data.discount_label,
+                            is_available=price_data.is_available,
+                            delivery_time_minutes=price_data.delivery_time_minutes,
+                            platform_product_id=price_data.platform_product_id,
+                            platform_product_url=price_data.platform_product_url,
+                            last_updated=now,
+                            source=price_data.source,
+                        )
+                        db.add(new_pp)
 
-                # Append history row
-                self.db.add(
-                    PriceHistory(
-                        product_id=product_id,
-                        platform_id=pid,
-                        price=price_data.price,
-                        is_available=price_data.is_available,
-                        recorded_at=now,
+                    # Append history row
+                    db.add(
+                        PriceHistory(
+                            product_id=product_id,
+                            platform_id=pid,
+                            price=price_data.price,
+                            is_available=price_data.is_available,
+                            recorded_at=now,
+                        )
                     )
-                )
 
-            await self.db.commit()
+                await db.commit()
         except Exception as exc:
             log.error("price_persist_failed", product_id=str(product_id), error=str(exc))
-            await self.db.rollback()
 
     async def _record_failure(self, platform: Platform) -> None:
         try:

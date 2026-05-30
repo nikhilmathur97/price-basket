@@ -10,7 +10,7 @@ services:
     name: pricebasket-api
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python3 -m playwright install chromium --with-deps
     startCommand: bash start.sh
     plan: free
     healthCheckPath: /health
@@ -44,13 +44,49 @@ services:
         value: https://pricebasket.in,https://www.pricebasket.in,https://dev.pricebasket.in,https://www.dev.pricebasket.in
       - key: SEED_SECRET
         value: pricebasket-seed-2024
+      # ── SEO & Marketing Automation (auto-enabled) ──────────────────────────
+      - key: SITE_URL
+        value: https://pricebasket.in
+      - key: CONTENT_AUTOMATION_ENABLED
+        value: "true"
+      - key: SOCIAL_AUTOMATION_ENABLED
+        value: "true"
+      # IndexNow key — auto-generated once, shared with frontend via Vercel env
+      - key: INDEXNOW_KEY
+        generateValue: true
+      # Telegram — fill in after creating bot via @BotFather
+      - key: TELEGRAM_BOT_TOKEN
+        value: ""
+      - key: TELEGRAM_CHANNEL_ID
+        value: "@pricebasketdeals"
+      # Meta (Facebook + Instagram) — fill in after creating Meta app
+      - key: META_PAGE_ACCESS_TOKEN
+        value: ""
+      - key: FACEBOOK_PAGE_ID
+        value: ""
+      - key: INSTAGRAM_ACCOUNT_ID
+        value: ""
+      # Twitter / X — fill in after creating developer app
+      - key: TWITTER_API_KEY
+        value: ""
+      - key: TWITTER_API_SECRET
+        value: ""
+      - key: TWITTER_ACCESS_TOKEN
+        value: ""
+      - key: TWITTER_ACCESS_SECRET
+        value: ""
+      # WhatsApp Business API
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        value: ""
+      - key: WHATSAPP_ACCESS_TOKEN
+        value: ""
 
-  # ── Celery Worker ───────────────────────────────────────────────────────────
+  # ── Celery Worker (runs content + social automation on schedule) ────────────
   - type: worker
     name: pricebasket-worker
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python3 -m playwright install chromium --with-deps
     startCommand: celery -A app.workers.celery_app worker --beat --loglevel=info --concurrency=2
     plan: free
     envVars:
@@ -80,6 +116,73 @@ services:
           type: redis
           name: pricebasket-redis
           property: connectionString
+      # ── Marketing automation vars (shared from API service) ────────────────
+      - key: SITE_URL
+        value: https://pricebasket.in
+      - key: CONTENT_AUTOMATION_ENABLED
+        value: "true"
+      - key: SOCIAL_AUTOMATION_ENABLED
+        value: "true"
+      - key: INDEXNOW_KEY
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: INDEXNOW_KEY
+      - key: TELEGRAM_BOT_TOKEN
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TELEGRAM_BOT_TOKEN
+      - key: TELEGRAM_CHANNEL_ID
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TELEGRAM_CHANNEL_ID
+      - key: META_PAGE_ACCESS_TOKEN
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: META_PAGE_ACCESS_TOKEN
+      - key: FACEBOOK_PAGE_ID
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: FACEBOOK_PAGE_ID
+      - key: INSTAGRAM_ACCOUNT_ID
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: INSTAGRAM_ACCOUNT_ID
+      - key: TWITTER_API_KEY
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TWITTER_API_KEY
+      - key: TWITTER_API_SECRET
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TWITTER_API_SECRET
+      - key: TWITTER_ACCESS_TOKEN
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TWITTER_ACCESS_TOKEN
+      - key: TWITTER_ACCESS_SECRET
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: TWITTER_ACCESS_SECRET
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: WHATSAPP_PHONE_NUMBER_ID
+      - key: WHATSAPP_ACCESS_TOKEN
+        fromService:
+          type: web
+          name: pricebasket-api
+          envVarKey: WHATSAPP_ACCESS_TOKEN
 
   # ── Redis ───────────────────────────────────────────────────────────────────
   - type: redis

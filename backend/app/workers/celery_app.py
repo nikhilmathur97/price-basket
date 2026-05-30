@@ -10,6 +10,7 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         "app.workers.price_update_worker",
+        "app.workers.marketing_worker",
     ],
 )
 
@@ -26,6 +27,8 @@ celery_app.conf.update(
         "app.workers.price_update_worker.refresh_all_prices": {"queue": "prices"},
         "app.workers.price_update_worker.refresh_product_price": {"queue": "prices"},
         "app.workers.price_update_worker.send_price_alerts": {"queue": "notifications"},
+        # Marketing tasks intentionally use the default queue (no custom route)
+        # so the single beat worker — started without -Q — actually consumes them.
     },
     beat_schedule={
         # Refresh prices every 5 minutes
@@ -37,6 +40,20 @@ celery_app.conf.update(
         "check-price-alerts": {
             "task": "app.workers.price_update_worker.send_price_alerts",
             "schedule": 600,
+        },
+        # Generate the daily SEO deal article at 06:30 IST + ping IndexNow.
+        "generate-daily-content": {
+            "task": "app.workers.marketing_worker.generate_daily_content",
+            "schedule": crontab(hour=6, minute=30),
+        },
+        # Post the day's biggest deal to social at 10:00 and 18:00 IST.
+        "post-deal-social-morning": {
+            "task": "app.workers.marketing_worker.post_daily_deal_social",
+            "schedule": crontab(hour=10, minute=0),
+        },
+        "post-deal-social-evening": {
+            "task": "app.workers.marketing_worker.post_daily_deal_social",
+            "schedule": crontab(hour=18, minute=0),
         },
     },
 )

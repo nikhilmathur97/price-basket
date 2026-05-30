@@ -99,6 +99,36 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     FCM_SERVER_KEY: str = ""
 
+    # ── Marketing / SEO automation ────────────────────────────────────────────
+    # Public site URL (used to build canonical links for content + social posts).
+    SITE_URL: str = "https://pricebasket.in"
+
+    # Master switches — automation no-ops unless explicitly enabled.
+    CONTENT_AUTOMATION_ENABLED: bool = False
+    SOCIAL_AUTOMATION_ENABLED: bool = False
+
+    # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
+    INDEXNOW_KEY: str = ""
+
+    # Telegram (easiest to fully automate): @BotFather token + channel id/handle.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHANNEL_ID: str = ""  # e.g. "@pricebasketindia" or "-1001234567890"
+
+    # Meta Graph API (Facebook Page + linked Instagram Business account).
+    META_PAGE_ACCESS_TOKEN: str = ""
+    FACEBOOK_PAGE_ID: str = ""
+    INSTAGRAM_ACCOUNT_ID: str = ""
+
+    # X / Twitter API v2 (OAuth 1.0a user context for posting).
+    TWITTER_API_KEY: str = ""
+    TWITTER_API_SECRET: str = ""
+    TWITTER_ACCESS_TOKEN: str = ""
+    TWITTER_ACCESS_SECRET: str = ""
+
+    # WhatsApp Business Cloud API (broadcast deals to opt-in subscribers).
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"

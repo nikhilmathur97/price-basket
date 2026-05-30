@@ -5,12 +5,6 @@
 
 set -e
 
-# Install Playwright Chromium browser if not already present
-echo "==> Installing Playwright Chromium browser..."
-python3 -m playwright install chromium --with-deps 2>/dev/null || \
-    python3 -m playwright install chromium 2>/dev/null || \
-    echo "WARNING: Playwright install failed — scrapers will fall back gracefully"
-
 echo "==> Running DB migrations..."
 
 # Check whether alembic_version table exists.
@@ -59,6 +53,67 @@ fi
 
 echo "==> Running alembic upgrade head..."
 alembic upgrade head
+
+# ── Auto-submit sitemap to Google & Bing on every deploy ──────────────────────
+echo "==> Pinging search engines with sitemap..."
+python3 - <<'PINGEOF'
+import os, urllib.request, urllib.error
+
+SITE_URL = os.environ.get("SITE_URL", "https://pricebasket.in")
+SITEMAP  = f"{SITE_URL}/sitemap.xml"
+
+PING_URLS = [
+    # Google — sitemap ping
+    f"https://www.google.com/ping?sitemap={SITEMAP}",
+    # Bing — sitemap ping
+    f"https://www.bing.com/ping?sitemap={SITEMAP}",
+]
+
+for url in PING_URLS:
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "PriceBasket-Deploy/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            print(f"  ✓ Pinged {url.split('?')[0]} → HTTP {r.status}")
+    except Exception as e:
+        # Non-fatal — never block startup
+        print(f"  ⚠ Sitemap ping failed (non-fatal): {e}")
+
+# IndexNow ping for all key pages
+INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
+if INDEXNOW_KEY:
+    import json
+    KEY_LOCATION = f"{SITE_URL}/indexnow"
+    URLS_TO_INDEX = [
+        SITE_URL,
+        f"{SITE_URL}/best-grocery-deals",
+        f"{SITE_URL}/save-money-groceries",
+        f"{SITE_URL}/compare/blinkit-vs-zepto",
+        f"{SITE_URL}/compare/zepto-vs-instamart",
+        f"{SITE_URL}/compare/blinkit-vs-bigbasket",
+        f"{SITE_URL}/compare/zepto-vs-bigbasket",
+        f"{SITE_URL}/compare/bigbasket-vs-jiomart",
+        f"{SITE_URL}/blog",
+    ]
+    payload = json.dumps({
+        "host": SITE_URL.replace("https://", "").replace("http://", ""),
+        "key": INDEXNOW_KEY,
+        "keyLocation": KEY_LOCATION,
+        "urlList": URLS_TO_INDEX,
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            "https://api.indexnow.org/indexnow",
+            data=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            print(f"  ✓ IndexNow submitted {len(URLS_TO_INDEX)} URLs → HTTP {r.status}")
+    except Exception as e:
+        print(f"  ⚠ IndexNow ping failed (non-fatal): {e}")
+else:
+    print("  ℹ INDEXNOW_KEY not set — skipping IndexNow ping")
+PINGEOF
 
 echo "==> Starting uvicorn..."
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1

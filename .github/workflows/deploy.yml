@@ -173,6 +173,19 @@ jobs:
             sleep 30
           done
 
+          echo "🛒 Running fix-sparse-categories (chicken-meat, frozen-foods, baby-care, pet-care)..."
+          for i in 1 2 3; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              https://pricebasket-api.onrender.com/api/v1/setup/fix-sparse-categories \
+              -H "x-seed-key: pricebasket-seed-2024")
+            echo "  fix-sparse-categories attempt $i: HTTP $HTTP"
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ fix-sparse-categories succeeded!"
+              break
+            fi
+            sleep 30
+          done
+
           echo "🔍 Running mark-featured..."
           for i in 1 2 3; do
             HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \

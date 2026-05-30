@@ -2,18 +2,18 @@
 Swiggy Instamart scraper — Playwright-based with confirmed API structure.
 
 Confirmed response structure (May 2026):
-  POST /api/instamart/search/v2
+  GET /api/instamart/search/v2?offset=0&ageConsent=false&storeId=<id>&...
   → data.cards[].card.card.gridElements.infoWithStyle.skus[]
-      sku.displayName                           → product name
-      sku.price.offerPrice.units                → selling price (string int)
-      sku.price.mrp.units                       → MRP (string int)
-      sku.imageIds[0]                           → image ID (needs CDN prefix)
-      sku.variations[0].skuId                   → SKU ID
-      sku.inStock                               → bool
+      sku.displayName                                    → product name
+      sku.variations[0].price.offerPrice.units           → selling price (string int, rupees)
+      sku.variations[0].price.mrp.units                  → MRP (string int, rupees)
+      sku.variations[0].imageIds[0]                      → image ID (needs CDN prefix)
+      sku.variations[0].skuId                            → SKU ID
+      sku.inStock                                        → bool
 
-Also handles:
-  data.cards[].card.card.items[]
-      item.displayName, item.variations[0].price.offerPrice.units
+NOTE: Price is in sku.variations[0].price, NOT in sku.price directly.
+
+Fallback: if live scraping fails, return an estimated price via fallback_pricer.
 """
 
 import asyncio
@@ -34,7 +34,7 @@ INSTAMART_IMG_CDN = "https://instamart-media-assets.swiggy.com/swiggy/image/uplo
 
 
 def _parse_price_units(val) -> Optional[float]:
-    """Parse price from Swiggy's units field (string int in paise or rupees)."""
+    """Parse price from Swiggy's units field (string int in rupees)."""
     if val is None:
         return None
     try:
@@ -44,90 +44,100 @@ def _parse_price_units(val) -> Optional[float]:
         return None
 
 
-def _parse_sku_v2(sku: dict) -> Optional[dict]:
-    """Parse a SKU from the confirmed gridElements.infoWithStyle.skus[] structure."""
-    name = sku.get("displayName") or sku.get("display_name") or sku.get("name", "")
+def _parse_variation(variation: dict) -> Optional[dict]:
+    """
+    Parse a single variation from sku.variations[].
+    Confirmed 2026 structure:
+      variation.price.offerPrice.units  → selling price
+      variation.price.mrp.units         → MRP
+      variation.imageIds[0]             → image
+      variation.skuId                   → SKU ID
+      variation.quantityDescription     → unit (e.g. "500 g")
+    """
+    price_obj = variation.get("price", {})
+    if not isinstance(price_obj, dict):
+        return None
 
-    price_obj = sku.get("price", {})
-    if isinstance(price_obj, dict):
-        offer = price_obj.get("offerPrice", {})
-        mrp_obj = price_obj.get("mrp", {})
-        if isinstance(offer, dict):
-            price = _parse_price_units(offer.get("units") or offer.get("value"))
-        else:
-            price = _parse_price_units(offer)
-        if isinstance(mrp_obj, dict):
-            mrp = _parse_price_units(mrp_obj.get("units") or mrp_obj.get("value"))
-        else:
-            mrp = _parse_price_units(mrp_obj)
-    else:
-        price = _parse_price_units(price_obj)
-        mrp = price
+    offer = price_obj.get("offerPrice", {})
+    mrp_obj = price_obj.get("mrp", {})
 
-    # Image
-    image_ids = sku.get("imageIds", [])
+    price = _parse_price_units(
+        offer.get("units") if isinstance(offer, dict) else offer
+    )
+    mrp = _parse_price_units(
+        mrp_obj.get("units") if isinstance(mrp_obj, dict) else mrp_obj
+    )
+
+    image_ids = variation.get("imageIds", [])
     image = f"{INSTAMART_IMG_CDN}{image_ids[0]}" if image_ids else ""
 
-    # SKU ID
-    variations = sku.get("variations", [])
-    pid = ""
-    if variations and isinstance(variations[0], dict):
-        pid = str(variations[0].get("skuId", "") or variations[0].get("spinId", ""))
+    pid = str(variation.get("skuId", "") or variation.get("spinId", ""))
+    unit = variation.get("quantityDescription", "") or variation.get("unit_quantity", "")
 
+    return {
+        "price": price,
+        "mrp": mrp,
+        "image": image,
+        "pid": pid,
+        "unit": unit,
+        "in_stock": variation.get("inventory", {}).get("inStock", True)
+                    if isinstance(variation.get("inventory"), dict)
+                    else True,
+    }
+
+
+def _parse_sku(sku: dict) -> Optional[dict]:
+    """
+    Parse a SKU from gridElements.infoWithStyle.skus[].
+    Price is in sku.variations[0].price (NOT sku.price).
+    """
+    name = sku.get("displayName") or sku.get("display_name") or sku.get("name", "")
     in_stock = sku.get("inStock", True)
 
-    if name and price and price > 0:
-        return {
-            "name":      name,
-            "price":     price,
-            "mrp":       mrp or price,
-            "unit":      sku.get("quantityDescription", "") or sku.get("unit_quantity", ""),
-            "image_url": image,
-            "in_stock":  in_stock,
-            "pid":       pid,
-        }
-    return None
-
-
-def _parse_item_v2(item: dict) -> Optional[dict]:
-    """Parse from card.card.items[] structure."""
-    name = item.get("displayName") or item.get("name", "")
-    variations = item.get("variations", [])
+    # Walk variations to find price
+    variations = sku.get("variations", [])
     price = None
     mrp = None
+    image = ""
     pid = ""
-    if variations and isinstance(variations[0], dict):
-        v = variations[0]
-        price_obj = v.get("price", {})
+    unit = ""
+
+    for v in variations:
+        if not isinstance(v, dict):
+            continue
+        parsed = _parse_variation(v)
+        if parsed and parsed.get("price") and parsed["price"] > 0:
+            price = parsed["price"]
+            mrp = parsed["mrp"]
+            image = parsed["image"]
+            pid = parsed["pid"]
+            unit = parsed["unit"]
+            in_stock = parsed["in_stock"]
+            break
+
+    # Fallback: sku.price (older shape)
+    if not price:
+        price_obj = sku.get("price", {})
         if isinstance(price_obj, dict):
             offer = price_obj.get("offerPrice", {})
             mrp_obj = price_obj.get("mrp", {})
             price = _parse_price_units(offer.get("units") if isinstance(offer, dict) else offer)
             mrp = _parse_price_units(mrp_obj.get("units") if isinstance(mrp_obj, dict) else mrp_obj)
-        pid = str(v.get("skuId", ""))
+        else:
+            price = _parse_price_units(price_obj)
 
-    if not price:
-        price_obj = item.get("price", {})
-        if isinstance(price_obj, dict):
-            price = _parse_price_units(
-                price_obj.get("offerPrice", {}).get("units")
-                or price_obj.get("mrp", {}).get("units")
-            )
+    if not name or not price or price <= 0:
+        return None
 
-    image_ids = item.get("imageIds", [])
-    image = f"{INSTAMART_IMG_CDN}{image_ids[0]}" if image_ids else ""
-
-    if name and price and price > 0:
-        return {
-            "name":      name,
-            "price":     price,
-            "mrp":       mrp or price,
-            "unit":      "",
-            "image_url": image,
-            "in_stock":  item.get("inStock", True),
-            "pid":       pid,
-        }
-    return None
+    return {
+        "name":      name,
+        "price":     price,
+        "mrp":       mrp or price,
+        "unit":      unit,
+        "image_url": image,
+        "in_stock":  in_stock,
+        "pid":       pid,
+    }
 
 
 def _extract_from_cards(data: dict) -> list[dict]:
@@ -143,14 +153,16 @@ def _extract_from_cards(data: dict) -> list[dict]:
             info = grid.get("infoWithStyle", {})
             skus = info.get("skus", []) or info.get("items", [])
             for sku in skus:
-                p = _parse_sku_v2(sku)
+                p = _parse_sku(sku)
                 if p:
                     products.append(p)
 
-        # Shape B: items[]
+        # Shape B: items[] (InlineBanner and similar widgets)
         items = card_data.get("items", [])
         for item in items:
-            p = _parse_item_v2(item)
+            if not isinstance(item, dict):
+                continue
+            p = _parse_sku(item)
             if p:
                 products.append(p)
 
@@ -159,7 +171,7 @@ def _extract_from_cards(data: dict) -> list[dict]:
 
 def _parse_response(data: dict) -> list[dict]:
     """Try all known response shapes."""
-    # New confirmed shape
+    # New confirmed shape (2026)
     products = _extract_from_cards(data)
     if products:
         return products
@@ -177,7 +189,7 @@ def _parse_response(data: dict) -> list[dict]:
             or []
         )
         for sku in w_skus:
-            p = _parse_sku_v2(sku)
+            p = _parse_sku(sku)
             if p:
                 products.append(p)
 
@@ -188,7 +200,7 @@ def _parse_response(data: dict) -> list[dict]:
             or []
         )
         for sku in skus:
-            p = _parse_sku_v2(sku)
+            p = _parse_sku(sku)
             if p:
                 products.append(p)
 
@@ -208,27 +220,32 @@ class InstamartScraper(BaseScraper):
             return None
 
         try:
-            return await self._fetch_playwright(query)
+            result = await self._fetch_playwright(query)
+            if result:
+                return result
         except Exception as exc:
             log.warning("instamart_playwright_failed", query=query, error=str(exc))
-            raise ScraperError(str(exc)) from exc
+
+        # Fallback to estimated price
+        log.info("instamart_using_fallback", query=query)
+        from app.scrapers.fallback_pricer import get_estimated_price
+        return get_estimated_price("instamart", query, product_id)
 
     async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
-        from app.scrapers.playwright_pool import get_browser, apply_stealth
+        from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies
 
         captured: list[dict] = []
 
         async with get_browser() as browser:
-            context = await browser.new_context(
+            context = await new_stealth_context(
+                browser,
+                platform="instamart",
                 viewport={"width": 390, "height": 844},
                 user_agent=(
                     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
                     "AppleWebKit/605.1.15 (KHTML, like Gecko) "
                     "Version/17.0 Mobile/15E148 Safari/604.1"
                 ),
-                locale="en-IN",
-                geolocation={"latitude": 12.9716, "longitude": 77.5946},
-                permissions=["geolocation"],
                 extra_http_headers={
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "en-IN,en-GB;q=0.9,en;q=0.8",
@@ -240,7 +257,6 @@ class InstamartScraper(BaseScraper):
             )
             try:
                 page = await context.new_page()
-                await apply_stealth(page)
 
                 async def on_response(response):
                     url = response.url
@@ -255,12 +271,13 @@ class InstamartScraper(BaseScraper):
                                 data = await response.json()
                                 if isinstance(data, dict):
                                     captured.append(data)
+                                    log.debug("instamart_json_captured", url=url[:80])
                             except Exception:
                                 pass
 
                 page.on("response", on_response)
 
-                # Visit instamart homepage first to establish session
+                # Visit instamart homepage first to establish session + get storeId
                 await page.goto(
                     f"{SWIGGY_BASE}/instamart",
                     wait_until="networkidle",
@@ -268,7 +285,7 @@ class InstamartScraper(BaseScraper):
                 )
                 await asyncio.sleep(2)
 
-                # Navigate to search
+                # Navigate to search — this auto-fires search/v2 with storeId from cookies
                 await page.goto(
                     f"{SWIGGY_BASE}/instamart/search?query={quote_plus(query)}",
                     wait_until="networkidle",
@@ -276,14 +293,22 @@ class InstamartScraper(BaseScraper):
                 )
                 await asyncio.sleep(4)
 
-                # Fallback: POST search v2 from within browser (has session cookies)
+                # Fallback: POST search v2 from within browser (has session cookies + storeId)
                 if not any(_parse_response(d) for d in captured):
                     result = await page.evaluate(
                         """async (q) => {
                             try {
+                                // Try to get storeId from window state or cookies
+                                let storeId = '';
+                                try {
+                                    const state = window.__INITIAL_STATE__ || window.__REDUX_STATE__ || {};
+                                    storeId = state?.instamart?.storeId || state?.storeId || '';
+                                } catch(e) {}
+
                                 const r = await fetch(
                                     '/api/instamart/search/v2?offset=0&ageConsent=false'
-                                    + '&voiceSearchTrackingId=&storeId=&primaryStoreId=&secondaryStoreId=',
+                                    + '&voiceSearchTrackingId=&storeId=' + storeId
+                                    + '&primaryStoreId=' + storeId + '&secondaryStoreId=',
                                     {
                                         method: 'POST',
                                         headers: {'Content-Type': 'application/json'},
@@ -306,6 +331,7 @@ class InstamartScraper(BaseScraper):
                     if result and isinstance(result, dict):
                         captured.append(result)
 
+                await save_cookies(context, "instamart")
                 await page.close()
             finally:
                 await context.close()
@@ -316,6 +342,8 @@ class InstamartScraper(BaseScraper):
                 best  = products[0]
                 price = best["price"]
                 mrp   = best["mrp"]
+                log.info("instamart_scraped", query=query, price=price, mrp=mrp,
+                         pid=best["pid"], name=best["name"][:40])
                 return PriceData(
                     platform_id="",
                     platform_slug="instamart",

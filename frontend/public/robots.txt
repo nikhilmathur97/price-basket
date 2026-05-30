@@ -1,9 +1,14 @@
 User-agent: *
 Allow: /
 
-# Disallow admin and API routes
+# Disallow admin, API, and auth routes from indexing
 Disallow: /admin/
 Disallow: /api/
+Disallow: /auth/
+Disallow: /cart/
+Disallow: /orders/
+Disallow: /profile/
+Disallow: /alerts/
 
 # Sitemap
 Sitemap: https://pricebasket.in/sitemap.xml

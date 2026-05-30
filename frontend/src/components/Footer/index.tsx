@@ -18,11 +18,24 @@ const BUSINESS_LINKS = [
 ];
 
 const EXPLORE_LINKS = [
-  { label: "Price Alerts",     href: "/alerts" },
-  { label: "Top Deals",        href: "/search?sort=discount" },
-  { label: "Compare Prices",   href: "/search" },
-  { label: "All Categories",   href: "/search" },
-  { label: "Track My Savings", href: "/profile" },
+  { label: "Price Alerts",          href: "/alerts" },
+  { label: "Top Deals",             href: "/search?sort=discount" },
+  { label: "Compare Prices",        href: "/search" },
+  { label: "Best Grocery Deals",    href: "/best-grocery-deals" },
+  { label: "Save Money Groceries",  href: "/save-money-groceries" },
+  { label: "Track My Savings",      href: "/profile" },
+];
+
+// SEO-rich comparison links — these pages rank for high-intent searches
+const COMPARE_LINKS = [
+  { label: "Blinkit vs Zepto",       href: "/compare/blinkit-vs-zepto" },
+  { label: "Zepto vs Instamart",     href: "/compare/zepto-vs-instamart" },
+  { label: "Blinkit vs BigBasket",   href: "/compare/blinkit-vs-bigbasket" },
+  { label: "BigBasket vs JioMart",   href: "/compare/bigbasket-vs-jiomart" },
+  { label: "Zepto vs BigBasket",     href: "/compare/zepto-vs-bigbasket" },
+  { label: "Blinkit vs Instamart",   href: "/compare/blinkit-vs-instamart" },
+  { label: "Amazon vs Blinkit",      href: "/compare/amazon-vs-blinkit" },
+  { label: "Flipkart vs Zepto",      href: "/compare/flipkart-vs-zepto" },
 ];
 
 const PLATFORMS = [
@@ -97,7 +110,7 @@ export function Footer() {
         <div className="max-w-screen-xl mx-auto px-4">
 
           {/* Links grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-8 py-8 border-b border-surface-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-8 border-b border-surface-200">
             <div>
               <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider mb-4">Useful Links</h3>
               <ul className="space-y-2.5">
@@ -128,6 +141,20 @@ export function Footer() {
               <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider mb-4">Resources</h3>
               <ul className="space-y-2.5">
                 {EXPLORE_LINKS.map((l) => (
+                  <li key={l.label}>
+                    <Link href={l.href} className="text-surface-500 hover:text-brand-600 text-sm transition-colors">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Compare links — high SEO value internal links */}
+            <div>
+              <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider mb-4">Compare Prices</h3>
+              <ul className="space-y-2.5">
+                {COMPARE_LINKS.map((l) => (
                   <li key={l.label}>
                     <Link href={l.href} className="text-surface-500 hover:text-brand-600 text-sm transition-colors">
                       {l.label}
@@ -182,6 +209,21 @@ export function Footer() {
             </div>
           </div>
 
+        </div>
+      </div>
+
+      {/* ── SEO keyword paragraph (crawlable, subtle styling) ── */}
+      <div className="bg-surface-50 border-t border-surface-200">
+        <div className="max-w-screen-xl mx-auto px-4 py-5">
+          <p className="text-[11px] text-surface-400 leading-relaxed text-center">
+            PriceBasket is India&apos;s #1 grocery price comparison platform. Compare prices on{" "}
+            <Link href="/compare/blinkit-vs-zepto" className="hover:text-brand-600 underline underline-offset-2">Blinkit vs Zepto</Link>,{" "}
+            <Link href="/compare/zepto-vs-instamart" className="hover:text-brand-600 underline underline-offset-2">Zepto vs Swiggy Instamart</Link>,{" "}
+            <Link href="/compare/blinkit-vs-bigbasket" className="hover:text-brand-600 underline underline-offset-2">Blinkit vs BigBasket</Link>,{" "}
+            <Link href="/compare/bigbasket-vs-jiomart" className="hover:text-brand-600 underline underline-offset-2">BigBasket vs JioMart</Link> and more.
+            Find the cheapest grocery delivery app in Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune and all major Indian cities.
+            Set free price alerts and save ₹500–₹2,000 every month on groceries.
+          </p>
         </div>
       </div>
 
