@@ -141,6 +141,7 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
   };
 
   // ── SoftwareApplication (for app store rich results) ─────────────────────
+  // aggregateRating removed — Google requires real verified reviews, not placeholder data
   const appSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -154,13 +155,6 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
       "@type": "Offer",
       price: "0",
       priceCurrency: "INR",
-    },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "4.8",
-      ratingCount: "2847",
-      bestRating: "5",
-      worstRating: "1",
     },
     screenshot: `${SITE_URL}/hero-basket.png`,
   };
