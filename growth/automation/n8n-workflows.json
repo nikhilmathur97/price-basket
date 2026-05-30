@@ -1,0 +1,502 @@
+{
+  "workflows": [
+    {
+      "name": "Workflow 1: Daily Content Pipeline (6am IST)",
+      "description": "Generates SEO blog post + all social posts every day at 6am IST. Zero manual work.",
+      "trigger": {
+        "type": "cron",
+        "schedule": "0 0 30 * * *",
+        "timezone": "Asia/Calcutta",
+        "label": "Every day at 6:00 AM IST"
+      },
+      "nodes": [
+        {
+          "id": "1",
+          "name": "Cron Trigger",
+          "type": "n8n-nodes-base.cron",
+          "parameters": { "triggerTimes": { "item": [{ "mode": "everyDay", "hour": 0, "minute": 30 }] } }
+        },
+        {
+          "id": "2",
+          "name": "Fetch Top Deal from PriceBasket API",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://pricebasket-api.onrender.com/api/v1/products/featured?limit=1",
+            "method": "GET",
+            "responseFormat": "json"
+          }
+        },
+        {
+          "id": "3",
+          "name": "Generate SEO Blog Post via Claude",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "headers": {
+              "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            "body": {
+              "model": "claude-3-5-sonnet-20241022",
+              "max_tokens": 2000,
+              "messages": [{
+                "role": "user",
+                "content": "Write a 1200-word SEO blog post for pricebasket.in about today's top grocery deal: {{ $json.items[0].name }}. Include: H1, H2s, H3s, FAQ section with 5 questions, 3 internal links to pricebasket.in compare pages, one CTA to pricebasket.in. Tone: friendly Hinglish. Target keyword: cheapest {{ $json.items[0].category }} online india. Output clean HTML."
+              }]
+            }
+          }
+        },
+        {
+          "id": "4",
+          "name": "Generate Instagram Caption via Claude",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "headers": {
+              "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            "body": {
+              "model": "claude-3-haiku-20240307",
+              "max_tokens": 600,
+              "messages": [{
+                "role": "user",
+                "content": "Write an Instagram caption for pricebasket.in about: {{ $json.items[0].name }}. Include price shock hook, comparison table with emojis, annual savings calculation, Hinglish tone, CTA to pricebasket.in, 20-25 hashtags. Under 2200 chars."
+              }]
+            }
+          }
+        },
+        {
+          "id": "5",
+          "name": "Generate Tweet via Claude",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "headers": {
+              "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            "body": {
+              "model": "claude-3-haiku-20240307",
+              "max_tokens": 300,
+              "messages": [{
+                "role": "user",
+                "content": "Write a viral tweet for pricebasket.in about today's deal: {{ $json.items[0].name }}. Include price comparison, savings amount, link to pricebasket.in, 3-4 hashtags. Under 280 chars."
+              }]
+            }
+          }
+        },
+        {
+          "id": "6",
+          "name": "Generate Social Card Image via Canva API",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.canva.com/rest/v1/designs",
+            "method": "POST",
+            "headers": {
+              "Authorization": "Bearer {{ $env.CANVA_API_TOKEN }}",
+              "content-type": "application/json"
+            },
+            "body": {
+              "design_type": "SocialMedia",
+              "title": "PriceBasket Deal: {{ $json.items[0].name }}"
+            }
+          }
+        },
+        {
+          "id": "7",
+          "name": "Schedule Instagram Post via Buffer",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.bufferapp.com/1/updates/create.json",
+            "method": "POST",
+            "body": {
+              "access_token": "={{ $env.BUFFER_TOKEN }}",
+              "text": "={{ $node['Generate Instagram Caption via Claude'].json.content[0].text }}",
+              "scheduled_at": "={{ new Date(Date.now() + 2*60*60*1000).toISOString() }}"
+            }
+          }
+        },
+        {
+          "id": "8",
+          "name": "Post Tweet via Twitter API",
+          "type": "n8n-nodes-base.twitter",
+          "parameters": {
+            "operation": "tweet",
+            "text": "={{ $node['Generate Tweet via Claude'].json.content[0].text }}"
+          }
+        },
+        {
+          "id": "9",
+          "name": "Publish Blog Post via PriceBasket API",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://pricebasket-api.onrender.com/api/v1/content/blog",
+            "method": "POST",
+            "headers": {
+              "Authorization": "Bearer {{ $env.ADMIN_API_TOKEN }}",
+              "content-type": "application/json"
+            },
+            "body": {
+              "title": "Today's Best Grocery Deal: {{ $json.items[0].name }}",
+              "content": "={{ $node['Generate SEO Blog Post via Claude'].json.content[0].text }}",
+              "category": "deals",
+              "published": true
+            }
+          }
+        },
+        {
+          "id": "10",
+          "name": "Submit Blog URL to Google Indexing API",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://indexing.googleapis.com/v3/urlNotifications:publish",
+            "method": "POST",
+            "headers": { "Authorization": "Bearer {{ $env.GOOGLE_INDEXING_TOKEN }}" },
+            "body": {
+              "url": "https://pricebasket.in/blog/{{ $node['Publish Blog Post via PriceBasket API'].json.slug }}",
+              "type": "URL_UPDATED"
+            }
+          }
+        },
+        {
+          "id": "11",
+          "name": "Send Slack Notification",
+          "type": "n8n-nodes-base.slack",
+          "parameters": {
+            "channel": "#growth-automation",
+            "text": "Daily content pipeline complete! Blog published, Instagram + Twitter scheduled. Deal: {{ $json.items[0].name }}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workflow 2: Price Drop Alert (Auto-post when product drops 10%+)",
+      "description": "Monitors price changes every 2 hours. When any product drops 10%+, auto-posts on all socials.",
+      "trigger": {
+        "type": "webhook",
+        "path": "/webhooks/price-drop",
+        "label": "Called by backend when price drops detected"
+      },
+      "nodes": [
+        {
+          "id": "1",
+          "name": "Webhook Trigger",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": { "path": "price-drop", "responseMode": "onReceived" }
+        },
+        {
+          "id": "2",
+          "name": "Check Drop Percentage",
+          "type": "n8n-nodes-base.if",
+          "parameters": {
+            "conditions": {
+              "number": [{ "value1": "={{ $json.drop_pct }}", "operation": "largerEqual", "value2": 10 }]
+            }
+          }
+        },
+        {
+          "id": "3",
+          "name": "Generate Alert Content via Claude",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "headers": {
+              "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            "body": {
+              "model": "claude-3-haiku-20240307",
+              "max_tokens": 400,
+              "messages": [{
+                "role": "user",
+                "content": "Write a PRICE DROP ALERT tweet for pricebasket.in. Product: {{ $json.product_name }}. Old price: Rs.{{ $json.old_price }}. New price: Rs.{{ $json.new_price }}. Platform: {{ $json.platform }}. Drop: {{ $json.drop_pct }}%. Include urgency, savings amount, link to pricebasket.in. Under 280 chars."
+              }]
+            }
+          }
+        },
+        {
+          "id": "4",
+          "name": "Post to Twitter",
+          "type": "n8n-nodes-base.twitter",
+          "parameters": {
+            "operation": "tweet",
+            "text": "={{ $node['Generate Alert Content via Claude'].json.content[0].text }}"
+          }
+        },
+        {
+          "id": "5",
+          "name": "Post to Instagram via Buffer",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.bufferapp.com/1/updates/create.json",
+            "method": "POST",
+            "body": {
+              "access_token": "={{ $env.BUFFER_TOKEN }}",
+              "text": "PRICE DROP ALERT! {{ $json.product_name }} dropped {{ $json.drop_pct }}% on {{ $json.platform }}! Now Rs.{{ $json.new_price }} (was Rs.{{ $json.old_price }}). Compare all prices: pricebasket.in #PriceAlert #GroceryDeals"
+            }
+          }
+        },
+        {
+          "id": "6",
+          "name": "Send Email Alert to Subscribers",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://pricebasket-api.onrender.com/api/v1/notifications/price-alert",
+            "method": "POST",
+            "headers": { "Authorization": "Bearer {{ $env.ADMIN_API_TOKEN }}" },
+            "body": {
+              "product_id": "={{ $json.product_id }}",
+              "new_price": "={{ $json.new_price }}",
+              "platform": "={{ $json.platform }}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workflow 3: Weekly Growth Report (Every Monday 9am IST)",
+      "description": "Pulls GA4 + Ads + Social data, generates report, emails to admin.",
+      "trigger": {
+        "type": "cron",
+        "schedule": "0 30 3 * * 1",
+        "timezone": "Asia/Calcutta",
+        "label": "Every Monday at 9:00 AM IST"
+      },
+      "nodes": [
+        {
+          "id": "1",
+          "name": "Cron Trigger",
+          "type": "n8n-nodes-base.cron",
+          "parameters": { "triggerTimes": { "item": [{ "mode": "everyWeek", "weekday": 1, "hour": 3, "minute": 30 }] } }
+        },
+        {
+          "id": "2",
+          "name": "Fetch GA4 Weekly Data",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://analyticsdata.googleapis.com/v1beta/properties/{{ $env.GA4_PROPERTY_ID }}:runReport",
+            "method": "POST",
+            "headers": { "Authorization": "Bearer {{ $env.GA4_ACCESS_TOKEN }}" },
+            "body": {
+              "dateRanges": [{ "startDate": "7daysAgo", "endDate": "today" }],
+              "metrics": [
+                { "name": "sessions" }, { "name": "activeUsers" },
+                { "name": "newUsers" }, { "name": "bounceRate" },
+                { "name": "averageSessionDuration" }
+              ]
+            }
+          }
+        },
+        {
+          "id": "3",
+          "name": "Fetch Google Ads Performance",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://googleads.googleapis.com/v14/customers/{{ $env.GOOGLE_ADS_CUSTOMER_ID }}/googleAds:search",
+            "method": "POST",
+            "headers": {
+              "Authorization": "Bearer {{ $env.GOOGLE_ADS_TOKEN }}",
+              "developer-token": "={{ $env.GOOGLE_ADS_DEV_TOKEN }}"
+            },
+            "body": {
+              "query": "SELECT campaign.name, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date DURING LAST_7_DAYS"
+            }
+          }
+        },
+        {
+          "id": "4",
+          "name": "Generate Report via Claude",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "headers": {
+              "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
+            },
+            "body": {
+              "model": "claude-3-5-sonnet-20241022",
+              "max_tokens": 1000,
+              "messages": [{
+                "role": "user",
+                "content": "Write a weekly growth report for pricebasket.in admin. GA4 data: {{ JSON.stringify($node['Fetch GA4 Weekly Data'].json) }}. Ads data: {{ JSON.stringify($node['Fetch Google Ads Performance'].json) }}. Format as HTML email with key metrics, trends, top wins, and 3 action items for next week."
+              }]
+            }
+          }
+        },
+        {
+          "id": "5",
+          "name": "Send Report Email",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.brevo.com/v3/smtp/email",
+            "method": "POST",
+            "headers": { "api-key": "={{ $env.BREVO_API_KEY }}" },
+            "body": {
+              "sender": { "name": "PriceBasket Growth Bot", "email": "growth@pricebasket.in" },
+              "to": [{ "email": "admin@pricebasket.in", "name": "Admin" }],
+              "subject": "Weekly Growth Report — PriceBasket.in",
+              "htmlContent": "={{ $node['Generate Report via Claude'].json.content[0].text }}"
+            }
+          }
+        },
+        {
+          "id": "6",
+          "name": "Post Summary to Slack",
+          "type": "n8n-nodes-base.slack",
+          "parameters": {
+            "channel": "#growth-reports",
+            "text": "Weekly report sent! Check email for full details. Dashboard: https://pricebasket.in/admin/growth"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workflow 4: New User Welcome Sequence",
+      "description": "Triggered on signup. Sends welcome email instantly, Day 3 report, Day 7 deals.",
+      "trigger": {
+        "type": "webhook",
+        "path": "/webhooks/new-user",
+        "label": "Called by backend on user registration"
+      },
+      "nodes": [
+        {
+          "id": "1",
+          "name": "Webhook: New User Registered",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": { "path": "new-user" }
+        },
+        {
+          "id": "2",
+          "name": "Send Welcome Email Instantly",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.brevo.com/v3/smtp/email",
+            "method": "POST",
+            "headers": { "api-key": "={{ $env.BREVO_API_KEY }}" },
+            "body": {
+              "sender": { "name": "PriceBasket", "email": "welcome@pricebasket.in" },
+              "to": [{ "email": "={{ $json.email }}", "name": "={{ $json.name }}" }],
+              "subject": "Welcome to PriceBasket! Here's how to save Rs.800/month",
+              "templateId": 1
+            }
+          }
+        },
+        {
+          "id": "3",
+          "name": "Wait 3 Days",
+          "type": "n8n-nodes-base.wait",
+          "parameters": { "amount": 3, "unit": "days" }
+        },
+        {
+          "id": "4",
+          "name": "Send Day 3 Savings Report",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.brevo.com/v3/smtp/email",
+            "method": "POST",
+            "headers": { "api-key": "={{ $env.BREVO_API_KEY }}" },
+            "body": {
+              "sender": { "name": "PriceBasket", "email": "deals@pricebasket.in" },
+              "to": [{ "email": "={{ $json.email }}", "name": "={{ $json.name }}" }],
+              "subject": "Your personalised savings report is ready",
+              "templateId": 2
+            }
+          }
+        },
+        {
+          "id": "5",
+          "name": "Wait 4 More Days",
+          "type": "n8n-nodes-base.wait",
+          "parameters": { "amount": 4, "unit": "days" }
+        },
+        {
+          "id": "6",
+          "name": "Send Day 7 Top Deals",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.brevo.com/v3/smtp/email",
+            "method": "POST",
+            "headers": { "api-key": "={{ $env.BREVO_API_KEY }}" },
+            "body": {
+              "sender": { "name": "PriceBasket", "email": "deals@pricebasket.in" },
+              "to": [{ "email": "={{ $json.email }}", "name": "={{ $json.name }}" }],
+              "subject": "Top 5 grocery deals this week — don't miss these!",
+              "templateId": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workflow 5: Viral Spike Response (Auto-boost as ad)",
+      "description": "When any post gets 10x normal engagement, auto-boost it as a paid ad.",
+      "trigger": {
+        "type": "webhook",
+        "path": "/webhooks/viral-spike",
+        "label": "Called when post engagement exceeds 10x baseline"
+      },
+      "nodes": [
+        {
+          "id": "1",
+          "name": "Webhook: Viral Spike Detected",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": { "path": "viral-spike" }
+        },
+        {
+          "id": "2",
+          "name": "Check Spike Multiplier",
+          "type": "n8n-nodes-base.if",
+          "parameters": {
+            "conditions": {
+              "number": [{ "value1": "={{ $json.engagement_multiplier }}", "operation": "largerEqual", "value2": 10 }]
+            }
+          }
+        },
+        {
+          "id": "3",
+          "name": "Create Meta Ad from Viral Post",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://graph.facebook.com/v18.0/act_{{ $env.META_AD_ACCOUNT_ID }}/ads",
+            "method": "POST",
+            "body": {
+              "name": "Viral Boost: {{ $json.post_id }}",
+              "adset_id": "={{ $env.META_ADSET_ID }}",
+              "creative": { "object_story_id": "={{ $json.post_id }}" },
+              "status": "ACTIVE"
+            }
+          }
+        },
+        {
+          "id": "4",
+          "name": "Notify Admin on Slack",
+          "type": "n8n-nodes-base.slack",
+          "parameters": {
+            "channel": "#viral-alerts",
+            "text": "VIRAL SPIKE! Post {{ $json.post_id }} got {{ $json.engagement_multiplier }}x normal engagement. Auto-boosted as ad with Rs.500 budget. Post: {{ $json.post_url }}"
+          }
+        },
+        {
+          "id": "5",
+          "name": "Cross-post to Other Platforms",
+          "type": "n8n-nodes-base.twitter",
+          "parameters": {
+            "operation": "tweet",
+            "text": "This post is going viral! {{ $json.post_content_snippet }} See why 10,000+ people are sharing this: pricebasket.in #Viral #GroceryDeals"
+          }
+        }
+      ]
+    }
+  ]
+}
