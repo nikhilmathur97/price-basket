@@ -160,61 +160,6 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
   };
 
   // ── FAQ schema (targets featured snippets) ────────────────────────────────
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "Which grocery app is cheapest in India — Blinkit, Zepto or BigBasket?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "It depends on the product. PriceBasket compares prices across all platforms in real-time. Typically, JioMart and BigBasket offer the lowest prices on staples like atta and rice, while Blinkit and Zepto are competitive on fresh produce. Use PriceBasket to compare instantly and save up to ₹500/month.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "How do I compare grocery prices across Blinkit, Zepto and Swiggy Instamart?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Visit PriceBasket.in, search for any product (e.g., 'Aashirvaad Atta 5kg'), and instantly see prices from Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart, Amazon Fresh and more — all on one page. No app download required.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Is PriceBasket free to use?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Yes, PriceBasket is completely free. We earn a small affiliate commission when you click through to buy from a platform, but this never affects the prices you see — we always show you the real, current price.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "How often are grocery prices updated on PriceBasket?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Prices are updated every 15–30 minutes using automated scrapers. You always see near-real-time prices. If a price seems outdated, click 'Refresh Prices' on any product page.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Can I set price alerts for grocery products?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Yes! Create a free account on PriceBasket and set price alerts for any product. We'll notify you by email when the price drops below your target on any platform.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Which cities does PriceBasket cover?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "PriceBasket covers all major Indian cities including Mumbai, Delhi, Bangalore, Hyderabad, Chennai, Pune, Kolkata, Ahmedabad, and more — wherever Blinkit, Zepto, BigBasket and other platforms deliver.",
-        },
-      },
-    ],
-  };
-
   // ── BreadcrumbList (per-page) ─────────────────────────────────────────────
   const breadcrumbSchema = breadcrumbs && breadcrumbs.length > 0
     ? {
@@ -275,12 +220,14 @@ export function StructuredData({ breadcrumbs, product, article }: StructuredData
       }
     : null;
 
+  // faqSchema removed from global layout — homepage and /faqs each define
+  // their own FAQPage schema inline. Two FAQPage schemas on one page causes
+  // Google Rich Results validation errors ("2 invalid items detected").
   const schemas = [
     organizationSchema,
     localBusinessSchema,
     websiteSchema,
     appSchema,
-    faqSchema,
     breadcrumbSchema,
     productSchema,
     articleSchema,
