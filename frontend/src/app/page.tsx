@@ -306,13 +306,31 @@ export default function HomePage() {
           </ol>
 
           <h2 className="text-base font-extrabold text-surface-900 mb-2">Why Use PriceBasket?</h2>
-          <p className="text-sm text-surface-600 leading-relaxed">
+          <p className="text-sm text-surface-600 leading-relaxed mb-3">
             Quick-commerce apps like Blinkit, Zepto and Swiggy Instamart charge different prices
             for the same product — sometimes a 20–40% difference. PriceBasket tracks prices for
             thousands of products across all major platforms and shows you who is cheapest right now.
             Set price alerts for your favourite products, optimise your cart to split orders across
             platforms, and never pay more than you have to for fresh fruits, vegetables, dairy,
             packaged staples or household items. 100% free, no app download needed.
+          </p>
+
+          <h2 className="text-base font-extrabold text-surface-900 mb-2">What Can You Compare?</h2>
+          <p className="text-sm text-surface-600 leading-relaxed mb-3">
+            Compare prices on everything — <strong>fresh fruits and vegetables</strong>, milk, eggs,
+            bread, atta, rice, cooking oil, pulses, packaged snacks, soft drinks, household
+            cleaners, personal care products, baby food and pet supplies. Search by product name
+            or brand (e.g. Amul, Aashirvaad, Tata, Parle, Maggi) and instantly see which
+            platform has the lowest price today.
+          </p>
+
+          <h2 className="text-base font-extrabold text-surface-900 mb-2">Which Cities Are Covered?</h2>
+          <p className="text-sm text-surface-600 leading-relaxed">
+            PriceBasket is available across all major Indian cities — <strong>Mumbai, Delhi,
+            Bangalore, Hyderabad, Chennai, Pune, Kolkata</strong> and Ahmedabad — wherever
+            Blinkit, Zepto, Swiggy Instamart, BigBasket or JioMart deliver. Prices shown are
+            based on your selected delivery location, so you always see the most accurate
+            comparison for your area.
           </p>
         </section>
 
