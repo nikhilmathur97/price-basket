@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
-import { HeroCarousel } from "@/components/HeroCarousel";
+
+// Code-split HeroCarousel — Framer Motion is heavy; deferring its JS chunk
+// reduces initial parse time and improves mobile LCP.
+const HeroCarousel = dynamic(
+  () => import("@/components/HeroCarousel").then((m) => m.HeroCarousel),
+  {
+    loading: () => (
+      <div className="h-48 md:h-56 bg-[#FC5A01] rounded-b-2xl animate-pulse" />
+    ),
+  }
+);
 
 export const metadata: Metadata = {
   title: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices",
