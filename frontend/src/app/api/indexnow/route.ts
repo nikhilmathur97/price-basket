@@ -50,6 +50,10 @@ const SEO_PAGES = [
   ...["bangalore", "mumbai", "delhi", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad"].flatMap(
     (city) => ["atta", "milk", "oil", "rice", "dal"].map((product) => `${SITE_URL}/price/${city}/${product}`)
   ),
+  // Platform deals pages — "[platform] offers today" cluster
+  ...["blinkit", "zepto", "bigbasket", "instamart", "jiomart", "amazon"].map(
+    (platform) => `${SITE_URL}/deals/${platform}`
+  ),
 ];
 
 async function submitToIndexNow(urls: string[]): Promise<{ success: boolean; results: Record<string, unknown> }> {

@@ -198,6 +198,33 @@ export default function BestGroceryDealsPage() {
           </div>
         </section>
 
+        {/* ── Deals by platform ── */}
+        <section className="mb-8">
+          <h2 className="text-xl font-extrabold text-surface-900 mb-4">
+            Today&apos;s Offers by App
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { slug: "blinkit",   label: "Blinkit Offers",      emoji: "🟡" },
+              { slug: "zepto",     label: "Zepto Discounts",     emoji: "🟣" },
+              { slug: "bigbasket", label: "BigBasket Sale",      emoji: "🟢" },
+              { slug: "instamart", label: "Instamart Offers",    emoji: "🟠" },
+              { slug: "jiomart",   label: "JioMart Deals",       emoji: "🔵" },
+              { slug: "amazon",    label: "Amazon Fresh Deals",  emoji: "🟧" },
+            ].map((d) => (
+              <Link key={d.slug} href={`/deals/${d.slug}`}
+                className="bg-white rounded-2xl border border-surface-100 p-4
+                           hover:border-brand-300 hover:shadow-md transition-all group text-center">
+                <div className="text-2xl mb-1">{d.emoji}</div>
+                <p className="font-extrabold text-surface-900 text-sm group-hover:text-brand-600">
+                  {d.label}
+                </p>
+                <span className="text-brand-500 text-[11px] font-bold">View deals →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* ── Popular comparisons ── */}
         <section className="mb-8">
           <h2 className="text-xl font-extrabold text-surface-900 mb-4">

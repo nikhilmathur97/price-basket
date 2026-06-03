@@ -7,6 +7,7 @@ import {
 } from "@/lib/server-api";
 import { FEATURED_MATCHUPS } from "@/lib/platforms";
 import { CITY_SLUGS, PRODUCT_SLUGS } from "@/lib/city-product-data";
+import { DEAL_PLATFORM_SLUGS } from "@/lib/deals-data";
 
 // Revalidate the sitemap every 6 hours so newly added products & posts get
 // discovered without rebuilding the whole site.
@@ -137,11 +138,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
 
+  // ── Platform deals pages — high-volume "[platform] offers today" cluster ────
+  const dealsRoutes: MetadataRoute.Sitemap = DEAL_PLATFORM_SLUGS.map((platform) => ({
+    url: `${base}/deals/${platform}`,
+    lastModified: now,
+    changeFrequency: "daily" as const,
+    priority: 0.9,
+  }));
+
   return [
     ...staticRoutes,
     ...productSeoRoutes,    // high buyer-intent pages — near top
     ...cityRoutes,          // local SEO pages
     ...cityProductRoutes,   // city × product intersection — 40 pages
+    ...dealsRoutes,         // platform deals — 28K+/mo "offers today" cluster
     ...compareRoutes,       // compare pages — high SEO value
     ...categoryRoutes,
     ...blogRoutes,
