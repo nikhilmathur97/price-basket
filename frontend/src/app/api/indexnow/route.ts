@@ -46,6 +46,10 @@ const SEO_PAGES = [
   `${SITE_URL}/compare/blinkit-vs-bigbasket`,
   `${SITE_URL}/compare/zepto-vs-bigbasket`,
   `${SITE_URL}/compare/bigbasket-vs-jiomart`,
+  // City × product pages — 40 combinations (8 cities × 5 products)
+  ...["bangalore", "mumbai", "delhi", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad"].flatMap(
+    (city) => ["atta", "milk", "oil", "rice", "dal"].map((product) => `${SITE_URL}/price/${city}/${product}`)
+  ),
 ];
 
 async function submitToIndexNow(urls: string[]): Promise<{ success: boolean; results: Record<string, unknown> }> {
