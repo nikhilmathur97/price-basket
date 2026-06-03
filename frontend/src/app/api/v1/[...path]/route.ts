@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 // BACKEND_URL is set in Vercel project env; falls back to custom domain (avoids Vercel SSRF block on .onrender.com IPs).
 const BACKEND =
-  process.env.BACKEND_URL ?? "https://api.test2.pricebasket.in";
+  process.env.BACKEND_URL ?? "https://api.pricebasket.in";
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;

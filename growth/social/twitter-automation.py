@@ -81,6 +81,20 @@ TWEET_LIBRARY = [
     "Checking prices before ordering groceries takes 30 seconds.\n\nNot checking costs ₹800/month.\n\npricebasket.in\n\n#GroceryHack",
     "🚨 PRICE ALERT: Maggi Noodles 12-pack is ₹108 on BigBasket vs ₹132 on Blinkit!\nSave ₹24 per pack 💰\npricebasket.in\n#Maggi #GroceryDeals",
     "India's smartest grocery shoppers use pricebasket.in\n\n✅ Compare 8 apps in 2 seconds\n✅ Free price alerts\n✅ Cart optimizer\n✅ No app needed\n\nJoin 10 lakh+ smart shoppers.\n\npricebasket.in",
+
+    # ── Hinglish / Desi voice ──────────────────────────────────────────────────
+    "Same Amul butter. Blinkit ₹58. Zepto ₹54. Instamart ₹61.\nTu kaunse app pe order karta hai? 👀\nCompare before you cart → pricebasket.in\n#QuickCommerce #SaveMoney",
+    "POV: tune ₹312 ka order kiya...\ndoosre app pe wahi cart ₹271 tha. 💔\n30 sec lagte hain compare karne mein.\npricebasket.in",
+    "Quick commerce ka sach:\nEk hi product. 5 apps. 5 alag daam.\nHum sabko ek jagah dikhate hain.\nCOMPARE • SAVE • SMART\npricebasket.in",
+    "Monthly grocery ₹8000?\nAvg PriceBasket user ~₹600–900/month bachata hai.\nBina app switch kiye.\npricebasket.in 🧡",
+    "Blinkit fast hai. Zepto bhi.\nPar sasta kaun? Wahi to question hai.\nAnswer: pricebasket.in 🧡",
+    "Dawai, doodh, atta, Maggi —\nHar cheez ka best price ek screen pe.\nOrder smart.\npricebasket.in",
+    "\"Bhai itna mehenga kyun?\"\nKyunki tune compare nahi kiya 😅\npricebasket.in lagta sirf 10 second.",
+    "Festive season aa raha hai.\nStock-up karne se pehle ek baar PriceBasket khol.\nSame saman. Kam paisa. 🛒\npricebasket.in",
+    "We don't sell groceries.\nWe just tell you who's cheapest today.\nNeutral. Fast. Free.\npricebasket.in 🧡",
+    "Zepto: ₹45. Instamart: ₹39. BigBasket: ₹42. JioMart: ₹37.\n(Today. On this item.)\nDaam roz badalte hain. Isiliye compare karo.\npricebasket.in",
+    "Tip: apne regular items pe price-drop alert set karo.\nHum tumhe batayenge jab sasta ho. 🔔\npricebasket.in",
+    "COMPARE • SAVE • SMART.\nTeen shabd. Ek aadat. Har order pe bachat.\n🧡 pricebasket.in",
 ]
 
 # ── Twitter client ────────────────────────────────────────────────────────────

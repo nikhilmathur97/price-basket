@@ -1,0 +1,58 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SESEmailSending",
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:SendTemplatedEmail",
+        "ses:SendBulkTemplatedEmail",
+        "ses:GetSendQuota",
+        "ses:GetSendStatistics",
+        "ses:ListIdentities",
+        "ses:VerifyEmailIdentity",
+        "ses:VerifyDomainIdentity",
+        "ses:VerifyDomainDkim",
+        "ses:CreateTemplate",
+        "ses:UpdateTemplate",
+        "ses:GetTemplate",
+        "ses:ListTemplates"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SNSSMSSending",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish",
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptions",
+        "sns:ListTopics",
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PinpointCampaigns",
+      "Effect": "Allow",
+      "Action": [
+        "mobiletargeting:SendMessages",
+        "mobiletargeting:SendUsersMessages",
+        "mobiletargeting:CreateCampaign",
+        "mobiletargeting:GetCampaign",
+        "mobiletargeting:ListCampaigns",
+        "mobiletargeting:CreateSegment",
+        "mobiletargeting:GetSegment",
+        "mobiletargeting:CreateEmailTemplate",
+        "mobiletargeting:CreateSmsTemplate",
+        "mobiletargeting:GetApplicationSettings",
+        "mobiletargeting:UpdateApplicationSettings"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

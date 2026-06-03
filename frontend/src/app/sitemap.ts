@@ -6,6 +6,7 @@ import {
   getAllPosts,
 } from "@/lib/server-api";
 import { FEATURED_MATCHUPS } from "@/lib/platforms";
+import { CITY_SLUGS, PRODUCT_SLUGS } from "@/lib/city-product-data";
 
 // Revalidate the sitemap every 6 hours so newly added products & posts get
 // discovered without rebuilding the whole site.
@@ -126,11 +127,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
+  // ── City × product pages — 40 combinations (8 cities × 5 products) ───────────
+  const cityProductRoutes: MetadataRoute.Sitemap = CITY_SLUGS.flatMap((city) =>
+    PRODUCT_SLUGS.map((product) => ({
+      url: `${base}/price/${city}/${product}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.88,
+    }))
+  );
+
   return [
     ...staticRoutes,
-    ...productSeoRoutes,  // high buyer-intent pages — near top
-    ...cityRoutes,        // local SEO pages
-    ...compareRoutes,     // compare pages — high SEO value
+    ...productSeoRoutes,    // high buyer-intent pages — near top
+    ...cityRoutes,          // local SEO pages
+    ...cityProductRoutes,   // city × product intersection — 40 pages
+    ...compareRoutes,       // compare pages — high SEO value
     ...categoryRoutes,
     ...blogRoutes,
     ...productRoutes,
