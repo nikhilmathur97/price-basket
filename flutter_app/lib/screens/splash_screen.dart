@@ -81,56 +81,51 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.brandOrange,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: ScaleTransition(
               scale: _scaleAnimation,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // ── Logo ────────────────────────────────────────────────
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // ── Real logo ────────────────────────────────────────────
+                    Image.asset(
+                      'assets/images/app_icon.png',
+                      width: 200,
+                      height: 200,
+                      fit: BoxFit.contain,
                     ),
-                    child: const Center(
-                      child: Text(
-                        '🧺',
-                        style: TextStyle(fontSize: 52),
+                    const SizedBox(height: 32),
+
+                    // ── Tagline ──────────────────────────────────────────────
+                    Text(
+                      'Compare · Save · Smart',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
 
-                  // ── App Name ─────────────────────────────────────────────
-                  const Text(
-                    'PriceBasket',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 60),
 
-                  // ── Tagline ──────────────────────────────────────────────
-                  Text(
-                    'Compare · Save · Smart',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0.5,
+                    // ── Loading indicator ────────────────────────────────────
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppTheme.brandOrange,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
