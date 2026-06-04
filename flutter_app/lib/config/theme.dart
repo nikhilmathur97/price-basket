@@ -34,7 +34,6 @@ class AppTheme {
         primary: brandOrange,
         secondary: brandOrangeDark,
         surface: cardBackground,
-        background: background,
       ),
       scaffoldBackgroundColor: background,
       appBarTheme: const AppBarTheme(

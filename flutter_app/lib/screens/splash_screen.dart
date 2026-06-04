@@ -103,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen>
                     const SizedBox(height: 32),
 
                     // ── Tagline ──────────────────────────────────────────────
-                    Text(
+                    const Text(
                       'Compare · Save · Smart',
                       style: TextStyle(
                         color: AppTheme.textSecondary,
@@ -116,7 +116,7 @@ class _SplashScreenState extends State<SplashScreen>
                     const SizedBox(height: 60),
 
                     // ── Loading indicator ────────────────────────────────────
-                    SizedBox(
+                    const SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(

@@ -24,25 +24,25 @@ class _Tab {
 }
 
 List<_Tab> _buildTabs() => [
-  _Tab(
+  const _Tab(
     label: 'Home',
     icon: Icons.home_outlined,
     activeIcon: Icons.home_rounded,
     url: '${AppConfig.baseUrl}/?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Search',
     icon: Icons.search_rounded,
     activeIcon: Icons.search_rounded,
     url: '${AppConfig.baseUrl}/search?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Cart',
     icon: Icons.shopping_cart_outlined,
     activeIcon: Icons.shopping_cart_rounded,
     url: '${AppConfig.baseUrl}/cart?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Me',
     icon: Icons.person_outline_rounded,
     activeIcon: Icons.person_rounded,
@@ -85,9 +85,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     DeepLinkService.startListening((String webUrl) {
       // Find which tab this URL belongs to, or default to Home
       int targetTab = 0;
-      if (webUrl.contains('/cart')) targetTab = 2;
-      else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) targetTab = 3;
-      else if (webUrl.contains('/search')) targetTab = 1;
+      if (webUrl.contains('/cart')) {
+        targetTab = 2;
+      } else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) {
+        targetTab = 3;
+      } else if (webUrl.contains('/search')) {
+        targetTab = 1;
+      }
 
       setState(() => _currentIndex = targetTab);
       _webViewKeys[targetTab].currentState?.loadUrl(webUrl);
