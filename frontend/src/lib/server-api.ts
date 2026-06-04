@@ -9,10 +9,14 @@
 import type { ProductWithPrices } from "@/types";
 import { STATIC_POSTS, getStaticPost, type BlogPost } from "@/lib/blog";
 
+// Server-side: use BACKEND_URL (set in Vercel env → AWS ALB).
+// Falls back to NEXT_PUBLIC_API_URL, then to the ALB DNS directly.
+// These run in Server Components / route handlers — never shipped to browser.
 const BACKEND =
+  process.env.BACKEND_URL ??
   process.env.API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "https://pricebasket-api.onrender.com";
+  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com";
 
 export const API_BASE = `${BACKEND.replace(/\/$/, "")}/api/v1`;
 export const SITE_URL = (
