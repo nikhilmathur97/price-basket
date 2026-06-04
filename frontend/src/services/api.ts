@@ -5,9 +5,10 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 import type { ProductWithPrices } from "@/types";
 
-// Browser calls the backend directly. CORS on the backend allows pricebasket.in and Vercel preview URLs.
-// Vercel's Edge proxy is NOT used — it fails with DNS_HOSTNAME_RESOLVED_PRIVATE for Render IPs.
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "https://pricebasket-api.onrender.com";
+// Browser API calls go through the Vercel proxy (/api/v1/*) by default.
+// Set NEXT_PUBLIC_API_URL in Vercel env vars to the AWS ALB for direct browser→ALB calls.
+// Empty string means "use relative URLs" → goes through Vercel proxy → ALB.
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const apiClient = axios.create({
   baseURL: `${BACKEND}/api/v1`,
@@ -51,8 +52,10 @@ apiClient.interceptors.response.use(
 
       isRefreshing = true;
       try {
-        const { data } = await axios.post(
-          `${BACKEND}/api/v1/auth/refresh`,
+        // Use apiClient (relative baseURL) so this works with both direct ALB
+        // and Vercel proxy — avoids hardcoded Render/ALB URL here.
+        const { data } = await apiClient.post(
+          "/auth/refresh",
           {},
           { withCredentials: true }
         );
