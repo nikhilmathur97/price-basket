@@ -19,15 +19,17 @@
 import { useEffect } from "react";
 
 // NEXT_PUBLIC_API_URL must be set in Vercel env vars to the AWS ALB URL.
-// Fallback: use the Vercel proxy route so it works even without the env var.
+// Fallback: empty string → relative URLs → Vercel proxy → ALB.
 const BACKEND =
   process.env.NEXT_PUBLIC_API_URL ?? "";
 
-// Use relative /api/v1/ping when no explicit backend URL is set
-// (goes through Vercel proxy → ALB). Use direct URL when set.
+// /ping is at root level on the backend (not under /api/v1/).
+// When BACKEND is set (direct ALB), use root /ping.
+// When using Vercel proxy, warm up via /api/v1/products/featured
+// (the most important cached endpoint — also warms Redis).
 const PING_URL = BACKEND
   ? `${BACKEND}/ping`
-  : "/api/v1/ping";
+  : "/api/v1/products/featured?limit=1";
 
 // Ping every 5 minutes (ECS is always-on, just keeping cache warm)
 const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000;
