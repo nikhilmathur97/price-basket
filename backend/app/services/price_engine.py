@@ -122,7 +122,7 @@ class PriceEngine:
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _fetch_and_persist(self, product_id: uuid.UUID) -> Optional[PriceBundle]:
-        # Load platforms
+        # Load platforms + product name in a single round-trip
         result = await self.db.execute(
             select(Platform).where(Platform.is_active == True, Platform.scraping_enabled == True)  # noqa: E712
         )
@@ -130,28 +130,47 @@ class PriceEngine:
         if not platforms:
             return None
 
-        # Fan-out scrape tasks
+        # Fetch product name once — reused by all scrapers (avoids N+1 db.get calls)
+        product = await self.db.get(Product, product_id)
+        product_name: str = product.name if product else ""
+
+        # Fan-out scrape tasks — all run concurrently with a shared timeout
         from app.scrapers import get_scraper  # lazy import to avoid circular
         scrape_tasks = [
-            self._safe_scrape(get_scraper(p.slug), p, product_id)
+            self._safe_scrape(get_scraper(p.slug), p, product_id, product_name)
             for p in platforms
         ]
-        price_results: List[Optional[PriceData]] = await asyncio.gather(*scrape_tasks)
+        # Cap total scrape time at 8 s so the response never hangs.
+        # return_exceptions=True so individual scraper failures don't cancel siblings.
+        try:
+            raw_results = await asyncio.wait_for(
+                asyncio.gather(*scrape_tasks, return_exceptions=True),
+                timeout=8.0,
+            )
+            price_results: List[Optional[PriceData]] = [
+                r for r in raw_results if isinstance(r, PriceData)
+            ]
+        except asyncio.TimeoutError:
+            log.warning("scrape_timeout", product_id=str(product_id))
+            price_results = []
 
         bundle = PriceBundle(product_id=str(product_id))
         bundle.prices = [r for r in price_results if r is not None]
         bundle.compute_highlights()
 
-        # Persist inline (same session, already in the request context)
-        await self._persist_prices(product_id, bundle)
+        # Persist in background — don't block the response
+        asyncio.create_task(self._persist_prices(product_id, bundle))
 
         return bundle
 
-    async def _safe_scrape(self, scraper, platform: Platform, product_id: uuid.UUID) -> Optional[PriceData]:
+    async def _safe_scrape(
+        self,
+        scraper,
+        platform: Platform,
+        product_id: uuid.UUID,
+        product_name: str = "",
+    ) -> Optional[PriceData]:
         try:
-            # Look up the product name so scrapers that query by name (e.g. Apify) can use it.
-            product = await self.db.get(Product, product_id)
-            product_name: str = product.name if product else ""
             data = await scraper.fetch_price(product_id, product_name=product_name)
             if data:
                 data.platform_id = str(platform.id)
@@ -159,7 +178,7 @@ class PriceEngine:
             return data
         except Exception as exc:
             log.warning("scrape_failed", platform=platform.slug, error=str(exc))
-            await self._record_failure(platform)
+            asyncio.create_task(self._record_failure_bg(platform.id))
             return None
 
     async def _persist_prices(self, product_id: uuid.UUID, bundle: PriceBundle) -> None:
@@ -221,12 +240,19 @@ class PriceEngine:
             log.error("price_persist_failed", product_id=str(product_id), error=str(exc))
 
     async def _record_failure(self, platform: Platform) -> None:
+        """Legacy sync version — kept for compatibility."""
+        await self._record_failure_bg(platform.id)
+
+    async def _record_failure_bg(self, platform_id: uuid.UUID) -> None:
+        """Background-safe failure recorder — uses its own session."""
         try:
-            await self.db.execute(
-                update(Platform)
-                .where(Platform.id == platform.id)
-                .values(scrape_failure_count=Platform.scrape_failure_count + 1)
-            )
-            await self.db.commit()
+            from app.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                await db.execute(
+                    update(Platform)
+                    .where(Platform.id == platform_id)
+                    .values(scrape_failure_count=Platform.scrape_failure_count + 1)
+                )
+                await db.commit()
         except Exception:
             pass

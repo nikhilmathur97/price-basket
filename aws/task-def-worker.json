@@ -1,0 +1,54 @@
+{
+  "family": "pricebasket-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::443414059511:role/pricebasket-ecs-exec-role",
+  "taskRoleArn": "arn:aws:iam::443414059511:role/pricebasket-ecs-exec-role",
+  "containerDefinitions": [
+    {
+      "name": "worker",
+      "image": "443414059511.dkr.ecr.ap-south-1.amazonaws.com/pricebasket-worker:latest",
+      "essential": true,
+      "secrets": [
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:SECRET_KEY::"
+        },
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:DATABASE_URL::"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:REDIS_URL::"
+        },
+        {
+          "name": "CELERY_BROKER_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:CELERY_BROKER_URL::"
+        },
+        {
+          "name": "CELERY_RESULT_BACKEND",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:CELERY_RESULT_BACKEND::"
+        }
+      ],
+      "environment": [
+        {"name": "ENVIRONMENT", "value": "production"},
+        {"name": "DATABASE_POOL_SIZE", "value": "5"},
+        {"name": "DATABASE_MAX_OVERFLOW", "value": "10"},
+        {"name": "PYTHONUNBUFFERED", "value": "1"},
+        {"name": "PYTHONDONTWRITEBYTECODE", "value": "1"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/pricebasket-worker",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "stopTimeout": 30
+    }
+  ]
+}

@@ -45,3 +45,8 @@ Thumbs.db
 logs/
 .vercel
 growth/agents/uptime_log.json
+
+# AWS — never commit generated secrets/outputs
+aws/outputs.env
+aws/*.env
+aws/set-credentials.sh

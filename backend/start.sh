@@ -116,4 +116,15 @@ else:
 PINGEOF
 
 echo "==> Starting uvicorn..."
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1
+# Workers: 2 for Render free tier (1 vCPU, 512 MB RAM).
+# --timeout-keep-alive 75: keeps connections alive longer under load.
+# --timeout-graceful-shutdown 30: clean shutdown on SIGTERM.
+# --limit-concurrency 100: prevent memory exhaustion under traffic spikes.
+exec uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port "${PORT:-8000}" \
+  --workers 2 \
+  --timeout-keep-alive 75 \
+  --timeout-graceful-shutdown 30 \
+  --limit-concurrency 100 \
+  --access-log

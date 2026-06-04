@@ -30,8 +30,8 @@ def _get_limit(path: str) -> tuple[int, int]:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip health / metrics endpoints
-        if request.url.path in {"/health", "/metrics"}:
+        # Skip health / metrics / ping endpoints
+        if request.url.path in {"/health", "/metrics", "/ping"}:
             return await call_next(request)
 
         redis = await get_redis()
@@ -68,6 +68,4 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-RateLimit-Limit"] = str(max_requests)
         response.headers["X-RateLimit-Remaining"] = str(max(0, max_requests - request_count))
-        return response
-
         return response

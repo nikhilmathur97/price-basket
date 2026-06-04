@@ -2,6 +2,8 @@
 FastAPI application entry point.
 Registers routers, middleware, event handlers, and health endpoints.
 """
+import asyncio
+import os
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -16,7 +18,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.cache.redis_client import close_redis, init_redis
+from app.cache.redis_client import close_redis, init_redis, cache_get, cache_set
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
 from app.middleware.rate_limiter import RateLimitMiddleware
@@ -24,6 +26,29 @@ from app.api.v1 import auth, products, cart, prices, users, admin, websocket, an
 from app.models.product import Product
 
 log = structlog.get_logger(__name__)
+
+# ── Self keep-alive: prevents Render free-tier cold starts ────────────────────
+_keepalive_task: asyncio.Task | None = None
+
+
+async def _self_ping_loop() -> None:
+    """
+    Ping our own /ping endpoint every 10 minutes so Render never idles the
+    service. Render free tier sleeps after 15 min of inactivity — this keeps
+    it permanently warm at zero cost. Uses httpx (already in requirements).
+    """
+    import httpx
+    await asyncio.sleep(60)  # wait 60 s after startup before first ping
+    port = int(os.environ.get("PORT", 8000))
+    url = f"http://localhost:{port}/ping"
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url)
+                log.debug("self_ping", status=resp.status_code)
+        except Exception as exc:
+            log.debug("self_ping_failed", error=str(exc))
+        await asyncio.sleep(600)  # every 10 minutes
 
 
 async def _auto_mark_featured() -> None:
@@ -42,6 +67,39 @@ async def _auto_mark_featured() -> None:
         log.warning("_auto_mark_featured failed — non-fatal, continuing startup")
 
 
+async def _warm_featured_cache() -> None:
+    """Pre-warm the featured products cache on startup so the first user request is instant."""
+    try:
+        from app.models.price import PlatformPrice
+        from sqlalchemy.orm import selectinload
+        cache_key = "featured:v2:60"
+        cached = await cache_get(cache_key)
+        if cached:
+            log.info("featured_cache_already_warm")
+            return
+        import json
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Product)
+                .where(Product.is_active.is_(True), Product.is_featured.is_(True))
+                .options(
+                    selectinload(Product.category),
+                    selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
+                )
+                .order_by(Product.created_at.desc())
+                .limit(60)
+            )
+            prods = result.scalars().all()
+            if prods:
+                from app.api.v1.products import _enrich
+                enriched = [_enrich(p, p.platform_prices) for p in prods]
+                out = [e.model_dump(mode="json") for e in enriched]
+                await cache_set(cache_key, json.dumps(out), 300)
+                log.info("featured_cache_warmed", count=len(prods))
+    except Exception as exc:
+        log.warning("warm_featured_cache_failed", error=str(exc))
+
+
 # ── Sentry (production only) ─────────────────────────────────────────────────
 if settings.SENTRY_DSN:
     sentry_sdk.init(
@@ -55,6 +113,7 @@ if settings.SENTRY_DSN:
 # ── Lifespan: startup / shutdown ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    global _keepalive_task
     log.info("Starting Price Basket API", version=settings.APP_VERSION, env=settings.APP_ENV)
 
     # Create DB tables (in production use Alembic migrations)
@@ -65,7 +124,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_redis()
     await _auto_mark_featured()
 
+    # Pre-warm featured products cache so first user request is instant
+    asyncio.create_task(_warm_featured_cache())
+
+    # Start self-ping keep-alive loop to prevent Render cold starts
+    if settings.is_production:
+        _keepalive_task = asyncio.create_task(_self_ping_loop())
+        log.info("self_keepalive_started")
+
     yield
+
+    # Cancel keep-alive loop on shutdown
+    if _keepalive_task and not _keepalive_task.done():
+        _keepalive_task.cancel()
+        try:
+            await _keepalive_task
+        except asyncio.CancelledError:
+            pass
 
     await close_redis()
     await engine.dispose()
@@ -124,6 +199,9 @@ def create_app() -> FastAPI:
     # ── Request ID + latency logging ──────────────────────────────────────────
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
+        # Skip noisy keep-alive pings from logs
+        if request.url.path in {"/ping", "/health"}:
+            return await call_next(request)
         start = time.perf_counter()
         response = await call_next(request)
         elapsed = (time.perf_counter() - start) * 1000
@@ -154,7 +232,17 @@ def create_app() -> FastAPI:
     # ── Health check ──────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], status_code=status.HTTP_200_OK)
     async def health():
-        return {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        from fastapi.responses import Response as FastAPIResponse
+        content = {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        resp = JSONResponse(content=content)
+        # Allow CDN/browser to cache health for 30 s — reduces origin hits
+        resp.headers["Cache-Control"] = "public, max-age=30, s-maxage=30"
+        return resp
+
+    # ── Lightweight ping for keep-alive probes (no logging overhead) ──────────
+    @app.get("/ping", tags=["Health"], status_code=status.HTTP_200_OK, include_in_schema=False)
+    async def ping():
+        return JSONResponse(content={"pong": True}, headers={"Cache-Control": "no-store"})
 
     # ── Global exception handler ─────────────────────────────────────────────
     @app.exception_handler(Exception)

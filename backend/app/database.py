@@ -27,6 +27,18 @@ engine = create_async_engine(
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     echo=settings.DEBUG,
     pool_pre_ping=True,
+    # Recycle connections every 30 min to avoid stale connections on Render
+    pool_recycle=1800,
+    # Wait max 10 s for a connection before raising; prevents request pile-up
+    pool_timeout=10,
+    # Async-friendly: connect_args for asyncpg
+    connect_args={
+        "command_timeout": 30,          # kill any query running > 30 s
+        "server_settings": {
+            "application_name": "pricebasket-api",
+            "statement_timeout": "25000",   # 25 s hard limit per statement
+        },
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(

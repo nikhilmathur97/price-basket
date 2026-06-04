@@ -160,21 +160,27 @@ export function HomeProductSections() {
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async () => {
-      const { data } = await api.getFeatured(60);
-      return data ?? [];
+      // 25 s timeout — if the backend is cold-starting, give it time to wake up
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 25_000);
+      try {
+        const { data } = await api.getFeatured(60);
+        return data ?? [];
+      } finally {
+        clearTimeout(timer);
+      }
     },
-    staleTime: 300_000,
-    gcTime: 600_000,
+    staleTime: 300_000,       // 5 min — don't refetch if data is fresh
+    gcTime: 600_000,          // 10 min — keep in memory after unmount
     refetchOnWindowFocus: false,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,                 // reduced from 3 — fail faster on real errors
+    retryDelay: 3_000,        // flat 3 s retry — no exponential backoff that blocks UI
   });
 
-  // After 15 s of loading, show a friendly "waking up" hint
-  // (Render free tier cold start can take 10-30s; don't alarm users prematurely)
+  // After 8 s of loading, show a friendly "waking up" hint
   useEffect(() => {
     if (!isLoading) return;
-    const t = setTimeout(() => setSlowLoad(true), 15_000);
+    const t = setTimeout(() => setSlowLoad(true), 8_000);
     return () => clearTimeout(t);
   }, [isLoading]);
 
