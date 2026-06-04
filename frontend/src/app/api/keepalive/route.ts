@@ -1,22 +1,21 @@
 /**
- * /api/keepalive — Vercel Cron Job endpoint
+ * /api/keepalive — health check endpoint (optionally called by cron or monitoring)
  * ─────────────────────────────────────────────────────────────────────────────
- * Runs every 10 minutes (configured in vercel.json) to ping the Render backend
- * and prevent it from going idle (Render free tier sleeps after 15 min).
- *
- * This is a server-side belt-and-suspenders complement to the client-side
- * BackendWarmup component — it keeps the backend warm even when no users
- * are actively browsing.
+ * Pings the AWS ECS backend /ping endpoint to verify it is reachable.
+ * ECS Fargate is always-on (no cold starts), so this is purely a health check.
  *
  * Security: Vercel automatically adds a `Authorization: Bearer <CRON_SECRET>`
  * header to cron requests. We verify it to prevent abuse.
  */
 import { NextResponse } from "next/server";
 
+// Server-side: use BACKEND_URL (set in Vercel env → AWS ALB).
+// Falls back to NEXT_PUBLIC_API_URL, then to the ALB DNS directly.
 const BACKEND =
+  process.env.BACKEND_URL ??
   process.env.API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "https://pricebasket-api.onrender.com";
+  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com";
 
 export const runtime = "edge"; // Edge runtime: lowest latency, no cold start
 
