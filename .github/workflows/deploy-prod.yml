@@ -40,11 +40,18 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:prod-${{ github.sha }}
 
+      - name: Register new ECS task definition (Prod)
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://aws/task-def-api.json \
+            --region ap-south-1
+
       - name: Force new ECS deployment (Prod)
         run: |
           aws ecs update-service \
             --cluster pricebasket-cluster \
-            --service pricebasket-api-prod \
+            --service pricebasket-api \
+            --task-definition pricebasket-api \
             --force-new-deployment \
             --region ap-south-1
 
@@ -52,9 +59,9 @@ jobs:
         run: |
           aws ecs wait services-stable \
             --cluster pricebasket-cluster \
-            --services pricebasket-api-prod \
+            --services pricebasket-api \
             --region ap-south-1
 
       # Vercel automatically deploys on push to main branch via its GitHub integration.
-      # No explicit Vercel deploy step is needed here — Vercel detects the push and
+      # No explicit Vercel deploy step needed — Vercel detects the push and
       # triggers a production deployment automatically.
