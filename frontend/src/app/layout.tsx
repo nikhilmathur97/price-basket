@@ -12,6 +12,7 @@ import { Footer } from "@/components/Footer";
 import { ChatBot } from "@/components/ChatBot";
 import { BackendWarmup } from "@/components/BackendWarmup";
 import { StructuredData } from "@/components/StructuredData";
+import { CommunityPopup } from "@/components/CommunityPopup";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -123,6 +124,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <BottomNav />
           <CartDrawer />
           <ChatBot />
+          <CommunityPopup />
           <Toaster
             position="top-center"
             containerStyle={{ zIndex: 999999 }}

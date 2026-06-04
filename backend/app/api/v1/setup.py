@@ -11,7 +11,7 @@ Endpoints:
 import asyncio
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import quote_plus
 
@@ -20,6 +20,7 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis_client import cache_delete_pattern
@@ -979,6 +980,9 @@ async def _do_load_scraped(db: AsyncSession):
 
     saved = 0
     skipped = 0
+    # Track (product_id, platform_id) pairs we've already processed in this batch
+    # to avoid duplicate inserts within the same JSON file
+    seen_prices: set[tuple] = set()
 
     for item in items:
         platform = platforms.get(item.get("platform", ""))
@@ -1001,6 +1005,8 @@ async def _do_load_scraped(db: AsyncSession):
         category = categories.get(cat_slug) or fallback_cat
 
         prod_slug = _slugify(name)[:255]
+
+        # Upsert product: select first, insert if missing
         res = await db.execute(select(Product).where(Product.slug == prod_slug))
         product = res.scalar_one_or_none()
         if not product:
@@ -1018,20 +1024,29 @@ async def _do_load_scraped(db: AsyncSession):
             db.add(product)
             await db.flush()
         else:
-            # Update image if missing
             if image_url and not product.image_url:
                 product.image_url = image_url
                 product.thumbnail_url = image_url
 
-        # Upsert platform price
+        product_id = product.id
+
+        # Skip duplicate (product, platform) pairs within this batch
+        price_key = (product_id, platform.id)
+        if price_key in seen_prices:
+            skipped += 1
+            continue
+        seen_prices.add(price_key)
+
+        disc = round(((mrp - price) / mrp) * 100, 1) if mrp > price else 0.0
+
+        # Check if price row already exists, update or insert
         pp_res = await db.execute(
             select(PlatformPrice).where(
-                PlatformPrice.product_id == product.id,
+                PlatformPrice.product_id == product_id,
                 PlatformPrice.platform_id == platform.id,
             )
         )
         pp = pp_res.scalars().first()
-        disc = round(((mrp - price) / mrp) * 100, 1) if mrp > price else 0.0
         if pp:
             pp.price = price
             pp.original_price = mrp
@@ -1039,10 +1054,11 @@ async def _do_load_scraped(db: AsyncSession):
             pp.discount_label = f"{int(disc)}% OFF" if disc >= 1 else None
             pp.is_available = True
             pp.platform_image_url = image_url
+            pp.source = "scrape"
         else:
-            pp = PlatformPrice(
+            db.add(PlatformPrice(
                 id=uuid.uuid4(),
-                product_id=product.id,
+                product_id=product_id,
                 platform_id=platform.id,
                 price=price,
                 original_price=mrp,
@@ -1051,9 +1067,12 @@ async def _do_load_scraped(db: AsyncSession):
                 is_available=True,
                 platform_image_url=image_url,
                 source="scrape",
-            )
-            db.add(pp)
+            ))
         saved += 1
+
+        # Commit in batches of 100 to avoid long transactions
+        if saved % 100 == 0:
+            await db.commit()
 
     await db.commit()
     await cache_delete_pattern("featured:*")

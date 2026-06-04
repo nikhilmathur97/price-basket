@@ -2,7 +2,8 @@ databases:
   - name: pricebasket-db
     databaseName: pricebasket_db
     user: pricebasket
-    plan: free
+    # Starter plan: no 90-day expiry, no connection limits, always-on
+    plan: starter
 
 services:
   # ── FastAPI Backend ─────────────────────────────────────────────────────────
@@ -12,7 +13,16 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python3 -m playwright install chromium --with-deps
     startCommand: bash start.sh
-    plan: free
+    # ─────────────────────────────────────────────────────────────────────────
+    # UPGRADE FROM FREE → STARTER ($7/month) to eliminate cold starts.
+    #
+    # Render Free tier:  sleeps after 15 min → 30-60s cold start for users
+    # Render Starter:    always-on, never sleeps, <1s response guaranteed
+    #
+    # This is the ONLY permanent fix for cold starts. All code-level keep-alive
+    # tricks (self-ping, Vercel cron) are workarounds for the free tier limit.
+    # ─────────────────────────────────────────────────────────────────────────
+    plan: starter
     healthCheckPath: /health
     envVars:
       - key: APP_ENV
@@ -88,7 +98,8 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python3 -m playwright install chromium --with-deps
     startCommand: celery -A app.workers.celery_app worker --beat --loglevel=info --concurrency=2
-    plan: free
+    # Starter plan keeps the worker always-on — no cold starts for scheduled tasks
+    plan: starter
     envVars:
       - key: APP_ENV
         value: production
@@ -187,5 +198,6 @@ services:
   # ── Redis ───────────────────────────────────────────────────────────────────
   - type: redis
     name: pricebasket-redis
-    plan: free
+    # Starter plan: persistent Redis, no eviction surprises, always-on
+    plan: starter
     maxmemoryPolicy: allkeys-lru

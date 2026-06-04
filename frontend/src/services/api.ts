@@ -3,6 +3,7 @@
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
+import type { ProductWithPrices } from "@/types";
 
 // Browser calls the backend directly. CORS on the backend allows pricebasket.in and Vercel preview URLs.
 // Vercel's Edge proxy is NOT used — it fails with DNS_HOSTNAME_RESOLVED_PRIVATE for Render IPs.
@@ -98,6 +99,8 @@ export const api = {
   searchProducts: (params: Record<string, string | number>) =>
     apiClient.get("/products", { params }),
   getProduct: (id: string) => apiClient.get(`/products/${id}`),
+  getBulkProducts: (ids: string[]) =>
+    apiClient.post<ProductWithPrices[]>("/products/bulk", { ids }),
 
   // Prices
   getProductPrices: (id: string, forceRefresh = false) =>

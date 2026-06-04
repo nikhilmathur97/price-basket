@@ -117,10 +117,15 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
 
 @router.get("/categories", response_model=List[CategoryOut])
 async def list_categories(db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import Response as FastAPIResponse
     cache_key = "categories:all"
     cached = await cache_get(cache_key)
     if cached:
-        return json.loads(cached)
+        return FastAPIResponse(
+            content=cached,
+            media_type="application/json",
+            headers={"X-Cache": "HIT", "Cache-Control": "public, max-age=300, s-maxage=300"},
+        )
 
     result = await db.execute(
         select(Category)
@@ -129,8 +134,13 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
     )
     categories = result.scalars().all()
     out = [CategoryOut.model_validate(c).model_dump(mode="json") for c in categories]
-    await cache_set(cache_key, json.dumps(out), 3600)
-    return out
+    serialised = json.dumps(out)
+    await cache_set(cache_key, serialised, 3600)
+    return FastAPIResponse(
+        content=serialised,
+        media_type="application/json",
+        headers={"X-Cache": "MISS", "Cache-Control": "public, max-age=300, s-maxage=300"},
+    )
 
 
 @router.get("/sitemap")
@@ -176,7 +186,13 @@ async def featured_products(
     cache_key = f"featured:v2:{limit}"
     cached = await cache_get(cache_key)
     if cached:
-        return json.loads(cached)
+        # Return raw JSON string directly — avoids double-serialisation overhead
+        from fastapi.responses import Response as FastAPIResponse
+        return FastAPIResponse(
+            content=cached,
+            media_type="application/json",
+            headers={"X-Cache": "HIT", "Cache-Control": "public, max-age=60, s-maxage=60"},
+        )
 
     result = await db.execute(
         select(Product)
@@ -206,9 +222,15 @@ async def featured_products(
 
     enriched = [_enrich(p, p.platform_prices) for p in products]
     out = [e.model_dump(mode="json") for e in enriched]
+    serialised = json.dumps(out)
     # Cache for 5 minutes
-    await cache_set(cache_key, json.dumps(out), 300)
-    return enriched
+    await cache_set(cache_key, serialised, 300)
+    from fastapi.responses import Response as FastAPIResponse
+    return FastAPIResponse(
+        content=serialised,
+        media_type="application/json",
+        headers={"X-Cache": "MISS", "Cache-Control": "public, max-age=60, s-maxage=60"},
+    )
 
 
 @router.get("", response_model=ProductSearchResult)
@@ -223,6 +245,20 @@ async def search_products(
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
+    # ── Cache key: hash all query params so identical searches are instant ────
+    import hashlib
+    cache_key = "search:v1:" + hashlib.md5(
+        f"{q}|{category_slug}|{platform_slug}|{min_price}|{max_price}|{sort}|{page}|{page_size}".encode()
+    ).hexdigest()
+    cached = await cache_get(cache_key)
+    if cached:
+        from fastapi.responses import Response as FastAPIResponse
+        return FastAPIResponse(
+            content=cached,
+            media_type="application/json",
+            headers={"X-Cache": "HIT"},
+        )
+
     stmt = (
         select(Product)
         .where(Product.is_active == True)  # noqa: E712
@@ -247,8 +283,19 @@ async def search_products(
             Category.slug == category_slug
         )
 
-    # Count total
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+    # Count total (use a lightweight count-only query)
+    count_stmt = select(func.count()).select_from(
+        select(Product.id)
+        .where(Product.is_active == True)  # noqa: E712
+        .filter(
+            *([or_(
+                Product.name.ilike(f"%{q}%"),
+                Product.brand.ilike(f"%{q}%"),
+                Product.description.ilike(f"%{q}%"),
+            )] if q else [])
+        )
+        .subquery()
+    )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Pagination
@@ -276,12 +323,98 @@ async def search_products(
             )
         )
 
-    return ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
+    out = ProductSearchResult(total=total, page=page, page_size=page_size, items=enriched)
+    serialised = out.model_dump_json()
+    # Cache search results for 2 minutes (short TTL so price changes propagate)
+    await cache_set(cache_key, serialised, 120)
+    from fastapi.responses import Response as FastAPIResponse
+    return FastAPIResponse(content=serialised, media_type="application/json", headers={"X-Cache": "MISS"})
 
 
 # Register /search as a concrete path alias — must appear in router.routes BEFORE /{product_id}
 # so Starlette matches it before the UUID wildcard.
 router.add_api_route("/search", search_products, response_model=ProductSearchResult, methods=["GET"])
+
+
+# ── Bulk product fetch ────────────────────────────────────────────────────────
+from pydantic import BaseModel as _BaseModel
+
+class BulkProductRequest(_BaseModel):
+    ids: List[str]
+
+
+@router.post("/bulk", response_model=List[ProductWithPrices])
+async def bulk_products(
+    body: BulkProductRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch multiple products by ID in a single DB round-trip.
+
+    Used by the cart page to replace N parallel ``GET /products/{id}`` calls
+    with one request. Cached per-product in Redis (same TTL as single-product
+    endpoint) so repeated cart loads are instant.
+    """
+    from fastapi.responses import Response as FastAPIResponse
+
+    if not body.ids:
+        return FastAPIResponse(content="[]", media_type="application/json",
+                               headers={"Cache-Control": "public, max-age=60, s-maxage=60"})
+
+    # Validate UUIDs — silently skip malformed ones
+    valid_ids: List[uuid.UUID] = []
+    for raw in body.ids:
+        try:
+            valid_ids.append(uuid.UUID(raw))
+        except ValueError:
+            pass
+
+    if not valid_ids:
+        return FastAPIResponse(content="[]", media_type="application/json",
+                               headers={"Cache-Control": "public, max-age=60, s-maxage=60"})
+
+    # Check Redis cache for each ID first
+    results: dict[str, str] = {}
+    missing_ids: List[uuid.UUID] = []
+    for pid in valid_ids:
+        cached = await cache_get(f"product:v1:{pid}")
+        if cached:
+            results[str(pid)] = cached
+        else:
+            missing_ids.append(pid)
+
+    # Fetch all cache-missing products in ONE query
+    if missing_ids:
+        stmt = (
+            select(Product)
+            .where(Product.id.in_(missing_ids), Product.is_active == True)  # noqa: E712
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
+            )
+        )
+        db_result = await db.execute(stmt)
+        products = db_result.scalars().all()
+
+        for product in products:
+            enriched = _enrich(product, product.platform_prices)
+            serialised = enriched.model_dump_json()
+            # Populate Redis cache (same TTL as single-product endpoint)
+            await cache_set(f"product:v1:{product.id}", serialised, 120)
+            results[str(product.id)] = serialised
+
+    # Reassemble in request order, skip any not found
+    out_parts = []
+    for pid in valid_ids:
+        s = results.get(str(pid))
+        if s:
+            out_parts.append(s)
+
+    combined = "[" + ",".join(out_parts) + "]"
+    return FastAPIResponse(
+        content=combined,
+        media_type="application/json",
+        headers={"X-Cache": "MIXED", "Cache-Control": "public, max-age=60, s-maxage=60"},
+    )
 
 
 async def _refresh_prices_background(product_id: uuid.UUID) -> None:
@@ -301,6 +434,20 @@ async def get_product(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
+    from fastapi.responses import Response as FastAPIResponse
+
+    # ── Cache hit: return instantly, refresh in background ────────────────────
+    cache_key = f"product:v1:{product_id}"
+    cached = await cache_get(cache_key)
+    if cached:
+        # Always schedule a background refresh so cache stays fresh
+        background_tasks.add_task(_refresh_prices_background, product_id)
+        return FastAPIResponse(
+            content=cached,
+            media_type="application/json",
+            headers={"X-Cache": "HIT", "Cache-Control": "public, max-age=60, s-maxage=60"},
+        )
+
     result = await db.execute(
         select(Product)
         .where(Product.id == product_id)
@@ -317,7 +464,15 @@ async def get_product(
     # with whatever prices are in the DB (seeded or previously scraped).
     background_tasks.add_task(_refresh_prices_background, product_id)
 
-    return _enrich(product, product.platform_prices)
+    enriched = _enrich(product, product.platform_prices)
+    serialised = enriched.model_dump_json()
+    # Cache individual product for 2 minutes
+    await cache_set(cache_key, serialised, 120)
+    return FastAPIResponse(
+        content=serialised,
+        media_type="application/json",
+        headers={"X-Cache": "MISS", "Cache-Control": "public, max-age=60, s-maxage=60"},
+    )
 
 
 @router.get("/{product_id}/buy/{platform_id}")

@@ -30,12 +30,12 @@ GitHub (nikhilmathur97/price-basket)
 GitHub Actions (.github/workflows/deploy.yml)
         │
         ├──► Vercel (Frontend — Next.js 14)
-        │         └── https://test2.pricebasket.in
+        │         └── https://pricebasket.in
         │
         └──► VPS Server via SSH (Backend — FastAPI)
                   ├── FastAPI on port 8000 (PM2)
                   ├── Celery Worker (PM2)
-                  └── Nginx reverse proxy → https://api.test2.pricebasket.in
+                  └── Nginx reverse proxy → https://api.pricebasket.in
 ```
 
 ---
@@ -52,7 +52,7 @@ GitHub Actions (.github/workflows/deploy.yml)
 | Frontend Hosting | Vercel |
 | Backend Hosting | VPS (PM2 + Nginx) |
 | CI/CD | GitHub Actions |
-| Domain | test2.pricebasket.in (Cloudflare DNS) |
+| Domain | pricebasket.in (Cloudflare DNS) |
 
 ---
 
@@ -124,17 +124,17 @@ vercel --yes
 #### 4. Add Environment Variables
 ```bash
 vercel env add NEXT_PUBLIC_API_URL production
-# Value: https://api.test2.pricebasket.in
+# Value: https://api.pricebasket.in
 
 vercel env add NEXT_PUBLIC_WS_URL production
-# Value: wss://api.test2.pricebasket.in
+# Value: wss://api.pricebasket.in
 ```
 
 #### 5. Add Custom Domain
 ```bash
-vercel domains add test2.pricebasket.in
+vercel domains add pricebasket.in
 # Vercel returned required DNS record:
-# A  test2  76.76.21.21
+# A  @  76.76.21.21
 ```
 
 ### Vercel Project Details
@@ -144,7 +144,7 @@ vercel domains add test2.pricebasket.in
 | Project Name | frontend |
 | Org ID | `team_KHLA60LqPLQzMO93fpdeNGmb` |
 | Project ID | `prj_uOOCdYAaTxLylSpOLA0mQTrPAQig` |
-| Production URL | https://test2.pricebasket.in |
+| Production URL | https://pricebasket.in |
 | Vercel Dashboard | https://vercel.com/nikhilmathur428-3892s-projects/frontend |
 
 ---
@@ -181,8 +181,8 @@ gh auth login --web
 echo "$VERCEL_TOKEN"      | gh secret set VERCEL_TOKEN      --repo nikhilmathur97/price-basket
 echo "$VERCEL_ORG_ID"     | gh secret set VERCEL_ORG_ID     --repo nikhilmathur97/price-basket
 echo "$VERCEL_PROJECT_ID" | gh secret set VERCEL_PROJECT_ID --repo nikhilmathur97/price-basket
-echo "https://api.test2.pricebasket.in" | gh secret set API_URL --repo nikhilmathur97/price-basket
-echo "wss://api.test2.pricebasket.in"   | gh secret set WS_URL  --repo nikhilmathur97/price-basket
+echo "https://api.pricebasket.in" | gh secret set API_URL --repo nikhilmathur97/price-basket
+echo "wss://api.pricebasket.in"   | gh secret set WS_URL  --repo nikhilmathur97/price-basket
 ```
 
 ---
@@ -364,20 +364,21 @@ cat ~/.ssh/id_rsa | gh secret set SERVER_SSH_KEY --repo nikhilmathur97/price-bas
 
 ## Custom Domain Setup
 
-Domain: `test2.pricebasket.in`
+Domain: `pricebasket.in`
 DNS Provider: Cloudflare
 
 ### DNS Records Added
 
 | Type | Name | Value | Purpose |
 |---|---|---|---|
-| `A` | `test2` | `76.76.21.21` | Points to Vercel (frontend) |
+| `A` | `@` | `76.76.21.21` | Points to Vercel (frontend) |
+| `CNAME` | `www` | `cname.vercel-dns.com` | www redirect to Vercel |
 | `A` | `api` | `YOUR_VPS_IP` | Points to VPS (backend API) |
 
 ### Vercel Domain Command
 ```bash
-vercel domains add test2.pricebasket.in
-# Success! Domain test2.pricebasket.in added to project frontend
+vercel domains add pricebasket.in
+# Success! Domain pricebasket.in added to project frontend
 ```
 
 ### SSL
@@ -430,12 +431,12 @@ sudo apt install nginx certbot python3-certbot-nginx -y
 sudo nano /etc/nginx/sites-available/pricebasket-api
 ```
 
-Nginx config for `api.test2.pricebasket.in`:
+Nginx config for `api.pricebasket.in`:
 
 ```nginx
 server {
     listen 80;
-    server_name api.test2.pricebasket.in;
+    server_name api.pricebasket.in;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -453,7 +454,7 @@ sudo ln -s /etc/nginx/sites-available/pricebasket-api /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # Enable HTTPS
-sudo certbot --nginx -d api.test2.pricebasket.in
+sudo certbot --nginx -d api.pricebasket.in
 ```
 
 ---
@@ -467,7 +468,7 @@ git add .
 git commit -m "your change"
 git push origin feature/price-basket
 # ↓ GitHub Actions fires automatically
-# ↓ Frontend builds and deploys to test2.pricebasket.in (~2 min)
+# ↓ Frontend builds and deploys to pricebasket.in (~2 min)
 # ↓ Backend pulls code and restarts on your server (~30 sec)
 ```
 
@@ -495,8 +496,8 @@ gh run view RUN_ID --repo nikhilmathur97/price-basket --log-failed
 
 | Variable | Value |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | `https://api.test2.pricebasket.in` |
-| `NEXT_PUBLIC_WS_URL` | `wss://api.test2.pricebasket.in` |
+| `NEXT_PUBLIC_API_URL` | `https://api.pricebasket.in` |
+| `NEXT_PUBLIC_WS_URL` | `wss://api.pricebasket.in` |
 
 ### Backend (`backend/.env`)
 
@@ -508,7 +509,7 @@ gh run view RUN_ID --repo nikhilmathur97/price-basket --log-failed
 | `REDIS_URL` | Redis connection URL |
 | `CELERY_BROKER_URL` | Redis URL for Celery broker |
 | `CELERY_RESULT_BACKEND` | Redis URL for Celery results |
-| `ALLOWED_ORIGINS` | `https://test2.pricebasket.in` |
+| `ALLOWED_ORIGINS` | `https://pricebasket.in` |
 | `SENTRY_DSN` | Optional — error tracking |
 | `APIFY_API_TOKEN` | Optional — price scraping |
 
@@ -520,9 +521,9 @@ See `backend/.env.production.example` for the full template.
 
 | Service | URL |
 |---|---|
-| Frontend | https://test2.pricebasket.in |
-| Backend API | https://api.test2.pricebasket.in |
-| API Docs (dev only) | https://api.test2.pricebasket.in/docs |
-| WebSocket | wss://api.test2.pricebasket.in/ws |
+| Frontend | https://pricebasket.in |
+| Backend API | https://api.pricebasket.in |
+| API Docs (dev only) | https://api.pricebasket.in/docs |
+| WebSocket | wss://api.pricebasket.in/ws |
 | Vercel Dashboard | https://vercel.com/nikhilmathur428-3892s-projects/frontend |
 | GitHub Actions | https://github.com/nikhilmathur97/price-basket/actions |
