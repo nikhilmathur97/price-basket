@@ -27,11 +27,11 @@ void main() async {
   // ── SharedPreferences ────────────────────────────────────────────────────
   final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  // ── Local notifications (FCM foreground display) ─────────────────────────
+  // ── Firebase + Local notifications ──────────────────────────────────────
+  // FcmService.init() initialises Firebase and local notifications.
+  // It is safe to call even before google-services.json / GoogleService-Info.plist
+  // are added — it will log a warning and continue without crashing.
   await FcmService.init();
-
-  // ── Firebase (uncomment after running flutterfire configure) ─────────────
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(
     ProviderScope(

@@ -44,6 +44,22 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # App icon generator — run: flutter pub run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
+# ── App icon configuration ─────────────────────────────────────────────────────
+# Place a 1024x1024 PNG at assets/images/app_icon.png then run:
+#   flutter pub run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FC5A01"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
+  remove_alpha_ios: true
+  web:
+    generate: false
 
 flutter:
   uses-material-design: true
