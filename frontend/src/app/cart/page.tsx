@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";  // still used for cart-all-prices
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -136,28 +136,8 @@ function ItemPlatformPrices({
 }
 
 // ── Cart Item Row ─────────────────────────────────────────────────────────────
-function CartItemRow({ item }: { item: CartItem }) {
+function CartItemRow({ item, platformPrices }: { item: CartItem; platformPrices: PlatformPrice[] }) {
   const { updateItem, removeItem } = useCartStore();
-  const isReal = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    item.product.id
-  );
-
-  const { data: productData } = useQuery<ProductWithPrices>({
-    queryKey: ["product-with-prices", item.product.id],
-    queryFn: async () => {
-      const { data } = await api.getProduct(item.product.id);
-      return data;
-    },
-    enabled: isReal,
-    staleTime: 5 * 60_000,
-  });
-
-  const mockProduct = !isReal
-    ? MOCK_PRODUCTS.find((p) => p.id === item.product.id)
-    : undefined;
-
-  const platformPrices: PlatformPrice[] =
-    (productData ?? mockProduct)?.platform_prices ?? [];
 
   async function handleQty(delta: number) {
     const next = item.quantity + delta;
@@ -361,28 +341,51 @@ export default function CartPage() {
   }, [hasHydrated, cartHydrated, isAuthenticated]);
 
   // ── ALL hooks must be called before any conditional return ──────────────────
-  // Fetch all product prices for the platform comparison sidebar
+  // Fetch all product prices for the platform comparison sidebar.
+  // Uses POST /products/bulk — ONE request for all cart items instead of N parallel calls.
   const { data: productsMap } = useQuery<Record<string, ProductWithPrices>>({
     queryKey: ["cart-all-prices", ...productIds],
     queryFn: async () => {
-      const pairs = await Promise.all(
-        productIds.map(async (id) => {
-          const isReal =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-          if (!isReal) {
-            return [id, MOCK_PRODUCTS.find((p) => p.id === id)] as const;
-          }
-          try {
-            const { data } = await api.getProduct(id);
-            return [id, data] as const;
-          } catch {
-            return [id, undefined] as const;
-          }
-        })
+      // Separate real UUIDs from mock IDs
+      const realIds = productIds.filter((id) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
       );
-      return Object.fromEntries(
-        pairs.filter(([, v]) => v !== undefined)
-      ) as Record<string, ProductWithPrices>;
+      const mockIds = productIds.filter((id) => !realIds.includes(id));
+
+      // Seed map with mock products (no network call needed)
+      const entries: [string, ProductWithPrices][] = mockIds
+        .map((id) => {
+          const m = MOCK_PRODUCTS.find((p) => p.id === id);
+          return m ? ([id, m] as [string, ProductWithPrices]) : null;
+        })
+        .filter(Boolean) as [string, ProductWithPrices][];
+
+      // Single bulk call for all real products
+      if (realIds.length > 0) {
+        try {
+          const { data } = await api.getBulkProducts(realIds);
+          for (const product of data) {
+            entries.push([product.id, product]);
+          }
+        } catch {
+          // Fallback: fetch individually if bulk endpoint fails
+          const fallback = await Promise.all(
+            realIds.map(async (id) => {
+              try {
+                const { data } = await api.getProduct(id);
+                return [id, data] as [string, ProductWithPrices];
+              } catch {
+                return null;
+              }
+            })
+          );
+          for (const pair of fallback) {
+            if (pair) entries.push(pair);
+          }
+        }
+      }
+
+      return Object.fromEntries(entries);
     },
     enabled: productIds.length > 0,
     staleTime: 5 * 60_000,
@@ -524,9 +527,17 @@ export default function CartPage() {
             Items &amp; Platform Prices
           </p>
           <AnimatePresence mode="popLayout">
-            {cart.items.map((item) => (
-              <CartItemRow key={item.id} item={item} />
-            ))}
+            {cart.items.map((item) => {
+              const pw = productsMap?.[item.product.id]
+                ?? MOCK_PRODUCTS.find((p) => p.id === item.product.id);
+              return (
+                <CartItemRow
+                  key={item.id}
+                  item={item}
+                  platformPrices={pw?.platform_prices ?? []}
+                />
+              );
+            })}
           </AnimatePresence>
         </div>
 
