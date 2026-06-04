@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.pricebasket.app",
+      "sha256_cert_fingerprints": [
+        "33:15:D0:40:1F:65:55:A0:B4:17:16:31:D0:59:BB:50:81:5B:B2:D9:C4:14:FE:A1:E2:52:F0:56:88:18:69:3A"
+      ]
+    }
+  }
+]
