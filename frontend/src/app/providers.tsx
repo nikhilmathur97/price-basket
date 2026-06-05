@@ -22,17 +22,17 @@ function GuestSession() {
 }
 
 function AuthBootstrap() {
-  const { hasHydrated, user, setUser, logout } = useAuthStore();
+  const { hasHydrated, user, accessToken, setUser, logout } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
 
   useEffect(() => {
     // Wait for the persisted auth store to rehydrate before doing anything.
     if (!hasHydrated) return;
 
-    // Case 1: user object is already in localStorage (returning user / page reload).
-    // Validate the session is still alive via api.me(), then always fetch the
-    // server-side cart so cross-device changes are reflected immediately.
-    if (user) {
+    // Case 1: We have BOTH user object AND accessToken in localStorage.
+    // This is the normal returning-user case. Validate session via api.me()
+    // (which will use the stored accessToken from the Axios interceptor).
+    if (user && accessToken) {
       api.me()
         .then(({ data }) => {
           setUser(data);
@@ -48,18 +48,40 @@ function AuthBootstrap() {
       return;
     }
 
-    // Case 2: no user in localStorage — try to restore session via refresh-token cookie.
-    api.me()
-      .then(({ data }) => {
-        setUser(data);
-        fetchCart().catch(() => {});
-      })
-      .catch(() => {
-        logout();
-        resetCart();
-      });
+    // Case 2: user in localStorage but no accessToken (old store format before
+    // the fix, or token was cleared). Try to restore via refresh-token cookie.
+    // Only attempt this if we have a user object — avoids unnecessary 401s for
+    // genuinely logged-out users.
+    if (user && !accessToken) {
+      api.me()
+        .then(({ data }) => {
+          setUser(data);
+          fetchCart().catch(() => {});
+        })
+        .catch(() => {
+          logout();
+          resetCart();
+        });
+      return;
+    }
+
+    // Case 3: No user at all — genuinely logged out. Do nothing.
+    // (Previously this called api.me() unconditionally which caused a 401 →
+    // refresh attempt → logout() cascade for every unauthenticated page load.)
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasHydrated]); // ← intentionally omit user/setUser/logout/fetchCart/resetCart
+  }, [hasHydrated]); // ← intentionally omit user/accessToken/setUser/logout/fetchCart/resetCart
+
+  // Listen for the pb-cart-refresh event dispatched by Flutter's refreshCart()
+  // so the cart page updates without a full page reload.
+  useEffect(() => {
+    function handleCartRefresh() {
+      fetchCart().catch(() => {});
+    }
+    window.addEventListener("pb-cart-refresh", handleCartRefresh);
+    return () => window.removeEventListener("pb-cart-refresh", handleCartRefresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return null;
 }
