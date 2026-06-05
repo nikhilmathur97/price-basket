@@ -12,9 +12,12 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 // BACKEND_URL is set in Vercel project env → AWS ALB.
-// Falls back to custom domain for local dev.
-const BACKEND =
-  process.env.BACKEND_URL ?? "https://api.test2.pricebasket.in";
+// Falls back to ALB DNS directly if env var is missing.
+const BACKEND = (
+  process.env.BACKEND_URL ??
+  process.env.API_URL ??
+  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com"
+).replace(/\/$/, "");
 
 // Paths whose GET responses should be cached at Vercel's CDN edge.
 // The backend already sends Cache-Control headers; we preserve them here.
