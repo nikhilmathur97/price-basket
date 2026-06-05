@@ -6,14 +6,15 @@ on:
   workflow_dispatch:  # allow manual trigger
 
 jobs:
-  # ── Deploy Frontend to Vercel ──────────────────────────────────────────────
-  # NOTE: Vercel also auto-deploys via its GitHub integration on every push to main.
-  # This job is a redundant explicit deploy — skipped if VERCEL_TOKEN is not set.
+  # ── Configure Vercel env (frontend auto-deploys via Vercel's Git integration) ──
+  # The frontend itself is deployed by Vercel's GitHub integration on push to main.
+  # This job only keeps the Vercel production env vars pointed at the Render backend.
+  # (An explicit `vercel build/deploy` here is both redundant and was failing with a
+  #  doubled `frontend/frontend` path because the Vercel project rootDir is already
+  #  `frontend` — so it has been removed.)
   deploy-frontend:
-    name: Deploy Frontend (Vercel)
+    name: Configure Vercel env (→ Render)
     runs-on: ubuntu-latest
-    outputs:
-      deployment_url: ${{ steps.deploy.outputs.url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,21 +56,6 @@ jobs:
           vercel env rm BACKEND_URL production --yes --token=$VERCEL_TOKEN 2>/dev/null || true
           echo "$RENDER_URL" | vercel env add BACKEND_URL production --token=$VERCEL_TOKEN
           echo "✅ Vercel env vars updated → $RENDER_URL"
-
-      - name: Deploy to Vercel
-        if: steps.check-vercel.outputs.skip != 'true'
-        id: deploy
-        working-directory: frontend
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          vercel build --prod --token=$VERCEL_TOKEN
-          URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
-          echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "✅ Deployed to: $URL"
 
   # ── Deploy Backend to Render ───────────────────────────────────────────────
   # Render also auto-deploys via its own GitHub integration on push to main.
