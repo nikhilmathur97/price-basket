@@ -7,6 +7,10 @@ import '../providers/cart_count_provider.dart';
 import '../providers/connectivity_provider.dart';
 import '../screens/webview_screen.dart';
 import '../services/deep_link_service.dart';
+import '../services/fcm_service.dart';
+
+// Search tab index — used to trigger focusSearch() on tap.
+const int _kSearchTabIndex = 1;
 
 /// Tab definition
 class _Tab {
@@ -69,6 +73,11 @@ class _MainShellState extends ConsumerState<MainShell> {
   // One GlobalKey per tab so we can call methods on each WebViewScreen
   late final List<GlobalKey<WebViewScreenState>> _webViewKeys;
 
+  // Tabs whose WebView has actually been opened. We only build a tab's WebView
+  // the first time it's visited (lazy load) so the app doesn't fire 4 page
+  // loads at startup; once built, IndexedStack keeps it alive.
+  final Set<int> _visitedTabs = {0};
+
   @override
   void initState() {
     super.initState();
@@ -79,23 +88,80 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
     _listenDeepLinks();
     _listenConnectivity();
+    _handleInitialDeepLink();
+    // Let notification taps navigate the WebView (active once FCM is configured).
+    FcmService.registerNavigator(_handleNotificationUrl);
+
+    // Bug 1 fix: make the status-bar area white + use light icons so the web
+    // app's white sticky header blends seamlessly into the status bar (Blinkit-
+    // style). This is set once at shell init and persists for the app lifetime.
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,          // transparent → Scaffold bg shows through
+        statusBarIconBrightness: Brightness.dark,    // dark icons on white bg (Android)
+        statusBarBrightness: Brightness.light,       // light bg → dark icons (iOS)
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    FcmService.unregisterNavigator();
+    super.dispose();
   }
 
   void _listenDeepLinks() {
-    DeepLinkService.startListening((String webUrl) {
-      // Find which tab this URL belongs to, or default to Home
-      int targetTab = 0;
-      if (webUrl.contains('/cart')) {
-        targetTab = 2;
-      } else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) {
-        targetTab = 3;
-      } else if (webUrl.contains('/search')) {
-        targetTab = 1;
-      }
+    // Links received while the app is already running (warm start).
+    DeepLinkService.startListening(_routeDeepLink);
+  }
 
-      setState(() => _currentIndex = targetTab);
+  /// Handles a deep link that cold-started the app (app was not running).
+  Future<void> _handleInitialDeepLink() async {
+    final String? webUrl = await DeepLinkService.getInitialDeepLink();
+    if (webUrl == null || !mounted) return;
+    _routeDeepLink(webUrl);
+  }
+
+  /// Routes a converted web URL to the matching tab, then loads it there.
+  void _routeDeepLink(String webUrl) {
+    // Find which tab this URL belongs to, or default to Home.
+    int targetTab = 0;
+    if (webUrl.contains('/cart')) {
+      targetTab = 2;
+    } else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) {
+      targetTab = 3;
+    } else if (webUrl.contains('/search')) {
+      targetTab = 1;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _currentIndex = targetTab;
+      _visitedTabs.add(targetTab);
+    });
+    // Defer the load: if this tab was just built (lazy), its WebView controller
+    // isn't ready until after this frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _webViewKeys[targetTab].currentState?.loadUrl(webUrl);
     });
+  }
+
+  /// Converts a notification payload (full URL, pricebasket:// deep link, or a
+  /// bare path) into a web URL and routes to it. Wired to FcmService taps.
+  void _handleNotificationUrl(String raw) {
+    if (raw.isEmpty) return;
+    String webUrl;
+    if (raw.startsWith('http')) {
+      webUrl = raw;
+    } else if (raw.startsWith('pricebasket://')) {
+      final String? converted = DeepLinkService.deepLinkToWebUrl(Uri.parse(raw));
+      if (converted == null) return;
+      webUrl = converted;
+    } else {
+      final String path = raw.startsWith('/') ? raw : '/$raw';
+      webUrl = '${AppConfig.baseUrl}$path';
+    }
+    _routeDeepLink(webUrl);
   }
 
   void _listenConnectivity() {
@@ -122,11 +188,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     return true;
   }
 
-  /// Navigate to a specific URL — used for deep links from notifications.
-  void navigateTo(String url) {
-    _webViewKeys[_currentIndex].currentState?.loadUrl(url);
-  }
-
   @override
   Widget build(BuildContext context) {
     final int cartCount = ref.watch(cartCountProvider);
@@ -141,19 +202,43 @@ class _MainShellState extends ConsumerState<MainShell> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: List.generate(_tabs.length, (i) {
-            return WebViewScreen(
-              key: _webViewKeys[i],
-              initialUrl: _tabs[i].url,
-            );
-          }),
+        // SafeArea keeps the WebView content below the status bar / notch.
+        // bottom: false — the bottom inset is handled by _NativeBottomNav.
+        body: SafeArea(
+          bottom: false,
+          child: IndexedStack(
+            index: _currentIndex,
+            children: List.generate(_tabs.length, (i) {
+              // Lazy: unvisited tabs render nothing until first opened, avoiding
+              // 4 simultaneous page loads at launch. Stays alive once built.
+              if (!_visitedTabs.contains(i)) {
+                return const SizedBox.shrink();
+              }
+              return WebViewScreen(
+                key: _webViewKeys[i],
+                initialUrl: _tabs[i].url,
+              );
+            }),
+          ),
         ),
         bottomNavigationBar: _NativeBottomNav(
           currentIndex: _currentIndex,
           cartCount: cartCount,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+              _visitedTabs.add(index);
+            });
+            // Bug 3 fix: when the Search tab is tapped, focus the web search
+            // input so the keyboard pops up immediately (Blinkit-style).
+            if (index == _kSearchTabIndex) {
+              // Defer one frame so the IndexedStack has made the WebView
+              // visible before we try to focus its input.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKeys[_kSearchTabIndex].currentState?.focusSearch();
+              });
+            }
+          },
           tabs: _tabs,
         ),
       ),

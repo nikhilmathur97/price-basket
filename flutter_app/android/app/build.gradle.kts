@@ -4,8 +4,13 @@ import java.io.FileInputStream
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
-    // Firebase — apply google-services plugin (requires google-services.json)
-    id("com.google.gms.google-services")
+}
+
+// Firebase — apply the google-services plugin only when google-services.json
+// is present. This lets local/dev builds (emulator testing) run without
+// Firebase configured, while production builds pick it up automatically.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 // ── Load signing properties ────────────────────────────────────────────────────
@@ -27,7 +32,7 @@ android {
 
     defaultConfig {
         applicationId = "in.pricebasket.app"
-        minSdk = 21   // Android 5.0+ (covers 99%+ of devices)
+        minSdk = flutter.minSdkVersion   // Android 5.0+ (covers 99%+ of devices)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

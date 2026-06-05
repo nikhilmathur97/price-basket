@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // ── Pre-launch task for "Full Rebuild + iOS" in launch.json ───────
+      // Runs flutter clean + pub get before the debugger launches.
+      "label": "flutter-clean-ios",
+      "type": "shell",
+      "command": "flutter clean && flutter pub get",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // ── Pre-launch task for "Full Rebuild + Android" in launch.json ───
+      "label": "flutter-clean-android",
+      "type": "shell",
+      "command": "flutter clean && flutter pub get",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // ── Manual: clean + run iOS from terminal ─────────────────────────
+      "label": "Flutter: Clean + Run iOS Simulator",
+      "type": "shell",
+      "command": "flutter clean && flutter pub get && flutter run -d 57338D15-3E0A-4531-9607-FA69602A24A4",
+      "group": { "kind": "build", "isDefault": true },
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // ── Manual: clean + run Android from terminal ─────────────────────
+      "label": "Flutter: Clean + Run Android Emulator",
+      "type": "shell",
+      "command": "flutter clean && flutter pub get && flutter run -d emulator-5554",
+      "group": "build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -354,7 +354,7 @@ CATEGORIES_DATA = [
     dict(slug="chicken-meat",      name="Chicken & Meat",      icon="🍗", display_order=7,  image_url=FOOD_IMG["chicken"], is_active=True),
     dict(slug="frozen-foods",      name="Frozen Foods",        icon="🧊", display_order=8,  image_url=FOOD_IMG["ice"],     is_active=True),
     dict(slug="baby-care",         name="Baby Care",           icon="👶", display_order=9,  image_url=FOOD_IMG["baby"],    is_active=True),
-    dict(slug="pet-care",          name="Pet Care",            icon="🐾", display_order=10, image_url=FOOD_IMG["pet"],     is_active=True),
+    dict(slug="pet-care",          name="Pet Care",            icon="🐾", display_order=10, image_url=FOOD_IMG["pet"],     is_active=False),
     dict(slug="staples",           name="Atta, Rice & Dal",    icon="🌾", display_order=11, image_url=FOOD_IMG["flour"],   is_active=True),
     dict(slug="oils-spices",       name="Oils & Spices",       icon="🫙", display_order=12, image_url=FOOD_IMG["oil"],     is_active=True),
     dict(slug="electronics",       name="Electronics",         icon="📱", display_order=13, image_url="https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop", is_active=True),

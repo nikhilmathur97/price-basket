@@ -43,6 +43,9 @@ class User(Base):
     notification_push: Mapped[bool] = mapped_column(Boolean, default=True)
     preferred_platforms: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of platform slugs
 
+    # Push notifications — FCM device token registered by the mobile app
+    fcm_token: Mapped[Optional[str]] = mapped_column(Text)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

@@ -70,6 +70,11 @@ class UserUpdate(BaseModel):
     notification_push: Optional[bool] = None
 
 
+class FCMTokenIn(BaseModel):
+    """Device push-notification token sent by the mobile app."""
+    token: str = Field(..., min_length=1, max_length=4096)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  Platform
 # ═════════════════════════════════════════════════════════════════════════════

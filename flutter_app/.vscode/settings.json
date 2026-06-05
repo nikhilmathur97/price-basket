@@ -1,0 +1,54 @@
+{
+  // ── Near-live hot restart ─────────────────────────────────────────────
+  // Auto-save ~1s after you stop typing, then hot RESTART on every save.
+  //
+  // Hot RELOAD  = patches running Dart code in-place (fast, ~200ms)
+  //              BUT does NOT re-run initState/initState, providers, or
+  //              SystemChrome calls → changes in main_shell.dart initState
+  //              won't appear until you manually hot-restart.
+  //
+  // Hot RESTART = re-runs main() from scratch (still fast, ~1-2s)
+  //              Picks up ALL Dart changes including initState, providers,
+  //              and SystemChrome overlay style.
+  //
+  // ⚠️  Native file changes (Info.plist, styles.xml, AndroidManifest.xml)
+  //     ALWAYS require a full rebuild. Use VS Code Run → "Full Rebuild + iOS"
+  //     or "Full Rebuild + Android" from the launch configurations.
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  "dart.flutterHotReloadOnSave": "never",
+  "dart.flutterHotRestartOnSave": true,
+
+  // Keep the Flutter DevTools available but don't auto-pop it on every run.
+  "dart.openDevTools": "flutter",
+  "dart.devToolsLocation": "external",
+
+  // Show the closing-label/widget guides that make Flutter trees readable.
+  "dart.previewFlutterUiGuides": true,
+  "dart.previewFlutterUiGuidesCustomTracking": true,
+
+  // ── Dart editor tuning ────────────────────────────────────────────────
+  // Format on *manual* save only — NOT on autosave — so the formatter never
+  // reflows half-typed code and yanks your cursor around mid-edit.
+  "[dart]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnType": true,
+    "editor.rulers": [80],
+    "editor.selectionHighlight": false,
+    "editor.suggestSelection": "first",
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off",
+    "editor.defaultFormatter": "Dart-Code.dart-code"
+  },
+
+  // Don't index build artifacts — keeps the analyzer and reload snappy.
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/.flutter-plugins": true,
+    "**/.flutter-plugins-dependencies": true
+  },
+  "search.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true
+  }
+}

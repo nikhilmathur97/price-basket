@@ -133,6 +133,36 @@ async def toggle_platform(
     return {"id": str(platform.id), "is_active": platform.is_active}
 
 
+@router.patch("/categories/{slug}")
+async def toggle_category(
+    slug: str,
+    is_active: bool,
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Enable or disable a category by slug. Also clears the Redis cache."""
+    from sqlalchemy import update as sa_update
+
+    result = await db.execute(
+        sa_update(Category)
+        .where(Category.slug == slug)
+        .values(is_active=is_active)
+        .returning(Category.id, Category.slug, Category.name, Category.is_active)
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Category '{slug}' not found")
+    await db.commit()
+
+    # Clear the categories cache so the change is visible immediately
+    try:
+        await cache_delete_pattern("categories:*")
+    except Exception:
+        pass  # Redis unavailable — cache will expire naturally
+
+    return {"id": str(row[0]), "slug": row[1], "name": row[2], "is_active": row[3]}
+
+
 # ── Product CRUD ──────────────────────────────────────────────────────────────
 
 @router.post("/products", status_code=201)

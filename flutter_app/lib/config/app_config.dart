@@ -4,6 +4,10 @@ class AppConfig {
   // ── URLs ──────────────────────────────────────────────────────────────────
   static const String baseUrl = 'https://pricebasket.in';
 
+  // Backend API base. The Next.js frontend proxies /api/* → FastAPI backend,
+  // so native API calls (e.g. FCM token registration) go through the same host.
+  static String get apiBaseUrl => '$baseUrl/api/v1';
+
   // For local Android emulator testing: 'http://10.0.2.2:3000'
   // For local iOS simulator testing:    'http://localhost:3000'
   // static const String baseUrl = 'http://10.0.2.2:3000';
@@ -13,9 +17,10 @@ class AppConfig {
   static const String appVersion = '1.0.0';
   static const String bundleId = 'in.pricebasket.app';
 
-  // ── Custom User-Agent (detected by web app to hide web BottomNav) ─────────
-  static const String userAgent =
-      'PriceBasketApp/1.0 Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36';
+  // ── Custom User-Agent token (detected by web app to hide web BottomNav) ───
+  // The web app checks navigator.userAgent.includes('PriceBasketApp'); the full
+  // per-platform UA string is assembled in webview_screen_mobile.dart.
+  static const String userAgentToken = 'PriceBasketApp/1.0';
 
   // ── Query param appended to all WebView URLs ──────────────────────────────
   static const String sourceParam = '?source=app';

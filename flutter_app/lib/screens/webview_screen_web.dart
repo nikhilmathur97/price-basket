@@ -24,6 +24,9 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
   /// No-op on web.
   Future<void> reload() async {}
 
+  /// No-op on web — keeps the API in parity with the mobile WebViewScreen.
+  void focusSearch() {}
+
   @override
   Widget build(BuildContext context) {
     return Container(

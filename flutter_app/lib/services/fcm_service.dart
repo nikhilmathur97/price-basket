@@ -1,7 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+
+import '../config/app_config.dart';
 
 /// Firebase Cloud Messaging service.
 ///
@@ -21,6 +27,38 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 class FcmService {
   static FlutterLocalNotificationsPlugin? _localNotifications;
   static bool _firebaseReady = false;
+
+  // ── Notification-tap navigation ─────────────────────────────────────────
+  // MainShell registers a callback so a notification tap can open the right
+  // page in the WebView. If a tap arrives before MainShell is ready (cold
+  // start from a terminated state), the payload is held and flushed on register.
+  static void Function(String url)? _navigator;
+  static String? _pendingUrl;
+
+  /// Registers the navigation callback and flushes any pending payload.
+  static void registerNavigator(void Function(String url) callback) {
+    _navigator = callback;
+    final String? pending = _pendingUrl;
+    if (pending != null) {
+      _pendingUrl = null;
+      callback(pending);
+    }
+  }
+
+  /// Clears the navigation callback (call from State.dispose).
+  static void unregisterNavigator() => _navigator = null;
+
+  /// Routes a notification payload to the registered navigator, or buffers it
+  /// until one registers.
+  static void _emitNavigation(String? url) {
+    if (url == null || url.isEmpty) return;
+    final callback = _navigator;
+    if (callback != null) {
+      callback(url);
+    } else {
+      _pendingUrl = url;
+    }
+  }
 
   static Future<void> init() async {
     if (kIsWeb) {
@@ -121,30 +159,70 @@ class FcmService {
     // Background/terminated tap handler
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('[FCM] Notification tapped (background): ${message.data}');
-      // Deep link handling — wire up when needed
+      _emitNavigation(message.data['url']);
     });
 
     // Check if app was launched from a notification
     final RemoteMessage? initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) {
       debugPrint('[FCM] App launched from notification: ${initialMessage.data}');
+      _emitNavigation(initialMessage.data['url']);
     }
   }
 
-  /// POST FCM token to backend so server can send targeted push notifications.
+  static const FlutterSecureStorage _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  /// POST the FCM token to the backend (POST /api/v1/users/fcm-token) so the
+  /// server can target this device with push notifications.
+  ///
+  /// The token is always persisted locally; it is only sent to the backend
+  /// when a JWT is available (user logged in). If the user isn't logged in yet,
+  /// [syncTokenAfterLogin] re-registers it once auth completes.
   static Future<void> _registerTokenWithBackend(String token) async {
-    // TODO: Call POST /api/v1/users/fcm-token with the token
-    // This endpoint needs to be created on the backend.
-    // Example:
-    // await apiClient.post('/users/fcm-token', data: {'token': token});
-    debugPrint('[FCM] Token ready for backend registration: $token');
+    await _storage.write(key: AppConfig.keyFcmToken, value: token);
+
+    final String? jwt = await _storage.read(key: AppConfig.keyJwtToken);
+    if (jwt == null || jwt.isEmpty) {
+      debugPrint('[FCM] No JWT yet — token saved, will register after login');
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/users/fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwt',
+        },
+        body: jsonEncode({'token': token}),
+      );
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        debugPrint('[FCM] Token registered with backend');
+      } else {
+        debugPrint('[FCM] Token registration failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('[FCM] Token registration error: $e');
+    }
+  }
+
+  /// Re-register the stored FCM token after the user logs in.
+  /// Called by AuthBridgeService once a JWT becomes available.
+  static Future<void> syncTokenAfterLogin() async {
+    if (kIsWeb) return;
+    final String? token = await _storage.read(key: AppConfig.keyFcmToken);
+    if (token != null && token.isNotEmpty) {
+      await _registerTokenWithBackend(token);
+    }
   }
 
   static void _onNotificationTap(NotificationResponse response) {
     final String? payload = response.payload;
     if (payload != null && payload.isNotEmpty) {
       debugPrint('[FCM] Notification tapped — payload: $payload');
-      // DeepLinkService.handleDeepLink(payload) — wire up when FCM is live
+      _emitNavigation(payload);
     }
   }
 

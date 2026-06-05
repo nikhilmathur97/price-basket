@@ -14,5 +14,11 @@
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Make the status bar transparent so Flutter can draw edge-to-edge.
+             SystemChrome.setSystemUIOverlayStyle() in main_shell.dart then
+             sets the icon brightness to dark (white background, Blinkit-style). -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 </resources>

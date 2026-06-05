@@ -72,6 +72,11 @@
 		</dict>
 	</dict>
 
+	<!-- ── Status bar: let Flutter control icon brightness (dark icons on white) ── -->
+	<!-- Without this key = false, SystemChrome.setSystemUIOverlayStyle is ignored on iOS -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

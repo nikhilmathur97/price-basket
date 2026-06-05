@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // ── Primary: iOS Simulator ─────────────────────────────────────────
+      // Use this for day-to-day development.
+      // Hot RESTART (not reload) is triggered on save — restarts main() so
+      // all Dart state is re-initialised. Faster than a full rebuild.
+      //
+      // ⚠️  When you change Info.plist, styles.xml, or any native file,
+      //     you MUST stop this and run "Full Rebuild + iOS" below.
+      "name": "iOS Simulator (hot restart)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "57338D15-3E0A-4531-9607-FA69602A24A4",
+      "flutterMode": "debug",
+      "args": ["--dart-define=FLUTTER_ENV=dev"]
+    },
+    {
+      // ── Full rebuild: iOS ──────────────────────────────────────────────
+      // Run this whenever you change:
+      //   • ios/Runner/Info.plist
+      //   • ios/Runner/AppDelegate.swift
+      //   • Any Podfile / native iOS file
+      // It runs flutter clean + flutter run from scratch.
+      "name": "Full Rebuild + iOS",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "57338D15-3E0A-4531-9607-FA69602A24A4",
+      "flutterMode": "debug",
+      "preLaunchTask": "flutter-clean-ios"
+    },
+    {
+      // ── Android Emulator ───────────────────────────────────────────────
+      "name": "Android Emulator (hot restart)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554",
+      "flutterMode": "debug"
+    },
+    {
+      // ── Full rebuild: Android ──────────────────────────────────────────
+      // Run this whenever you change:
+      //   • android/app/src/main/res/values/styles.xml
+      //   • AndroidManifest.xml
+      //   • Any native Android file
+      "name": "Full Rebuild + Android",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554",
+      "flutterMode": "debug",
+      "preLaunchTask": "flutter-clean-android"
+    }
+  ]
+}
