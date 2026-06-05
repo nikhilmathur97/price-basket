@@ -11,12 +11,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// BACKEND_URL is set in Vercel project env → AWS ALB.
-// Falls back to ALB DNS directly if env var is missing.
+// BACKEND_URL is set in Vercel project env → Render backend.
+// Falls back to the Render URL directly if the env var is missing or empty
+// (|| not ?? so an empty-string env var also falls through to the default).
 const BACKEND = (
-  process.env.BACKEND_URL ??
-  process.env.API_URL ??
-  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com"
+  process.env.BACKEND_URL ||
+  process.env.API_URL ||
+  "https://pricebasket-api.onrender.com"
 ).replace(/\/$/, "");
 
 // Paths whose GET responses should be cached at Vercel's CDN edge.

@@ -1,21 +1,23 @@
 /**
  * /api/keepalive — health check endpoint (optionally called by cron or monitoring)
  * ─────────────────────────────────────────────────────────────────────────────
- * Pings the AWS ECS backend /ping endpoint to verify it is reachable.
- * ECS Fargate is always-on (no cold starts), so this is purely a health check.
+ * Pings the Render backend /ping endpoint to verify it is reachable.
+ * The Render Starter plan is always-on (no cold starts), so this is purely a
+ * health check.
  *
  * Security: Vercel automatically adds a `Authorization: Bearer <CRON_SECRET>`
  * header to cron requests. We verify it to prevent abuse.
  */
 import { NextResponse } from "next/server";
 
-// Server-side: use BACKEND_URL (set in Vercel env → AWS ALB).
-// Falls back to NEXT_PUBLIC_API_URL, then to the ALB DNS directly.
+// Server-side: use BACKEND_URL (set in Vercel env → Render backend).
+// Falls back to API_URL / NEXT_PUBLIC_API_URL, then the Render URL directly
+// (|| not ?? so an empty-string env var also falls through to the default).
 const BACKEND =
-  process.env.BACKEND_URL ??
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com";
+  process.env.BACKEND_URL ||
+  process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://pricebasket-api.onrender.com";
 
 export const runtime = "edge"; // Edge runtime: lowest latency, no cold start
 

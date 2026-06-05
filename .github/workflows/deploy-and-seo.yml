@@ -39,20 +39,22 @@ jobs:
         if: steps.check-vercel.outputs.skip != 'true'
         run: npm install -g vercel@latest
 
-      - name: Set Vercel env vars (API_URL → AWS ALB)
+      - name: Set Vercel env vars (API_URL → Render backend)
         if: steps.check-vercel.outputs.skip != 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          ALB_URL="http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com"
-          # Remove then re-add (--force not supported in all CLI versions)
+          RENDER_URL="https://pricebasket-api.onrender.com"
+          # Remove then re-add (--force not supported in all CLI versions).
+          # Use `echo` (with trailing newline) — `printf '%s'` makes the CLI store
+          # an empty value in non-interactive mode.
           vercel env rm API_URL production --yes --token=$VERCEL_TOKEN 2>/dev/null || true
-          echo "$ALB_URL" | vercel env add API_URL production --token=$VERCEL_TOKEN
+          echo "$RENDER_URL" | vercel env add API_URL production --token=$VERCEL_TOKEN
           vercel env rm BACKEND_URL production --yes --token=$VERCEL_TOKEN 2>/dev/null || true
-          echo "$ALB_URL" | vercel env add BACKEND_URL production --token=$VERCEL_TOKEN
-          echo "✅ Vercel env vars updated → $ALB_URL"
+          echo "$RENDER_URL" | vercel env add BACKEND_URL production --token=$VERCEL_TOKEN
+          echo "✅ Vercel env vars updated → $RENDER_URL"
 
       - name: Deploy to Vercel
         if: steps.check-vercel.outputs.skip != 'true'
@@ -68,6 +70,23 @@ jobs:
           URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "✅ Deployed to: $URL"
+
+  # ── Deploy Backend to Render ───────────────────────────────────────────────
+  # Render also auto-deploys via its own GitHub integration on push to main.
+  # This job is a redundant explicit trigger — skipped if the deploy hook is unset.
+  deploy-backend:
+    name: Deploy Backend (Render)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "⚠ RENDER_DEPLOY_HOOK_URL not set — skipping (Render auto-deploys via its GitHub integration)"
+            exit 0
+          fi
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "Render deploy hook response: $HTTP"
+          echo "✅ Render backend deploy triggered"
 
   # ── SEO: Submit sitemap to Google & Bing after deploy ─────────────────────
   seo-submit:
