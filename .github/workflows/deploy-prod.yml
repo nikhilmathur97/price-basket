@@ -14,7 +14,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check AWS credentials
+        id: check-aws
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠ AWS credentials not configured — skipping backend deploy"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure AWS credentials
+        if: steps.check-aws.outputs.skip != 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -22,12 +33,14 @@ jobs:
           aws-region: ap-south-1
 
       - name: Login to Amazon ECR
+        if: steps.check-aws.outputs.skip != 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registries: "443414059511"
 
       - name: Build, tag, and push Docker image to ECR
+        if: steps.check-aws.outputs.skip != 'true'
         env:
           ECR_REGISTRY: 443414059511.dkr.ecr.ap-south-1.amazonaws.com
           ECR_REPOSITORY: pricebasket-api
@@ -41,12 +54,14 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:prod-${{ github.sha }}
 
       - name: Register new ECS task definition (Prod)
+        if: steps.check-aws.outputs.skip != 'true'
         run: |
           aws ecs register-task-definition \
             --cli-input-json file://aws/task-def-api.json \
             --region ap-south-1
 
       - name: Force new ECS deployment (Prod)
+        if: steps.check-aws.outputs.skip != 'true'
         run: |
           aws ecs update-service \
             --cluster pricebasket-cluster \
@@ -56,6 +71,7 @@ jobs:
             --region ap-south-1
 
       - name: Wait for ECS service stability
+        if: steps.check-aws.outputs.skip != 'true'
         run: |
           aws ecs wait services-stable \
             --cluster pricebasket-cluster \

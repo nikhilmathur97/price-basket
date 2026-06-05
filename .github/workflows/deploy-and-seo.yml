@@ -7,6 +7,8 @@ on:
 
 jobs:
   # ── Deploy Frontend to Vercel ──────────────────────────────────────────────
+  # NOTE: Vercel also auto-deploys via its GitHub integration on every push to main.
+  # This job is a redundant explicit deploy — skipped if VERCEL_TOKEN is not set.
   deploy-frontend:
     name: Deploy Frontend (Vercel)
     runs-on: ubuntu-latest
@@ -15,7 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Vercel credentials
+        id: check-vercel
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠ Vercel secrets not configured — skipping explicit deploy (Vercel GitHub integration handles it)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Node.js
+        if: steps.check-vercel.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -23,9 +36,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Vercel CLI
+        if: steps.check-vercel.outputs.skip != 'true'
         run: npm install -g vercel@latest
 
       - name: Deploy to Vercel
+        if: steps.check-vercel.outputs.skip != 'true'
         id: deploy
         working-directory: frontend
         env:
