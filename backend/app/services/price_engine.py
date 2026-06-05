@@ -16,6 +16,7 @@ from typing import List, Optional
 
 import structlog
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -189,26 +190,13 @@ class PriceEngine:
             async with AsyncSessionLocal() as db:
                 for price_data in bundle.prices:
                     pid = uuid.UUID(price_data.platform_id)
-                    result = await db.execute(
-                        select(PlatformPrice).where(
-                            PlatformPrice.product_id == product_id,
-                            PlatformPrice.platform_id == pid,
-                        )
-                    )
-                    existing = result.scalar_one_or_none()
-                    if existing:
-                        existing.price = price_data.price
-                        existing.original_price = price_data.original_price
-                        existing.discount_percent = price_data.discount_percent
-                        existing.discount_label = price_data.discount_label
-                        existing.is_available = price_data.is_available
-                        existing.delivery_time_minutes = price_data.delivery_time_minutes
-                        existing.platform_product_id = price_data.platform_product_id
-                        existing.platform_product_url = price_data.platform_product_url
-                        existing.last_updated = now
-                        existing.source = price_data.source
-                    else:
-                        new_pp = PlatformPrice(
+
+                    # True atomic upsert — eliminates the select-then-insert race
+                    # that created duplicate rows when two scrape tasks ran concurrently.
+                    await db.execute(
+                        pg_insert(PlatformPrice)
+                        .values(
+                            id=uuid.uuid4(),
                             product_id=product_id,
                             platform_id=pid,
                             price=price_data.price,
@@ -222,7 +210,22 @@ class PriceEngine:
                             last_updated=now,
                             source=price_data.source,
                         )
-                        db.add(new_pp)
+                        .on_conflict_do_update(
+                            constraint="uq_platform_prices_product_platform",
+                            set_=dict(
+                                price=price_data.price,
+                                original_price=price_data.original_price,
+                                discount_percent=price_data.discount_percent,
+                                discount_label=price_data.discount_label,
+                                is_available=price_data.is_available,
+                                delivery_time_minutes=price_data.delivery_time_minutes,
+                                platform_product_id=price_data.platform_product_id,
+                                platform_product_url=price_data.platform_product_url,
+                                last_updated=now,
+                                source=price_data.source,
+                            ),
+                        )
+                    )
 
                     # Append history row
                     db.add(

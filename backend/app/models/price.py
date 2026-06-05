@@ -8,7 +8,7 @@ Price models:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -20,6 +20,12 @@ class PlatformPrice(Base):
     """Latest known price for a product on a specific platform."""
 
     __tablename__ = "platform_prices"
+    __table_args__ = (
+        # One price row per (product, platform) — enforced unconditionally so
+        # scrapers can't stack up rows even when toggling is_available.
+        # The DB constraint is created by migration 003_platform_price_unique.
+        UniqueConstraint("product_id", "platform_id", name="uq_platform_prices_product_platform"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

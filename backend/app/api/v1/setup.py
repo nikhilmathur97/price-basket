@@ -522,37 +522,40 @@ async def _run_seed():
 
 async def _upsert_price(db: AsyncSession, product_id, platform_id, d: dict):
     from app.models.price import PlatformPrice
-    r  = await db.execute(
-        select(PlatformPrice).where(
-            PlatformPrice.product_id == product_id,
-            PlatformPrice.platform_id == platform_id,
-        )
-    )
-    pp = r.scalar_one_or_none()
     label = f"{int(d['disc'])}% OFF" if d.get("disc", 0) > 0 else None
-    if pp is None:
-        pp = PlatformPrice(
-            product_id=product_id, platform_id=platform_id,
-            price=d["price"], original_price=d["mrp"] if d["mrp"] > d["price"] else None,
-            discount_percent=d.get("disc", 0), discount_label=label,
+    mrp = d.get("mrp") or d["price"]
+    await db.execute(
+        pg_insert(PlatformPrice)
+        .values(
+            id=uuid.uuid4(),
+            product_id=product_id,
+            platform_id=platform_id,
+            price=d["price"],
+            original_price=mrp if mrp > d["price"] else None,
+            discount_percent=d.get("disc", 0),
+            discount_label=label,
             is_available=d.get("available", True),
-            delivery_time_minutes=d.get("mins"), platform_product_id=d.get("pid") or None,
-            platform_product_url=d.get("url"), platform_image_url=d.get("image_url"),
+            delivery_time_minutes=d.get("mins"),
+            platform_product_id=d.get("pid") or None,
+            platform_product_url=d.get("url"),
+            platform_image_url=d.get("image_url"),
             source="scrape",
         )
-        db.add(pp)
-    else:
-        pp.price             = d["price"]
-        pp.original_price    = d["mrp"] if d["mrp"] > d["price"] else None
-        pp.discount_percent  = d.get("disc", 0)
-        pp.discount_label    = label
-        pp.is_available      = d.get("available", True)
-        pp.delivery_time_minutes = d.get("mins")
-        if d.get("pid"):      pp.platform_product_id  = d["pid"]
-        if d.get("url"):      pp.platform_product_url  = d["url"]
-        if d.get("image_url") and not pp.platform_image_url:
-            pp.platform_image_url = d["image_url"]
-        pp.source = "scrape"
+        .on_conflict_do_update(
+            constraint="uq_platform_prices_product_platform",
+            set_=dict(
+                price=d["price"],
+                original_price=mrp if mrp > d["price"] else None,
+                discount_percent=d.get("disc", 0),
+                discount_label=label,
+                is_available=d.get("available", True),
+                delivery_time_minutes=d.get("mins"),
+                platform_product_id=d.get("pid") or None,
+                platform_product_url=d.get("url"),
+                source="scrape",
+            ),
+        )
+    )
     await db.flush()
 
 
@@ -1039,35 +1042,35 @@ async def _do_load_scraped(db: AsyncSession):
 
         disc = round(((mrp - price) / mrp) * 100, 1) if mrp > price else 0.0
 
-        # Check if price row already exists, update or insert
-        pp_res = await db.execute(
-            select(PlatformPrice).where(
-                PlatformPrice.product_id == product_id,
-                PlatformPrice.platform_id == platform.id,
-            )
-        )
-        pp = pp_res.scalars().first()
-        if pp:
-            pp.price = price
-            pp.original_price = mrp
-            pp.discount_percent = disc
-            pp.discount_label = f"{int(disc)}% OFF" if disc >= 1 else None
-            pp.is_available = True
-            pp.platform_image_url = image_url
-            pp.source = "scrape"
-        else:
-            db.add(PlatformPrice(
+        # Atomic upsert — no select-then-insert race window
+        disc_label = f"{int(disc)}% OFF" if disc >= 1 else None
+        await db.execute(
+            pg_insert(PlatformPrice)
+            .values(
                 id=uuid.uuid4(),
                 product_id=product_id,
                 platform_id=platform.id,
                 price=price,
                 original_price=mrp,
                 discount_percent=disc,
-                discount_label=f"{int(disc)}% OFF" if disc >= 1 else None,
+                discount_label=disc_label,
                 is_available=True,
                 platform_image_url=image_url,
                 source="scrape",
-            ))
+            )
+            .on_conflict_do_update(
+                constraint="uq_platform_prices_product_platform",
+                set_=dict(
+                    price=price,
+                    original_price=mrp,
+                    discount_percent=disc,
+                    discount_label=disc_label,
+                    is_available=True,
+                    platform_image_url=image_url,
+                    source="scrape",
+                ),
+            )
+        )
         saved += 1
 
         # Commit in batches of 100 to avoid long transactions

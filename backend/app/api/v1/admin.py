@@ -11,6 +11,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy import and_, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis_client import cache_delete_pattern
@@ -242,39 +243,41 @@ async def upsert_amazon_price(
         raise HTTPException(status_code=404, detail="Amazon platform not seeded — run seed_platforms.py first")
 
     discount = round(((body.mrp - body.price) / body.mrp) * 100, 1) if body.mrp > body.price else 0.0
+    discount_label = f"{int(discount)}% OFF" if discount >= 1 else None
 
-    existing = (await db.execute(
-        select(PlatformPrice).where(
-            and_(PlatformPrice.product_id == product.id, PlatformPrice.platform_id == amazon.id)
-        )
-    )).scalar_one_or_none()
-
-    if existing:
-        existing.price = body.price
-        existing.original_price = body.mrp
-        existing.discount_percent = discount
-        existing.discount_label = f"{int(discount)}% OFF" if discount >= 1 else None
-        existing.platform_product_id = body.asin
-        existing.platform_product_url = body.affiliate_link
-        existing.platform_image_url = body.image_url
-        existing.is_available = True
-        existing.delivery_time_minutes = 120
-        existing.source = "manual"
-    else:
-        db.add(PlatformPrice(
+    await db.execute(
+        pg_insert(PlatformPrice)
+        .values(
+            id=uuid.uuid4(),
             product_id=product.id,
             platform_id=amazon.id,
             price=body.price,
             original_price=body.mrp,
             discount_percent=discount,
-            discount_label=f"{int(discount)}% OFF" if discount >= 1 else None,
+            discount_label=discount_label,
             platform_product_id=body.asin,
             platform_product_url=body.affiliate_link,
             platform_image_url=body.image_url,
             is_available=True,
             delivery_time_minutes=120,
             source="manual",
-        ))
+        )
+        .on_conflict_do_update(
+            constraint="uq_platform_prices_product_platform",
+            set_=dict(
+                price=body.price,
+                original_price=body.mrp,
+                discount_percent=discount,
+                discount_label=discount_label,
+                platform_product_id=body.asin,
+                platform_product_url=body.affiliate_link,
+                platform_image_url=body.image_url,
+                is_available=True,
+                delivery_time_minutes=120,
+                source="manual",
+            ),
+        )
+    )
 
     await db.commit()
     await cache_delete_pattern(f"prices:{product.id}*")
@@ -905,40 +908,41 @@ async def _run_blinkit_scrape(db_url: str) -> dict:
                                 product.is_active = True
                                 await db.flush()
 
-                            # Upsert platform price
-                            rpp = await db.execute(
-                                select(PlatformPrice).where(
-                                    PlatformPrice.product_id == product.id,
-                                    PlatformPrice.platform_id == platform.id,
-                                )
-                            )
-                            pp = rpp.scalar_one_or_none()
+                            # Upsert platform price — atomic, no race window
                             discount_label = f"{int(item['discount_percent'])}% OFF" if item["discount_percent"] > 0 else None
-                            if pp is None:
-                                pp = PlatformPrice(
-                                    product_id=product.id, platform_id=platform.id,
+                            await db.execute(
+                                pg_insert(PlatformPrice)
+                                .values(
+                                    id=uuid.uuid4(),
+                                    product_id=product.id,
+                                    platform_id=platform.id,
                                     price=item["price"],
                                     original_price=item["mrp"] if item["mrp"] > item["price"] else None,
                                     discount_percent=item["discount_percent"],
-                                    discount_label=discount_label, is_available=item["is_available"],
+                                    discount_label=discount_label,
+                                    is_available=item["is_available"],
                                     delivery_time_minutes=BLINKIT_DELIVERY_MINS,
                                     platform_product_id=item["blinkit_pid"] or None,
                                     platform_product_url=item["product_url"],
-                                    platform_image_url=item["image_url"], source="scrape",
+                                    platform_image_url=item["image_url"],
+                                    source="scrape",
                                 )
-                                db.add(pp)
-                            else:
-                                pp.price = item["price"]
-                                pp.original_price = item["mrp"] if item["mrp"] > item["price"] else None
-                                pp.discount_percent = item["discount_percent"]
-                                pp.discount_label = discount_label
-                                pp.is_available = item["is_available"]
-                                pp.delivery_time_minutes = BLINKIT_DELIVERY_MINS
-                                if item["image_url"]:
-                                    pp.platform_image_url = item["image_url"]
-                                if item["product_url"]:
-                                    pp.platform_product_url = item["product_url"]
-                                pp.source = "scrape"
+                                .on_conflict_do_update(
+                                    constraint="uq_platform_prices_product_platform",
+                                    set_=dict(
+                                        price=item["price"],
+                                        original_price=item["mrp"] if item["mrp"] > item["price"] else None,
+                                        discount_percent=item["discount_percent"],
+                                        discount_label=discount_label,
+                                        is_available=item["is_available"],
+                                        delivery_time_minutes=BLINKIT_DELIVERY_MINS,
+                                        platform_product_id=item["blinkit_pid"] or None,
+                                        platform_product_url=item["product_url"],
+                                        platform_image_url=item["image_url"],
+                                        source="scrape",
+                                    ),
+                                )
+                            )
                             await db.flush()
                             total_saved += 1
                         except Exception:
