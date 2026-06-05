@@ -33,10 +33,11 @@ jobs:
           ECR_REPOSITORY: pricebasket-api
           IMAGE_TAG: dev
         run: |
+          # Build context MUST be backend/ (Dockerfile COPYs live under backend/).
           docker build -f backend/Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:dev-${{ github.sha }} \
-            .
+            backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:dev-${{ github.sha }}
 

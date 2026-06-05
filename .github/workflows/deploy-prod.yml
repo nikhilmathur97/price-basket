@@ -46,10 +46,13 @@ jobs:
           ECR_REPOSITORY: pricebasket-api
           IMAGE_TAG: latest
         run: |
+          # Build context MUST be backend/ — the Dockerfile COPYs requirements.txt,
+          # app/, migrations/, alembic.ini, start.sh which all live under backend/.
+          # Building from repo root (.) makes those COPYs fail with "not found".
           docker build -f backend/Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:prod-${{ github.sha }} \
-            .
+            backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:prod-${{ github.sha }}
 
