@@ -29,12 +29,17 @@ function AuthBootstrap() {
     // Wait for the persisted auth store to rehydrate before doing anything.
     if (!hasHydrated) return;
 
-    // Case 1: We have a user object (with or without accessToken).
-    // Validate the session via api.me() — the Axios interceptor will send the
-    // stored accessToken if present, or the httpOnly refresh cookie will be used.
-    // Set isValidatingSession=true so protected pages (e.g. /cart) don't
-    // redirect to login while we're still checking.
-    if (user) {
+    // If we have a user + accessToken in localStorage, trust them immediately —
+    // no api.me() call needed. Just fetch the cart in the background.
+    // This makes every page load instant for logged-in users.
+    if (user && accessToken) {
+      fetchCart().catch(() => {});
+      return;
+    }
+
+    // If we have a user but no accessToken (old store format / token cleared),
+    // try to restore via refresh-token cookie — but don't block the UI.
+    if (user && !accessToken) {
       setValidatingSession(true);
       api.me()
         .then(({ data }) => {
@@ -42,7 +47,6 @@ function AuthBootstrap() {
           fetchCart().catch(() => {});
         })
         .catch(() => {
-          // Session truly expired — clear everything and let the page redirect.
           logout();
           resetCart();
         })
@@ -52,9 +56,7 @@ function AuthBootstrap() {
       return;
     }
 
-    // Case 2: No user at all — genuinely logged out. Do nothing.
-    // (Previously this called api.me() unconditionally which caused a 401 →
-    // refresh attempt → logout() cascade for every unauthenticated page load.)
+    // No user at all — genuinely logged out. Do nothing.
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated]); // ← intentionally omit deps to run only once after hydration

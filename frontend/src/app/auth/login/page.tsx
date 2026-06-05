@@ -25,12 +25,15 @@ export default function LoginPage() {
   // Redirect already-authenticated users away from the login page
   useEffect(() => {
     if (hasHydrated && isAuthenticated && !loginInProgress.current) {
-      router.replace("/");
+      const next = searchParams.get("next");
+      const safeNext = next && next.startsWith("/") ? next : "/";
+      router.replace(safeNext);
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router, searchParams]);
 
-  // Show loader while hydrating OR while already authenticated (redirect pending)
-  if (!hasHydrated || isAuthenticated) {
+  // Show loader only while hydrating (not while authenticated — that causes a
+  // flash of the loader before the redirect fires)
+  if (!hasHydrated) {
     return <PageLoader message="Loading" />;
   }
 
@@ -43,16 +46,13 @@ export default function LoginPage() {
       setAccessToken(data.access_token);
       const { data: user } = await api.me();
       setUser(user);
-      // Clear any stale cart state from a previous session, then fetch this
-      // user's server-side cart. We await it so the totalItems badge is correct
-      // before the page navigates — prevents the "badge shows 8, cart is blank" bug.
-      resetCart();
-      await fetchCart().catch(() => {});
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
-      // Client-side navigation: no full reload, store stays live, Header updates instantly
+      // Navigate immediately — fetch cart in background (non-blocking)
       router.replace(safeNext);
+      resetCart();
+      fetchCart().catch(() => {});
     } catch (err: any) {
       loginInProgress.current = false;
       const detail = err?.response?.data?.detail ?? "Login failed. Please check your credentials.";

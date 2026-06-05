@@ -20,19 +20,20 @@ export function Header() {
   const { totalItems, openCart, resetCart } = useCartStore();
   const { isAuthenticated, user, logout, hasHydrated } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   // Hide the mobile search bar on product pages — the product page has its own context
   const isProductPage = pathname?.startsWith("/product/");
 
-  async function handleLogout() {
+  function handleLogout() {
     setMenuOpen(false);
-    setLoggingOut(true);
-    try { await api.logout(); } catch { /* ignore */ }
+    // Clear state immediately — no waiting for network
     logout();
     resetCart();
     toast("See you soon! 👋", { duration: 1500 });
-    window.location.replace("/");
+    // Fire logout API in background (invalidates refresh cookie server-side)
+    api.logout().catch(() => {});
+    // Use client-side navigation — no full page reload
+    router.replace("/");
   }
 
   function handleCartClick() {
@@ -53,10 +54,6 @@ export function Header() {
       ? [{ href: "/admin", icon: Settings, label: "Admin Dashboard" }]
       : []),
   ] as const;
-
-  if (loggingOut) {
-    return <PageLoader message="Signing you out" />;
-  }
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_1px_0_#f0f0f0]">
