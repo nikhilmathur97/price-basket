@@ -70,7 +70,8 @@ export default function SignupPage() {
       await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
       const { data } = await api.login({ email: normalizedEmail, password: form.password });
       setAccessToken(data.access_token);
-      const { data: user } = await api.me();
+      // Login response includes user — no extra api.me() round-trip needed
+      const user = data.user ?? (await api.me()).data;
       setUser(user);
       resetCart();
       await fetchCart().catch(() => {});

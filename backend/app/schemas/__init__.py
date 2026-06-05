@@ -35,6 +35,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
+    user: Optional["UserOut"] = None  # included on login/register — saves a round-trip /me call
 
 
 class RefreshRequest(BaseModel):

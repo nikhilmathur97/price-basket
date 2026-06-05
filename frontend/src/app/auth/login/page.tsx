@@ -44,7 +44,8 @@ export default function LoginPage() {
     try {
       const { data } = await api.login(form);
       setAccessToken(data.access_token);
-      const { data: user } = await api.me();
+      // Login response now includes user — no second api.me() round-trip needed
+      const user = data.user ?? (await api.me()).data;
       setUser(user);
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");

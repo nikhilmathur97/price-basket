@@ -94,6 +94,7 @@ async def login(
         access_token=access,
         refresh_token=raw_refresh,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserOut.model_validate(user),
     )
 
 
