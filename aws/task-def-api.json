@@ -37,6 +37,10 @@
         {
           "name": "CELERY_RESULT_BACKEND",
           "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:CELERY_RESULT_BACKEND::"
+        },
+        {
+          "name": "APP_ENV",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:443414059511:secret:pricebasket/production/env-8WnHqt:APP_ENV::"
         }
       ],
       "environment": [

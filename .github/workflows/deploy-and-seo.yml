@@ -39,6 +39,24 @@ jobs:
         if: steps.check-vercel.outputs.skip != 'true'
         run: npm install -g vercel@latest
 
+      - name: Set Vercel env vars (API_URL → AWS ALB)
+        if: steps.check-vercel.outputs.skip != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          ALB_URL="http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com"
+          # Set server-side API_URL (used by next.config.js rewrite proxy → ALB)
+          echo "$ALB_URL" | vercel env add API_URL production --token=$VERCEL_TOKEN --force 2>/dev/null || \
+            vercel env rm API_URL production --yes --token=$VERCEL_TOKEN 2>/dev/null && \
+            echo "$ALB_URL" | vercel env add API_URL production --token=$VERCEL_TOKEN
+          # Set BACKEND_URL (used by server-api.ts for SSR/generateMetadata)
+          echo "$ALB_URL" | vercel env add BACKEND_URL production --token=$VERCEL_TOKEN --force 2>/dev/null || \
+            vercel env rm BACKEND_URL production --yes --token=$VERCEL_TOKEN 2>/dev/null && \
+            echo "$ALB_URL" | vercel env add BACKEND_URL production --token=$VERCEL_TOKEN
+          echo "✅ Vercel env vars updated → $ALB_URL"
+
       - name: Deploy to Vercel
         if: steps.check-vercel.outputs.skip != 'true'
         id: deploy

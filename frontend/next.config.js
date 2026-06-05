@@ -85,12 +85,18 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    // API_URL is set in Vercel env vars → AWS ALB DNS.
+    // Falls back to localhost:8001 for local dev.
+    const backendUrl =
+      process.env.API_URL ??
+      process.env.BACKEND_URL ??
+      "http://localhost:8001";
     return [
       {
-        // Proxy all /api/* calls to the FastAPI backend running on the same server.
-        // The browser never needs to reach port 8000 — Next.js handles it server-side.
+        // Proxy all /api/* calls server-side through Next.js → AWS ALB.
+        // The browser never sees the ALB URL — all calls go via Vercel edge.
         source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
