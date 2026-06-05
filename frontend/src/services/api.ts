@@ -59,6 +59,15 @@ apiClient.interceptors.response.use(
           {},
           { withCredentials: true }
         );
+        // Guard: if the user explicitly logged out while this refresh was in-flight
+        // (user === null), do NOT apply the new token. Without this, any background
+        // API call (cart, alerts, etc.) that triggered a 401 → refresh cycle would
+        // call setAccessToken() after logout, setting isAuthenticated=true, which
+        // immediately fires the login page's redirect effect → "button not working".
+        if (useAuthStore.getState().user === null) {
+          refreshQueue = [];
+          return Promise.reject(error);
+        }
         useAuthStore.getState().setAccessToken(data.access_token);
         refreshQueue.forEach((cb) => cb(data.access_token));
         refreshQueue = [];
@@ -83,7 +92,10 @@ export const api = {
     apiClient.post("/auth/register", data),
   login: (data: { email: string; password: string }) =>
     apiClient.post("/auth/login", data),
-  logout: () => apiClient.post("/auth/logout"),
+  // _retry:true tells the response interceptor to never attempt a token refresh on
+  // a 401 from this endpoint. Without it, an expired access token causes the
+  // interceptor to refresh → setAccessToken() → user re-authenticated after logout.
+  logout: () => apiClient.post("/auth/logout", {}, { _retry: true } as any),
   me: () => apiClient.get("/auth/me"),
   updateMe: (data: {
     full_name?: string;

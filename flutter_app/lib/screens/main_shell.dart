@@ -214,11 +214,17 @@ class _MainShellState extends ConsumerState<MainShell> {
               });
             }
 
-            // Bug 3 fix: when the Search tab is tapped, focus the web search
-            // input so the keyboard pops up immediately (Blinkit-style).
+            // Re-tapping the Search tab focuses the search input immediately.
             if (index == _kSearchTabIndex) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _webViewKey.currentState?.focusSearch();
+              });
+            }
+
+            // Re-tapping the Cart tab (already on Cart) soft-refreshes cart data.
+            if (index == _kCartTabIndex && index == prevIndex) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKey.currentState?.refreshCart();
               });
             }
           },

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../config/app_config.dart';
 import '../config/theme.dart';
+import '../providers/connectivity_provider.dart';
 import '../services/auth_bridge_service.dart';
 
 /// Mobile WebView implementation using webview_flutter.
@@ -105,9 +106,10 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
   /// Intercepts navigation — external platform links open in system browser.
   NavigationDecision _handleNavigation(NavigationRequest request) {
     final String url = request.url;
+    final String allowedHost = Uri.parse(AppConfig.baseUrl).host;
 
-    // Allow pricebasket.in URLs to load in WebView
-    if (url.contains('pricebasket.in') ||
+    // Allow the app's own host (prod or dev) to load in WebView
+    if (url.contains(allowedHost) ||
         url.startsWith('about:') ||
         url.startsWith('data:')) {
       return NavigationDecision.navigate;
@@ -124,7 +126,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
         AppConfig.externalDomains.any((domain) => url.contains(domain));
 
     if (isExternal ||
-        (!url.contains('pricebasket.in') && url.startsWith('http'))) {
+        (!url.contains(allowedHost) && url.startsWith('http'))) {
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       return NavigationDecision.prevent;
     }
@@ -240,8 +242,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
     _controller.runJavaScript(r'''
       (function tryFocus() {
         var el = document.querySelector('input[placeholder*="earch"]')
-               || document.querySelector('input[type="search"]')
-               || document.querySelector('input[type="text"]');
+               || document.querySelector('input[type="search"]');
         if (el) {
           el.scrollIntoView({ block: 'center', behavior: 'smooth' });
           // setTimeout(0) defers to next event-loop tick — required for iOS
@@ -258,8 +259,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
       _controller.runJavaScript(r'''
         (function() {
           var el = document.querySelector('input[placeholder*="earch"]')
-                 || document.querySelector('input[type="search"]')
-                 || document.querySelector('input[type="text"]');
+                 || document.querySelector('input[type="search"]');
           if (el) { setTimeout(function() { el.focus(); }, 0); }
         })();
       ''');
@@ -313,6 +313,13 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Auto-reload when connectivity is restored after an error (avoids manual Retry tap).
+    ref.listen<AsyncValue<bool>>(connectivityProvider, (_, next) {
+      next.whenData((isOnline) {
+        if (isOnline && _hasError) _controller.reload();
+      });
+    });
+
     return Stack(
       children: [
         // ── WebView (with pull-to-refresh at the top) ─────────────────────

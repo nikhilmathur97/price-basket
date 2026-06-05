@@ -10,7 +10,6 @@ import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { SearchBar } from "@/components/SearchBar";
 import { LocationBar } from "@/components/LocationBar";
-import { PageLoader } from "@/components/PageLoader";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -26,13 +25,16 @@ export function Header() {
 
   function handleLogout() {
     setMenuOpen(false);
-    // Clear state immediately — no waiting for network
+    // Fire the API call BEFORE clearing client state so the request still carries the
+    // Authorization header. The backend needs the token to revoke server-side sessions
+    // and delete the httpOnly refresh cookie. Calling logout() first would clear the
+    // token → the request goes out unauthenticated → backend returns 401 → the response
+    // interceptor's refresh logic kicks in with the still-valid cookie → user gets
+    // re-authenticated despite just logging out → login page redirects them back → bug.
+    api.logout().catch(() => {});
     logout();
     resetCart();
     toast("See you soon! 👋", { duration: 1500 });
-    // Fire logout API in background (invalidates refresh cookie server-side)
-    api.logout().catch(() => {});
-    // Use client-side navigation — no full page reload
     router.replace("/");
   }
 

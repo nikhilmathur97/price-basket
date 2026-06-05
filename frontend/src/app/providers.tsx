@@ -45,6 +45,11 @@ function AuthBootstrap() {
     setValidatingSession(true);
     api.me()
       .then(({ data }) => {
+        // Guard: if the user logged out while this request was in-flight, don't
+        // re-authenticate. Without this, a valid api.me() response would call
+        // setUser() after logout(), setting isAuthenticated=true and trapping the
+        // user in a phantom logged-in state where /auth/login redirects them away.
+        if (!useAuthStore.getState().user) return;
         setUser(data);
         fetchCart().catch(() => {});
       })
