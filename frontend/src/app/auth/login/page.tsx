@@ -29,11 +29,11 @@ export default function LoginPage() {
   const loginInProgress = useRef(false);
 
   // Redirect already-authenticated users away from the login page.
-  // Wait until:
-  //   1. The persisted store has hydrated (hasHydrated)
-  //   2. The background session validation has finished (isValidatingSession=false)
-  //      so a stale/phantom session gets cleaned up BEFORE we redirect.
-  //   3. No login is currently in progress (loginInProgress.current=false)
+  // Only redirect AFTER:
+  //   1. Store has hydrated (hasHydrated=true)
+  //   2. Background session validation has finished (isValidatingSession=false)
+  //      — prevents phantom-session redirect when session is actually stale
+  //   3. No login is currently in progress
   useEffect(() => {
     if (
       hasHydrated &&
@@ -47,10 +47,18 @@ export default function LoginPage() {
     }
   }, [hasHydrated, isValidatingSession, isAuthenticated, router, searchParams]);
 
-  // Show loader while hydrating OR while the background session check is running.
-  // This prevents the phantom-session redirect: we don't redirect until we know
-  // whether the persisted session is actually valid.
-  if (!hasHydrated || isValidatingSession) {
+  // Only show the full-page loader while the store is hydrating from localStorage.
+  // Do NOT block on isValidatingSession — that can hang if the backend is slow
+  // (Render cold start, network timeout) and would make the login form invisible.
+  // The redirect useEffect above already waits for isValidatingSession=false before
+  // redirecting, so there is no phantom-session risk.
+  if (!hasHydrated) {
+    return <PageLoader message="Loading" />;
+  }
+
+  // If already authenticated AND session validation is done → redirect is imminent.
+  // Show loader to avoid a flash of the login form before navigation fires.
+  if (isAuthenticated && !isValidatingSession && !loginInProgress.current) {
     return <PageLoader message="Loading" />;
   }
 

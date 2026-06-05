@@ -41,16 +41,22 @@ export default function SignupPage() {
   const signupInProgress = useRef(false);
 
   // Redirect already-authenticated users away from the signup page.
-  // Wait for session validation to finish so a stale phantom session gets
-  // cleaned up BEFORE we redirect — prevents the "button not working" trap.
+  // Only redirect after session validation finishes — prevents phantom-session redirect.
   useEffect(() => {
     if (hasHydrated && !isValidatingSession && isAuthenticated && !signupInProgress.current) {
       router.replace("/");
     }
   }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
-  // Show loader while hydrating OR while the background session check is running.
-  if (!hasHydrated || isValidatingSession) {
+  // Only block on hydration — NOT on isValidatingSession.
+  // isValidatingSession can hang if backend is slow (Render cold start) and would
+  // make the signup form invisible. The redirect above already waits for it.
+  if (!hasHydrated) {
+    return <PageLoader message="Loading" />;
+  }
+
+  // Redirect is imminent — show loader to avoid flash of form before navigation.
+  if (isAuthenticated && !isValidatingSession && !signupInProgress.current) {
     return <PageLoader message="Loading" />;
   }
 
