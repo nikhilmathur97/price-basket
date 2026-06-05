@@ -1,7 +1,7 @@
 """Replace partial unique index with unconditional unique constraint on platform_prices.
 
-Revision ID: 003_platform_price_unique
-Revises: 002_performance_indexes
+Revision ID: 004_platform_price_unique
+Revises: 003_user_fcm_token
 Create Date: 2026-06-05
 
 The old partial unique index (WHERE is_available = TRUE) still allowed
@@ -16,8 +16,8 @@ Steps:
 """
 from alembic import op
 
-revision = "003_platform_price_unique"
-down_revision = "002_performance_indexes"
+revision = "004_platform_price_unique"
+down_revision = "003_user_fcm_token"
 branch_labels = None
 depends_on = None
 
