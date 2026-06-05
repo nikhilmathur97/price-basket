@@ -38,7 +38,7 @@ COOKIE_KWARGS = {
 }
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     body: UserRegister,
     request: Request,
@@ -60,7 +60,13 @@ async def register(
 
     access = create_access_token(user.id, user.is_admin)
     response.set_cookie(REFRESH_COOKIE, raw_refresh, **COOKIE_KWARGS)
-    return user
+
+    return TokenResponse(
+        access_token=access,
+        refresh_token=raw_refresh,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserOut.model_validate(user),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

@@ -14,7 +14,13 @@ import toast from "react-hot-toast";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const {
+    setUser,
+    setAccessToken,
+    isAuthenticated,
+    hasHydrated,
+    isValidatingSession,
+  } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
@@ -22,30 +28,47 @@ export default function LoginPage() {
   // Prevent the "already authenticated" useEffect from firing during an active login
   const loginInProgress = useRef(false);
 
-  // Redirect already-authenticated users away from the login page
+  // Redirect already-authenticated users away from the login page.
+  // Wait until:
+  //   1. The persisted store has hydrated (hasHydrated)
+  //   2. The background session validation has finished (isValidatingSession=false)
+  //      so a stale/phantom session gets cleaned up BEFORE we redirect.
+  //   3. No login is currently in progress (loginInProgress.current=false)
   useEffect(() => {
-    if (hasHydrated && isAuthenticated && !loginInProgress.current) {
+    if (
+      hasHydrated &&
+      !isValidatingSession &&
+      isAuthenticated &&
+      !loginInProgress.current
+    ) {
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
       router.replace(safeNext);
     }
-  }, [hasHydrated, isAuthenticated, router, searchParams]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router, searchParams]);
 
-  // Show loader only while hydrating (not while authenticated — that causes a
-  // flash of the loader before the redirect fires)
-  if (!hasHydrated) {
+  // Show loader while hydrating OR while the background session check is running.
+  // This prevents the phantom-session redirect: we don't redirect until we know
+  // whether the persisted session is actually valid.
+  if (!hasHydrated || isValidatingSession) {
     return <PageLoader message="Loading" />;
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return; // guard against double-submit
     loginInProgress.current = true;
     setLoading(true);
     try {
       const { data } = await api.login(form);
       setAccessToken(data.access_token);
-      // Login response now includes user — no second api.me() round-trip needed
-      const user = data.user ?? (await api.me()).data;
+      // Login response includes user — no second api.me() round-trip needed.
+      // If for any reason user is absent (older backend), fall back to api.me().
+      let user = data.user;
+      if (!user) {
+        const meRes = await api.me();
+        user = meRes.data;
+      }
       setUser(user);
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
@@ -56,7 +79,9 @@ export default function LoginPage() {
       fetchCart().catch(() => {});
     } catch (err: any) {
       loginInProgress.current = false;
-      const detail = err?.response?.data?.detail ?? "Login failed. Please check your credentials.";
+      const detail =
+        err?.response?.data?.detail ??
+        "Login failed. Please check your credentials.";
       toast.error(detail);
       setLoading(false);
     }
@@ -72,7 +97,16 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} sizes="52px" className="w-[52px] h-[52px] object-contain" style={{ mixBlendMode: "multiply" }} priority />
+            <Image
+              src="/pricebasket-logo.png"
+              alt="PriceBasket"
+              width={52}
+              height={52}
+              sizes="52px"
+              className="w-[52px] h-[52px] object-contain"
+              style={{ mixBlendMode: "multiply" }}
+              priority
+            />
             <span className="text-2xl font-bold">
               Price<span className="text-brand-600">Basket</span>
             </span>
@@ -110,7 +144,9 @@ export default function LoginPage() {
                   type={showPw ? "text" : "password"}
                   required
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
                   placeholder="••••••••"
                   className="w-full border border-surface-200 rounded-xl px-4 py-2.5 pr-10 text-sm
                              focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -120,22 +156,30 @@ export default function LoginPage() {
                   onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
                 >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="btn-primary w-full"
+              disabled={loading}
+              className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Login
             </button>
           </form>
 
           <p className="text-sm text-center text-surface-500 mt-6">
-            Don't have an account?{" "}
-            <Link href="/auth/signup" className="text-brand-600 font-semibold hover:underline">
+            Don&apos;t have an account?{" "}
+            <Link
+              href="/auth/signup"
+              className="text-brand-600 font-semibold hover:underline"
+            >
               Sign up
             </Link>
           </p>

@@ -32,7 +32,7 @@ function getSignupErrorMessage(err: any): string {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const { setUser, setAccessToken, isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
@@ -40,20 +40,23 @@ export default function SignupPage() {
   const [emailError, setEmailError] = useState("");
   const signupInProgress = useRef(false);
 
-  // Redirect already-authenticated users away from the signup page
+  // Redirect already-authenticated users away from the signup page.
+  // Wait for session validation to finish so a stale phantom session gets
+  // cleaned up BEFORE we redirect — prevents the "button not working" trap.
   useEffect(() => {
-    if (hasHydrated && isAuthenticated && !signupInProgress.current) {
+    if (hasHydrated && !isValidatingSession && isAuthenticated && !signupInProgress.current) {
       router.replace("/");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
-  // Show loader while hydrating OR while already authenticated (redirect pending)
-  if (!hasHydrated || isAuthenticated) {
+  // Show loader while hydrating OR while the background session check is running.
+  if (!hasHydrated || isValidatingSession) {
     return <PageLoader message="Loading" />;
   }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return; // guard against double-submit
     const trimmedName = form.full_name.trim();
     const normalizedEmail = form.email.trim().toLowerCase();
 
@@ -67,14 +70,18 @@ export default function SignupPage() {
     signupInProgress.current = true;
     setLoading(true);
     try {
-      await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
-      const { data } = await api.login({ email: normalizedEmail, password: form.password });
+      // Register now returns a TokenResponse (access_token + user) — no second login call needed.
+      const { data } = await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
       setAccessToken(data.access_token);
-      // Login response includes user — no extra api.me() round-trip needed
-      const user = data.user ?? (await api.me()).data;
+      // Register response includes user — no extra api.me() round-trip needed.
+      let user = data.user;
+      if (!user) {
+        const meRes = await api.me();
+        user = meRes.data;
+      }
       setUser(user);
       resetCart();
-      await fetchCart().catch(() => {});
+      fetchCart().catch(() => {});
       toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
       // Client-side navigation — keeps store alive so accessToken is never lost
       router.replace("/");
@@ -200,8 +207,8 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={!!form.confirm && form.confirm !== form.password}
-              className="btn-primary w-full"
+              disabled={loading || (!!form.confirm && form.confirm !== form.password)}
+              className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Create Account
             </button>
