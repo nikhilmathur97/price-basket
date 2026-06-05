@@ -453,8 +453,22 @@ export default function CartPage() {
       ).id
     : "";
 
-  // ── Guard: wait for auth hydration (all hooks above, safe to return now) ───
-  if (!hasHydrated || !isAuthenticated) {
+  // ── Guard: wait for auth hydration + session validation ───────────────────
+  // Must wait for isValidatingSession=false before deciding the user is logged
+  // out. Without this, a valid session with a slow backend (Render cold start)
+  // briefly shows isAuthenticated=false → triggers the redirect to login →
+  // user sees "Please login to view your cart" even though they ARE logged in.
+  if (!hasHydrated || isValidatingSession) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton h-44 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return <div className="max-w-5xl mx-auto px-4 py-10" />;
   }
 

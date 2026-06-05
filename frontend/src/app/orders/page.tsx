@@ -8,15 +8,17 @@ import { ShoppingBag, ShoppingCart, Bell, ArrowRight } from "lucide-react";
 
 export default function OrdersPage() {
   const router = useRouter();
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
 
   useEffect(() => {
-    if (hasHydrated && !isAuthenticated) {
+    if (hasHydrated && !isValidatingSession && !isAuthenticated) {
       router.replace("/auth/login?next=/orders");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
-  if (!hasHydrated || !isAuthenticated) return null;
+  // Wait for hydration + session validation before deciding to redirect.
+  if (!hasHydrated || isValidatingSession) return null;
+  if (!isAuthenticated) return null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
