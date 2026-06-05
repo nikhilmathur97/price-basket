@@ -40,46 +40,55 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   const pathStr = path.join("/");
   const url = `${BACKEND}/api/v1/${pathStr}${req.nextUrl.search}`;
 
-  const headers = new Headers(req.headers);
-  headers.delete("host");
+  // Forward request headers but strip hop-by-hop headers
+  const reqHeaders = new Headers();
+  req.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (!["host", "connection", "transfer-encoding", "te", "trailer", "upgrade"].includes(lower)) {
+      reqHeaders.set(key, value);
+    }
+  });
+  // Always request uncompressed from backend — proxy handles compression itself
+  reqHeaders.set("accept-encoding", "identity");
 
-  const body = ["GET", "HEAD"].includes(req.method) ? undefined : req.body;
+  const body = ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer();
 
   const res = await fetch(url, {
     method: req.method,
-    headers,
-    body,
-    // Required to forward the readable stream body
-    // @ts-expect-error — Node.js fetch accepts ReadableStream
-    duplex: "half",
+    headers: reqHeaders,
+    body: body ? body : undefined,
   });
 
-  const resHeaders = new Headers(res.headers);
-  // Remove hop-by-hop headers that must not be forwarded
-  resHeaders.delete("transfer-encoding");
-  resHeaders.delete("connection");
+  // Read body as buffer — more reliable than streaming in serverless
+  const responseBody = await res.arrayBuffer();
+
+  const resHeaders = new Headers();
+  res.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    // Strip hop-by-hop and encoding headers (we're sending raw buffer)
+    if (!["transfer-encoding", "connection", "content-encoding", "te", "trailer", "upgrade"].includes(lower)) {
+      resHeaders.set(key, value);
+    }
+  });
+
+  // Set correct content-length for the uncompressed buffer
+  resHeaders.set("content-length", String(responseBody.byteLength));
 
   // Preserve backend Cache-Control for cacheable GET endpoints.
-  // Vercel overrides Cache-Control on serverless responses by default;
-  // explicitly setting it here forces Vercel CDN to respect it.
   if (isCacheable(req.method, pathStr)) {
     const backendCC = res.headers.get("cache-control");
     if (backendCC) {
       resHeaders.set("cache-control", backendCC);
-      // CDN-Cache-Control is Vercel-specific: controls edge cache independently
-      // of the browser cache. This makes Vercel cache the response at the edge.
       resHeaders.set("cdn-cache-control", backendCC);
     } else {
-      // Fallback: cache for 60s at edge if backend didn't send a header
       resHeaders.set("cache-control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
       resHeaders.set("cdn-cache-control", "public, max-age=60, stale-while-revalidate=300");
     }
   } else {
-    // Never cache mutating or auth-sensitive responses
     resHeaders.set("cache-control", "private, no-store");
   }
 
-  return new NextResponse(res.body, {
+  return new NextResponse(responseBody, {
     status: res.status,
     headers: resHeaders,
   });
