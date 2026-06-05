@@ -22,55 +22,42 @@ function GuestSession() {
 }
 
 function AuthBootstrap() {
-  const { hasHydrated, user, accessToken, setUser, logout } = useAuthStore();
+  const { hasHydrated, user, accessToken, setUser, logout, setValidatingSession } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
 
   useEffect(() => {
     // Wait for the persisted auth store to rehydrate before doing anything.
     if (!hasHydrated) return;
 
-    // Case 1: We have BOTH user object AND accessToken in localStorage.
-    // This is the normal returning-user case. Validate session via api.me()
-    // (which will use the stored accessToken from the Axios interceptor).
-    if (user && accessToken) {
-      api.me()
-        .then(({ data }) => {
-          setUser(data);
-          // Always sync cart from server — covers cross-device scenario where
-          // items were added on another device/session.
-          fetchCart().catch(() => {});
-        })
-        .catch(() => {
-          // Session expired — clear everything
-          logout();
-          resetCart();
-        });
-      return;
-    }
-
-    // Case 2: user in localStorage but no accessToken (old store format before
-    // the fix, or token was cleared). Try to restore via refresh-token cookie.
-    // Only attempt this if we have a user object — avoids unnecessary 401s for
-    // genuinely logged-out users.
-    if (user && !accessToken) {
+    // Case 1: We have a user object (with or without accessToken).
+    // Validate the session via api.me() — the Axios interceptor will send the
+    // stored accessToken if present, or the httpOnly refresh cookie will be used.
+    // Set isValidatingSession=true so protected pages (e.g. /cart) don't
+    // redirect to login while we're still checking.
+    if (user) {
+      setValidatingSession(true);
       api.me()
         .then(({ data }) => {
           setUser(data);
           fetchCart().catch(() => {});
         })
         .catch(() => {
+          // Session truly expired — clear everything and let the page redirect.
           logout();
           resetCart();
+        })
+        .finally(() => {
+          setValidatingSession(false);
         });
       return;
     }
 
-    // Case 3: No user at all — genuinely logged out. Do nothing.
+    // Case 2: No user at all — genuinely logged out. Do nothing.
     // (Previously this called api.me() unconditionally which caused a 401 →
     // refresh attempt → logout() cascade for every unauthenticated page load.)
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasHydrated]); // ← intentionally omit user/accessToken/setUser/logout/fetchCart/resetCart
+  }, [hasHydrated]); // ← intentionally omit deps to run only once after hydration
 
   // Listen for the pb-cart-refresh event dispatched by Flutter's refreshCart()
   // so the cart page updates without a full page reload.

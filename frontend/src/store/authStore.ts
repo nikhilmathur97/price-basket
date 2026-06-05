@@ -16,7 +16,12 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   hasHydrated: boolean;
+  /** True while AuthBootstrap is calling api.me() to validate the session.
+   *  Pages that need auth (e.g. /cart) must wait for this to be false before
+   *  deciding to redirect to login — prevents the flash-redirect on page load. */
+  isValidatingSession: boolean;
   markHydrated: () => void;
+  setValidatingSession: (v: boolean) => void;
   setUser: (user: User) => void;
   setAccessToken: (token: string) => void;
   logout: () => void;
@@ -29,15 +34,19 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       isAuthenticated: false,
       hasHydrated: false,
+      isValidatingSession: false,
 
       markHydrated: () =>
         set((state) => ({
           hasHydrated: true,
-          // Authenticated if we have BOTH user object AND a stored access token.
-          // This prevents the "logged-in user but no token → immediate 401 → logout"
-          // race condition that caused the auto-logout-on-refresh bug.
-          isAuthenticated: Boolean(state.user && state.accessToken),
+          // Consider authenticated if we have a user object — even if accessToken
+          // is temporarily null (it will be refreshed via cookie or Flutter injection).
+          // Using user alone prevents the "no token → isAuthenticated=false → cart
+          // redirects to login" race condition on page load.
+          isAuthenticated: Boolean(state.user),
         })),
+
+      setValidatingSession: (v) => set({ isValidatingSession: v }),
 
       setUser: (user) => set({ user, isAuthenticated: true }),
 

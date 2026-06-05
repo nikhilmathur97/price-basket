@@ -319,16 +319,18 @@ function PlatformTotalCard({
 // ── Main Cart Page ────────────────────────────────────────────────────────────
 export default function CartPage() {
   const router = useRouter();
-  const { hasHydrated, isAuthenticated } = useAuthStore();
+  const { hasHydrated, isAuthenticated, isValidatingSession } = useAuthStore();
   const { cart, isLoading, fetchCart, _hasHydrated: cartHydrated } = useCartStore();
   const productIds = cart?.items.map((i) => i.product.id) ?? [];
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated — but WAIT until session validation completes.
+  // Without this guard, the cart page redirects to login while api.me() is still
+  // in flight (isAuthenticated is briefly false before the server confirms the session).
   useEffect(() => {
-    if (hasHydrated && !isAuthenticated) {
+    if (hasHydrated && !isValidatingSession && !isAuthenticated) {
       router.replace("/auth/login?next=/cart");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
   // Fetch cart on mount — always fetch from server when authenticated so that
   // cross-device changes (items added on another device/session) are reflected.
