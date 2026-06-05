@@ -55,7 +55,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) {
+          onPageStarted: (String url) {
             setState(() {
               _isLoading = true;
               _hasError = false;
@@ -71,6 +71,12 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
               _loadingProgress = 1.0;
               _refreshing = false;
             });
+            // Session is restored by the web app itself: it persists the user in
+            // localStorage (key pb_auth) and AuthBootstrap re-validates via
+            // api.me() using the httpOnly pb_refresh_token cookie, which the
+            // WebView keeps across restarts. We must NOT inject the token into
+            // localStorage here — that traps users in a phantom logged-in state
+            // when the session is actually invalid (see bridge contract).
             // Native shell adjustments: hide the web app's own bottom nav, and
             // focus the search field when the search page opens.
             _injectAppChrome();
@@ -157,11 +163,63 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
   void _injectAppChrome() {
     _controller.runJavaScript(r'''
       (function() {
+        // ── 1. Fix viewport / zoom ─────────────────────────────────────────
+        // iOS WKWebView auto-zooms when an input with font-size < 16px is
+        // focused. Two-pronged fix:
+        //   a) Set viewport maximum-scale=1.0 (blocks pinch zoom)
+        //   b) Force all inputs/textareas/selects to font-size >= 16px so iOS
+        //      never triggers the auto-zoom on focus (this is the real cause)
+        //   c) MutationObserver keeps the viewport locked after SPA navigations
+
+        var vpContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+
+        function lockViewport() {
+          var vp = document.querySelector('meta[name="viewport"]');
+          if (vp) {
+            if (vp.getAttribute('content') !== vpContent) {
+              vp.setAttribute('content', vpContent);
+            }
+          } else {
+            var m = document.createElement('meta');
+            m.name = 'viewport';
+            m.content = vpContent;
+            document.head.appendChild(m);
+          }
+        }
+        lockViewport();
+
+        // Watch for SPA navigations that might reset the viewport meta
+        if (!window.__pbViewportObserver) {
+          window.__pbViewportObserver = new MutationObserver(function() {
+            lockViewport();
+          });
+          window.__pbViewportObserver.observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+        }
+
+        // ── 2. Prevent iOS input-focus auto-zoom ──────────────────────────
+        // iOS zooms in when focusing an input whose computed font-size < 16px.
+        // Injecting a style rule that bumps all inputs to 16px stops this
+        // completely without affecting visual layout (16px = browser default).
+        if (!document.getElementById('pb-no-zoom-inputs')) {
+          var inputStyle = document.createElement('style');
+          inputStyle.id = 'pb-no-zoom-inputs';
+          inputStyle.textContent = [
+            'input, input[type="text"], input[type="email"], input[type="password"],',
+            'input[type="number"], input[type="tel"], input[type="search"],',
+            'input[type="url"], textarea, select {',
+            '  font-size: 16px !important;',
+            '  -webkit-text-size-adjust: 100% !important;',
+            '}'
+          ].join('\n');
+          document.head.appendChild(inputStyle);
+        }
+
+        // ── 3. Hide web bottom nav ─────────────────────────────────────────
+        // Target the web BottomNav: a <nav> that is position:fixed and
+        // bottom:0. This matches regardless of Tailwind class names.
         if (document.getElementById('pb-app-chrome')) return;
         var s = document.createElement('style');
         s.id = 'pb-app-chrome';
-        // Target the web BottomNav: a <nav> that is position:fixed and
-        // bottom:0. This matches regardless of Tailwind class names.
         s.textContent = [
           'nav[class*="bottom-0"]{display:none !important;}',
           'nav[class*="fixed"][class*="bottom"]{display:none !important;}'
@@ -206,6 +264,26 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
         })();
       ''');
     });
+  }
+
+  /// Refreshes the cart data via JavaScript without a full page reload.
+  /// Calls the Zustand cartStore.fetchCart() directly so the cart page
+  /// shows up-to-date items without re-running auth checks (which would
+  /// risk logging the user out on a fresh page navigation).
+  void refreshCart() {
+    _controller.runJavaScript(r'''
+      (function() {
+        try {
+          // Trigger a custom event that the cart page listens to for refresh
+          window.dispatchEvent(new CustomEvent('pb-cart-refresh'));
+          // Also directly call Zustand store's fetchCart if accessible
+          var stores = window.__zustand_stores__;
+          if (stores && stores.cart && stores.cart.fetchCart) {
+            stores.cart.fetchCart();
+          }
+        } catch(e) {}
+      })();
+    ''');
   }
 
   /// Navigate to a new URL (called from MainShell on tab switch or deep link).

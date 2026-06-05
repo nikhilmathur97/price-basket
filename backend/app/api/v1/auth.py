@@ -4,6 +4,7 @@ Auth router — register, login, refresh, logout.
 All tokens use httpOnly cookies for XSS protection, with CSRF header requirement.
 """
 from datetime import timezone, datetime
+from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession

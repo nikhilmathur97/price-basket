@@ -22,41 +22,39 @@ function GuestSession() {
 }
 
 function AuthBootstrap() {
-  const { hasHydrated, user, accessToken, setUser, logout, setValidatingSession } = useAuthStore();
+  const { hasHydrated, user, setUser, logout, setValidatingSession } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
 
   useEffect(() => {
     // Wait for the persisted auth store to rehydrate before doing anything.
     if (!hasHydrated) return;
 
-    // If we have a user + accessToken in localStorage, trust them immediately —
-    // no api.me() call needed. Just fetch the cart in the background.
-    // This makes every page load instant for logged-in users.
-    if (user && accessToken) {
-      fetchCart().catch(() => {});
-      return;
-    }
+    // No persisted user — genuinely logged out. Nothing to validate.
+    if (!user) return;
 
-    // If we have a user but no accessToken (old store format / token cleared),
-    // try to restore via refresh-token cookie — but don't block the UI.
-    if (user && !accessToken) {
-      setValidatingSession(true);
-      api.me()
-        .then(({ data }) => {
-          setUser(data);
-          fetchCart().catch(() => {});
-        })
-        .catch(() => {
-          logout();
-          resetCart();
-        })
-        .finally(() => {
-          setValidatingSession(false);
-        });
-      return;
-    }
-
-    // No user at all — genuinely logged out. Do nothing.
+    // We have a persisted user. The UI renders instantly trusting it (so login
+    // stays fast), but we ALWAYS validate the session in the background via
+    // api.me(). This is essential: a stale/invalid session (e.g. token expired,
+    // backend redeploy, or the account no longer exists) must self-heal into a
+    // clean logged-out state. Without this, an invalid persisted session traps
+    // the user in a phantom "logged in" state where the Login button disappears
+    // and /auth/login redirects away — i.e. "login button not working".
+    //
+    // On 401, the api.ts interceptor first tries /auth/refresh via the httpOnly
+    // cookie; only if that also fails do we land in .catch() and log out.
+    setValidatingSession(true);
+    api.me()
+      .then(({ data }) => {
+        setUser(data);
+        fetchCart().catch(() => {});
+      })
+      .catch(() => {
+        logout();
+        resetCart();
+      })
+      .finally(() => {
+        setValidatingSession(false);
+      });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated]); // ← intentionally omit deps to run only once after hydration

@@ -11,6 +11,7 @@ import '../services/fcm_service.dart';
 
 // Search tab index — used to trigger focusSearch() on tap.
 const int _kSearchTabIndex = 1;
+const int _kCartTabIndex = 2;
 
 /// Tab definition
 class _Tab {
@@ -54,11 +55,12 @@ List<_Tab> _buildTabs() => [
   ),
 ];
 
-/// Main shell: IndexedStack of WebViews + native BottomNavigationBar.
+/// Main shell: SINGLE WebView + native BottomNavigationBar.
 ///
-/// Each tab maintains its own WebView instance (pages stay alive when
-/// switching tabs — no reload). Android back button navigates WebView
-/// history before exiting the app.
+/// All tabs share ONE WebView instance so they share the same JavaScript
+/// context, localStorage, cookies, and auth state. Tab switches navigate
+/// the single WebView to the appropriate URL — no separate WebView per tab,
+/// no cross-tab auth isolation issues.
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -70,22 +72,13 @@ class _MainShellState extends ConsumerState<MainShell> {
   int _currentIndex = 0;
   late final List<_Tab> _tabs;
 
-  // One GlobalKey per tab so we can call methods on each WebViewScreen
-  late final List<GlobalKey<WebViewScreenState>> _webViewKeys;
-
-  // Tabs whose WebView has actually been opened. We only build a tab's WebView
-  // the first time it's visited (lazy load) so the app doesn't fire 4 page
-  // loads at startup; once built, IndexedStack keeps it alive.
-  final Set<int> _visitedTabs = {0};
+  // Single WebView key — all tabs share one WebView instance
+  final GlobalKey<WebViewScreenState> _webViewKey = GlobalKey<WebViewScreenState>();
 
   @override
   void initState() {
     super.initState();
     _tabs = _buildTabs();
-    _webViewKeys = List.generate(
-      _tabs.length,
-      (_) => GlobalKey<WebViewScreenState>(),
-    );
     _listenDeepLinks();
     _listenConnectivity();
     _handleInitialDeepLink();
@@ -135,14 +128,9 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
 
     if (!mounted) return;
-    setState(() {
-      _currentIndex = targetTab;
-      _visitedTabs.add(targetTab);
-    });
-    // Defer the load: if this tab was just built (lazy), its WebView controller
-    // isn't ready until after this frame.
+    setState(() => _currentIndex = targetTab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _webViewKeys[targetTab].currentState?.loadUrl(webUrl);
+      _webViewKey.currentState?.loadUrl(webUrl);
     });
   }
 
@@ -173,14 +161,15 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 
   Future<bool> _onWillPop() async {
-    // Try to go back in current WebView history first
+    // Try to go back in WebView history first
     final bool wentBack =
-        await _webViewKeys[_currentIndex].currentState?.goBack() ?? false;
+        await _webViewKey.currentState?.goBack() ?? false;
     if (wentBack) return false; // Don't exit app
 
     // If on a non-home tab, go back to Home tab
     if (_currentIndex != 0) {
       setState(() => _currentIndex = 0);
+      _webViewKey.currentState?.loadUrl(_tabs[0].url);
       return false;
     }
 
@@ -206,36 +195,30 @@ class _MainShellState extends ConsumerState<MainShell> {
         // bottom: false — the bottom inset is handled by _NativeBottomNav.
         body: SafeArea(
           bottom: false,
-          child: IndexedStack(
-            index: _currentIndex,
-            children: List.generate(_tabs.length, (i) {
-              // Lazy: unvisited tabs render nothing until first opened, avoiding
-              // 4 simultaneous page loads at launch. Stays alive once built.
-              if (!_visitedTabs.contains(i)) {
-                return const SizedBox.shrink();
-              }
-              return WebViewScreen(
-                key: _webViewKeys[i],
-                initialUrl: _tabs[i].url,
-              );
-            }),
+          child: WebViewScreen(
+            key: _webViewKey,
+            initialUrl: _tabs[0].url,
           ),
         ),
         bottomNavigationBar: _NativeBottomNav(
           currentIndex: _currentIndex,
           cartCount: cartCount,
           onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-              _visitedTabs.add(index);
-            });
+            final int prevIndex = _currentIndex;
+            setState(() => _currentIndex = index);
+
+            // Navigate the single WebView to the tapped tab's URL
+            if (index != prevIndex) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKey.currentState?.loadUrl(_tabs[index].url);
+              });
+            }
+
             // Bug 3 fix: when the Search tab is tapped, focus the web search
             // input so the keyboard pops up immediately (Blinkit-style).
             if (index == _kSearchTabIndex) {
-              // Defer one frame so the IndexedStack has made the WebView
-              // visible before we try to focus its input.
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                _webViewKeys[_kSearchTabIndex].currentState?.focusSearch();
+                _webViewKey.currentState?.focusSearch();
               });
             }
           },
