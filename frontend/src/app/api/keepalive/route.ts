@@ -1,9 +1,9 @@
 /**
- * /api/keepalive — backend warm-up + health check
+ * /api/keepalive — backend health check
  * ─────────────────────────────────────────────────────────────────────────────
  * Called by two sources:
- *   1. Vercel Cron (every 5 min via vercel.json) — keeps Render free-tier warm
- *      so users never hit a cold start. Vercel adds Authorization: Bearer <CRON_SECRET>.
+ *   1. Vercel Cron (every 5 min via vercel.json) — confirms AWS backend is alive.
+ *      Vercel adds Authorization: Bearer <CRON_SECRET>.
  *   2. UptimeRobot (every 5 min) — external uptime monitoring. No auth header.
  *      UptimeRobot monitors: https://pricebasket.in/api/keepalive
  *      Expected response: HTTP 200 with JSON { ok: true }
@@ -16,10 +16,11 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs"; // Node runtime: supports longer timeouts than Edge
 
+// BACKEND_URL / API_URL must be set in Vercel env → AWS ALB.
 const BACKEND = (
   process.env.BACKEND_URL ||
   process.env.API_URL ||
-  "https://pricebasket-api.onrender.com"
+  "http://localhost:8001"
 ).replace(/\/$/, "");
 
 // Try /health first (standard), fall back to /ping (legacy)

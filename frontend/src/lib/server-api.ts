@@ -9,15 +9,14 @@
 import type { ProductWithPrices } from "@/types";
 import { STATIC_POSTS, getStaticPost, type BlogPost } from "@/lib/blog";
 
-// Server-side: use BACKEND_URL (set in Vercel env → Render backend).
-// Falls back to API_URL / NEXT_PUBLIC_API_URL, then the Render URL directly
-// (|| not ?? so an empty-string env var also falls through to the default).
+// Server-side: BACKEND_URL / API_URL must be set in Vercel env → AWS ALB.
+// Falls back to localhost for local development only.
 // These run in Server Components / route handlers — never shipped to browser.
 const BACKEND =
   process.env.BACKEND_URL ||
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://pricebasket-api.onrender.com";
+  "http://localhost:8001";
 
 export const API_BASE = `${BACKEND.replace(/\/$/, "")}/api/v1`;
 export const SITE_URL = (

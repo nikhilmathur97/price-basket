@@ -102,6 +102,10 @@ export const api = {
   // interceptor to refresh → setAccessToken() → user re-authenticated after logout.
   logout: () => apiClient.post("/auth/logout", {}, { _retry: true } as any),
   me: () => apiClient.get("/auth/me"),
+  forgotPassword: (email: string) =>
+    apiClient.post("/auth/forgot-password", { email }),
+  resetPassword: (token: string, new_password: string) =>
+    apiClient.post("/auth/reset-password", { token, new_password }),
   updateMe: (data: {
     full_name?: string;
     phone?: string;
@@ -115,7 +119,8 @@ export const api = {
 
   // Products
   getCategories: () => apiClient.get("/products/categories"),
-  getFeatured: (limit = 20) => apiClient.get(`/products/featured?limit=${limit}`),
+  getFeatured: (limit = 20, signal?: AbortSignal) =>
+    apiClient.get(`/products/featured?limit=${limit}`, { signal }),
   searchProducts: (params: Record<string, string | number>) =>
     apiClient.get("/products", { params }),
   getProduct: (id: string) => apiClient.get(`/products/${id}`),

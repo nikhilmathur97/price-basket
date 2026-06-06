@@ -8,6 +8,7 @@ import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
+import { useBackendWakeup } from "@/hooks/useBackendWakeup";
 import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
@@ -25,15 +26,11 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { wakingUp, retryCountdown, trigger: triggerWakeup } = useBackendWakeup("login-form");
   // Prevent the "already authenticated" useEffect from firing during an active login
   const loginInProgress = useRef(false);
 
   // Redirect already-authenticated users away from the login page.
-  // Only redirect AFTER:
-  //   1. Store has hydrated (hasHydrated=true)
-  //   2. Background session validation has finished (isValidatingSession=false)
-  //      — prevents phantom-session redirect when session is actually stale
-  //   3. No login is currently in progress
   useEffect(() => {
     if (
       hasHydrated &&
@@ -47,53 +44,11 @@ export default function LoginPage() {
     }
   }, [hasHydrated, isValidatingSession, isAuthenticated, router, searchParams]);
 
-  // Only show the full-page loader while the store is hydrating from localStorage.
-  // Do NOT block on isValidatingSession — that can hang if the backend is slow
-  // (Render cold start, network timeout) and would make the login form invisible.
-  // The redirect useEffect above already waits for isValidatingSession=false before
-  // redirecting, so there is no phantom-session risk.
-  if (!hasHydrated) {
-    return <PageLoader message="Loading" />;
-  }
-
-  // If already authenticated AND session validation is done → redirect is imminent.
-  // Show loader to avoid a flash of the login form before navigation fires.
-  if (isAuthenticated && !isValidatingSession && !loginInProgress.current) {
-    return <PageLoader message="Loading" />;
-  }
-
-  // "Waking up" banner state — shown when backend returns 503 (cold start)
-  const [wakingUp, setWakingUp] = useState(false);
-  const [retryCountdown, setRetryCountdown] = useState(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Auto-retry after countdown when backend is waking up
-  useEffect(() => {
-    if (retryCountdown <= 0) return;
-    const t = setTimeout(() => setRetryCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [retryCountdown]);
-
-  useEffect(() => {
-    if (retryCountdown === 0 && wakingUp && !loading) {
-      // Countdown finished — auto-submit the form
-      setWakingUp(false);
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = setTimeout(() => {
-        document.getElementById("login-form")?.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true })
-        );
-      }, 100);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryCountdown]);
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return; // guard against double-submit
     loginInProgress.current = true;
     setLoading(true);
-    setWakingUp(false);
     try {
       const { data } = await api.login(form);
       setAccessToken(data.access_token);
@@ -122,8 +77,7 @@ export default function LoginPage() {
 
       if (!err?.response || status === 503) {
         // Backend cold-starting — show waking-up banner + auto-retry in 5s
-        setWakingUp(true);
-        setRetryCountdown(5);
+        triggerWakeup();
         setLoading(false);
         return;
       }
@@ -144,9 +98,24 @@ export default function LoginPage() {
     }
   }
 
+  // Only show the full-page loader while the store is hydrating from localStorage.
+  // Do NOT block on isValidatingSession — that can hang if the backend is slow
+  // (cold start, network timeout) and would make the login form invisible.
+  if (!hasHydrated) {
+    return <PageLoader message="Loading" />;
+  }
+
+  // Show spinner only when actively logging in (user clicked Login button)
   if (loading) {
     return <PageLoader message="Logging you in" />;
   }
+
+  // NOTE: Do NOT add a PageLoader here for "already authenticated" state.
+  // The useEffect above handles the redirect. Adding a PageLoader here causes
+  // the login page to show a blank screen and immediately redirect, making it
+  // impossible for users to access the login form. The useEffect redirect is
+  // sufficient — it fires as soon as hasHydrated=true, isValidatingSession=false,
+  // and isAuthenticated=true.
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
@@ -233,6 +202,15 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-brand-600 hover:underline"
+              >
+                Forgot password?
+              </Link>
             </div>
 
             <button

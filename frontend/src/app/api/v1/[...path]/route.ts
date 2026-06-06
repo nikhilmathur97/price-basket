@@ -8,8 +8,7 @@
  * - Mutating requests (POST/PUT/PATCH/DELETE) are never cached.
  *
  * Reliability:
- * - Auth endpoints (login/register) get up to 2 retries with a 25 s timeout each
- *   to survive Render free-tier cold starts (~15–30 s).
+ * - Auth endpoints (login/register) get up to 2 retries with a 25 s timeout each.
  * - All other endpoints get a single attempt with a 20 s timeout.
  * - On fetch failure (network error / timeout) the proxy returns a structured
  *   JSON 503 so the browser always gets an HTTP response — never a raw network
@@ -19,13 +18,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// BACKEND_URL is set in Vercel project env → Render backend.
-// Falls back to the Render URL directly if the env var is missing or empty
-// (|| not ?? so an empty-string env var also falls through to the default).
+// BACKEND_URL / API_URL must be set in the Vercel project env → AWS ALB.
+// Falls back to localhost for local development only.
 const BACKEND = (
   process.env.BACKEND_URL ||
   process.env.API_URL ||
-  "https://pricebasket-api.onrender.com"
+  "http://localhost:8001"
 ).replace(/\/$/, "");
 
 // Paths whose GET responses should be cached at Vercel's CDN edge.
@@ -70,7 +68,7 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   const pathStr = path.join("/");
   const url = `${BACKEND}/api/v1/${pathStr}${req.nextUrl.search}`;
 
-  // Auth endpoints: allow up to 2 retries with 25 s each (Render cold start).
+  // Auth endpoints: allow up to 2 retries with 25 s each.
   // All other endpoints: 1 attempt with 20 s timeout.
   const isAuth = AUTH_PATHS.test(pathStr);
   const timeoutMs = isAuth ? 25_000 : 20_000;

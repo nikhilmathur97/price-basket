@@ -194,12 +194,8 @@ export const MOCK_CATEGORIES: Category[] = [
   { id: "cat-4",  slug: "bakery",            name: "Bakery & Biscuits", icon: "🍞", image_url: C(3851050),  display_order: 4  },  // sourdough loaf on board
   { id: "cat-5",  slug: "household",         name: "Household",         icon: "🧹", image_url: C(4239034),  display_order: 5  },  // cleaning product bottles
   { id: "cat-6",  slug: "personal-care",     name: "Personal Care",     icon: "🧴", image_url: C(7440056),  display_order: 6  },  // shampoo bottles
-  { id: "cat-7",  slug: "chicken-meat",      name: "Chicken & Meat",    icon: "🍗", image_url: C(6107716),  display_order: 7  },  // raw chicken breast
-  { id: "cat-8",  slug: "frozen-foods",      name: "Frozen Foods",      icon: "🧊", image_url: C(3869083),  display_order: 8  },  // frozen berries
-  { id: "cat-9",  slug: "baby-care",         name: "Baby Care",         icon: "👶", image_url: C(5578497),  display_order: 9  },  // baby care products
-  { id: "cat-10", slug: "staples",           name: "Atta, Rice & Dal",  icon: "🌾", image_url: C(31555432), display_order: 10 },  // uncooked rice in bowl
-  { id: "cat-11", slug: "oils-spices",       name: "Oils & Spices",     icon: "🫙", image_url: C(2802527),  display_order: 11 },  // colorful spices
-  { id: "cat-12", slug: "electronics",       name: "Electronics",       icon: "📱", image_url: C(1092644),  display_order: 12 },  // smartphone on desk
+  { id: "cat-10", slug: "staples",           name: "Atta, Rice & Dal",  icon: "🌾", image_url: C(31555432), display_order: 7  },  // uncooked rice in bowl
+  { id: "cat-11", slug: "oils-spices",       name: "Oils & Spices",     icon: "🫙", image_url: C(2802527),  display_order: 8  },  // colorful spices
 ];
 
 // ── Helper ─────────────────────────────────────────────────────────────────

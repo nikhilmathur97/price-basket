@@ -27,29 +27,6 @@ from app.models.product import Product
 
 log = structlog.get_logger(__name__)
 
-# ── Self keep-alive: prevents Render free-tier cold starts ────────────────────
-_keepalive_task: asyncio.Task | None = None
-
-
-async def _self_ping_loop() -> None:
-    """
-    Ping our own /ping endpoint every 10 minutes so Render never idles the
-    service. Render free tier sleeps after 15 min of inactivity — this keeps
-    it permanently warm at zero cost. Uses httpx (already in requirements).
-    """
-    import httpx
-    await asyncio.sleep(60)  # wait 60 s after startup before first ping
-    port = int(os.environ.get("PORT", 8000))
-    url = f"http://localhost:{port}/ping"
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url)
-                log.debug("self_ping", status=resp.status_code)
-        except Exception as exc:
-            log.debug("self_ping_failed", error=str(exc))
-        await asyncio.sleep(600)  # every 10 minutes
-
 
 async def _auto_mark_featured() -> None:
     """If no products have is_featured=True, mark the first 60 active ones so the homepage always shows products."""
@@ -113,7 +90,6 @@ if settings.SENTRY_DSN:
 # ── Lifespan: startup / shutdown ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    global _keepalive_task
     log.info("Starting Price Basket API", version=settings.APP_VERSION, env=settings.APP_ENV)
 
     # Create DB tables (in production use Alembic migrations)
@@ -127,20 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Pre-warm featured products cache so first user request is instant
     asyncio.create_task(_warm_featured_cache())
 
-    # Start self-ping keep-alive loop to prevent Render cold starts
-    if settings.is_production:
-        _keepalive_task = asyncio.create_task(_self_ping_loop())
-        log.info("self_keepalive_started")
-
     yield
-
-    # Cancel keep-alive loop on shutdown
-    if _keepalive_task and not _keepalive_task.done():
-        _keepalive_task.cancel()
-        try:
-            await _keepalive_task
-        except asyncio.CancelledError:
-            pass
 
     await close_redis()
     await engine.dispose()
