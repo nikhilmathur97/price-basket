@@ -26,7 +26,7 @@ on:
       smtp_from:
         description: "From address shown in emails"
         required: false
-        default: "PriceBasket <noreply@pricebasket.in>"
+        default: "PriceBasket <founder@pricebasket.in>"
 
 permissions:
   id-token: write
