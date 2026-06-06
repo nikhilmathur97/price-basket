@@ -388,13 +388,16 @@ async def _ensure_browser():
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    # ── Memory-saving flags (critical for Render 512 MB free tier) ──
-                    "--disable-dev-shm-usage",       # use /tmp instead of /dev/shm
-                    "--disable-gpu",                 # no GPU process = ~50 MB saved
-                    "--single-process",              # renderer in same process = ~80 MB saved
-                    "--no-zygote",                   # skip zygote process = ~20 MB saved
+                    # ── Memory-saving flags (safe for headless-shell on Render) ───
+                    # NOTE: --single-process is intentionally EXCLUDED — it crashes
+                    # chromium-headless-shell (the binary Playwright 1.44+ uses).
+                    "--disable-dev-shm-usage",       # use /tmp instead of /dev/shm (~30 MB saved)
+                    "--disable-gpu",                 # no GPU process (~50 MB saved)
+                    "--no-zygote",                   # skip zygote process (~20 MB saved)
                     "--renderer-process-limit=1",    # max 1 renderer at a time
-                    "--js-flags=--max-old-space-size=128",  # cap V8 heap at 128 MB
+                    "--js-flags=--max-old-space-size=150",  # cap V8 heap at 150 MB
+                    "--memory-pressure-off",         # disable memory pressure notifications
+                    "--disable-features=TranslateUI,BlinkGenPropertyTrees",
                     # ── Anti-detection flags ──────────────────────────────────────
                     "--no-first-run",
                     "--no-default-browser-check",

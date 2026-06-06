@@ -97,7 +97,7 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python3 -m playwright install chromium --with-deps
-    startCommand: celery -A app.workers.celery_app worker --beat --loglevel=info --concurrency=2
+    startCommand: celery -A app.workers.celery_app worker --beat --loglevel=info --concurrency=1 --max-memory-per-child=200000
     # Starter plan keeps the worker always-on — no cold starts for scheduled tasks
     plan: starter
     envVars:
