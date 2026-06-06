@@ -22,33 +22,10 @@ from app.cache.redis_client import close_redis, init_redis, cache_get, cache_set
 from app.config import settings
 from app.database import engine, Base, AsyncSessionLocal
 from app.middleware.rate_limiter import RateLimitMiddleware
-from app.api.v1 import auth, products, cart, prices, users, admin, websocket, analytics, setup, content, growth
+from app.api.v1 import auth, products, cart, prices, users, admin, websocket, analytics, setup, content, growth, app_meta
 from app.models.product import Product
 
 log = structlog.get_logger(__name__)
-
-# ── Self keep-alive: prevents Render free-tier cold starts ────────────────────
-_keepalive_task: asyncio.Task | None = None
-
-
-async def _self_ping_loop() -> None:
-    """
-    Ping our own /ping endpoint every 10 minutes so Render never idles the
-    service. Render free tier sleeps after 15 min of inactivity — this keeps
-    it permanently warm at zero cost. Uses httpx (already in requirements).
-    """
-    import httpx
-    await asyncio.sleep(60)  # wait 60 s after startup before first ping
-    port = int(os.environ.get("PORT", 8000))
-    url = f"http://localhost:{port}/ping"
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url)
-                log.debug("self_ping", status=resp.status_code)
-        except Exception as exc:
-            log.debug("self_ping_failed", error=str(exc))
-        await asyncio.sleep(600)  # every 10 minutes
 
 
 async def _auto_mark_featured() -> None:
@@ -113,7 +90,6 @@ if settings.SENTRY_DSN:
 # ── Lifespan: startup / shutdown ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    global _keepalive_task
     log.info("Starting Price Basket API", version=settings.APP_VERSION, env=settings.APP_ENV)
 
     # Create DB tables (in production use Alembic migrations)
@@ -127,20 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Pre-warm featured products cache so first user request is instant
     asyncio.create_task(_warm_featured_cache())
 
-    # Start self-ping keep-alive loop to prevent Render cold starts
-    if settings.is_production:
-        _keepalive_task = asyncio.create_task(_self_ping_loop())
-        log.info("self_keepalive_started")
-
     yield
-
-    # Cancel keep-alive loop on shutdown
-    if _keepalive_task and not _keepalive_task.done():
-        _keepalive_task.cancel()
-        try:
-            await _keepalive_task
-        except asyncio.CancelledError:
-            pass
 
     await close_redis()
     await engine.dispose()
@@ -227,16 +190,33 @@ def create_app() -> FastAPI:
     app.include_router(setup.router,     prefix=f"{PREFIX}/setup",     tags=["Setup"])
     app.include_router(content.router,   prefix=f"{PREFIX}/content",   tags=["Content"])
     app.include_router(growth.router,    prefix=f"{PREFIX}/growth",    tags=["Growth"])
+    app.include_router(app_meta.router,  prefix=f"{PREFIX}/app",       tags=["App"])
     app.include_router(websocket.router, prefix="/ws",               tags=["WebSocket"])
 
     # ── Health check ──────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], status_code=status.HTTP_200_OK)
     async def health():
-        from fastapi.responses import Response as FastAPIResponse
-        content = {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        import os
+        content: dict = {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        # Include live RAM stats so you can check memory usage from terminal:
+        #   curl https://pricebasket-api.onrender.com/health
+        try:
+            import psutil
+            proc = psutil.Process(os.getpid())
+            mem = proc.memory_info()
+            vm  = psutil.virtual_memory()
+            content["memory"] = {
+                "process_rss_mb":  round(mem.rss  / 1024 / 1024, 1),  # this process RSS
+                "process_vms_mb":  round(mem.vms  / 1024 / 1024, 1),  # virtual memory
+                "system_used_mb":  round(vm.used  / 1024 / 1024, 1),  # total system used
+                "system_total_mb": round(vm.total / 1024 / 1024, 1),  # total system RAM
+                "system_pct":      round(vm.percent, 1),               # % used
+            }
+        except Exception:
+            pass  # psutil not installed — skip memory stats
         resp = JSONResponse(content=content)
-        # Allow CDN/browser to cache health for 30 s — reduces origin hits
-        resp.headers["Cache-Control"] = "public, max-age=30, s-maxage=30"
+        # Short cache — memory stats should be fresh
+        resp.headers["Cache-Control"] = "public, max-age=10, s-maxage=10"
         return resp
 
     # ── Lightweight ping for keep-alive probes (no logging overhead) ──────────

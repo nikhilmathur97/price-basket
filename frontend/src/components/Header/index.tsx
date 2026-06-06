@@ -10,7 +10,6 @@ import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { SearchBar } from "@/components/SearchBar";
 import { LocationBar } from "@/components/LocationBar";
-import { PageLoader } from "@/components/PageLoader";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -20,19 +19,23 @@ export function Header() {
   const { totalItems, openCart, resetCart } = useCartStore();
   const { isAuthenticated, user, logout, hasHydrated } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   // Hide the mobile search bar on product pages — the product page has its own context
   const isProductPage = pathname?.startsWith("/product/");
 
-  async function handleLogout() {
+  function handleLogout() {
     setMenuOpen(false);
-    setLoggingOut(true);
-    try { await api.logout(); } catch { /* ignore */ }
+    // Fire the API call BEFORE clearing client state so the request still carries the
+    // Authorization header. The backend needs the token to revoke server-side sessions
+    // and delete the httpOnly refresh cookie. Calling logout() first would clear the
+    // token → the request goes out unauthenticated → backend returns 401 → the response
+    // interceptor's refresh logic kicks in with the still-valid cookie → user gets
+    // re-authenticated despite just logging out → login page redirects them back → bug.
+    api.logout().catch(() => {});
     logout();
     resetCart();
     toast("See you soon! 👋", { duration: 1500 });
-    window.location.replace("/");
+    router.replace("/");
   }
 
   function handleCartClick() {
@@ -53,10 +56,6 @@ export function Header() {
       ? [{ href: "/admin", icon: Settings, label: "Admin Dashboard" }]
       : []),
   ] as const;
-
-  if (loggingOut) {
-    return <PageLoader message="Signing you out" />;
-  }
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0_1px_0_#f0f0f0]">

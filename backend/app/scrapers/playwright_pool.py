@@ -388,8 +388,17 @@ async def _ensure_browser():
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
+                    # ── Memory-saving flags (safe for headless-shell on Render) ───
+                    # NOTE: --single-process is intentionally EXCLUDED — it crashes
+                    # chromium-headless-shell (the binary Playwright 1.44+ uses).
+                    "--disable-dev-shm-usage",       # use /tmp instead of /dev/shm (~30 MB saved)
+                    "--disable-gpu",                 # no GPU process (~50 MB saved)
+                    "--no-zygote",                   # skip zygote process (~20 MB saved)
+                    "--renderer-process-limit=1",    # max 1 renderer at a time
+                    "--js-flags=--max-old-space-size=150",  # cap V8 heap at 150 MB
+                    "--memory-pressure-off",         # disable memory pressure notifications
+                    "--disable-features=TranslateUI,BlinkGenPropertyTrees",
+                    # ── Anti-detection flags ──────────────────────────────────────
                     "--no-first-run",
                     "--no-default-browser-check",
                     "--disable-extensions",
@@ -397,8 +406,7 @@ async def _ensure_browser():
                     "--disable-features=IsolateOrigins,site-per-process",
                     "--disable-infobars",
                     "--window-size=1280,800",
-                    "--start-maximized",
-                    # Realistic Chrome flags
+                    # ── Misc performance/stability ────────────────────────────────
                     "--enable-features=NetworkService,NetworkServiceInProcess",
                     "--disable-background-networking",
                     "--disable-background-timer-throttling",
@@ -417,9 +425,7 @@ async def _ensure_browser():
                     "--metrics-recording-only",
                     "--password-store=basic",
                     "--use-mock-keychain",
-                    "--export-tagged-pdf",
                     "--no-pings",
-                    "--use-gl=swiftshader",
                 ],
             )
             log.info("playwright_browser_started")

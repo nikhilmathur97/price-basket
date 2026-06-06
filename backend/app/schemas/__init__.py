@@ -30,11 +30,30 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _strong_password(cls, v: str) -> str:
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
+    user: Optional["UserOut"] = None  # included on login/register — saves a round-trip /me call
 
 
 class RefreshRequest(BaseModel):
@@ -68,6 +87,11 @@ class UserUpdate(BaseModel):
     longitude: Optional[float] = None
     notification_email: Optional[bool] = None
     notification_push: Optional[bool] = None
+
+
+class FCMTokenIn(BaseModel):
+    """Device push-notification token sent by the mobile app."""
+    token: str = Field(..., min_length=1, max_length=4096)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

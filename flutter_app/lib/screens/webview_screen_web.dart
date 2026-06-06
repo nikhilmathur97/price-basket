@@ -24,6 +24,9 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
   /// No-op on web.
   Future<void> reload() async {}
 
+  /// No-op on web — keeps the API in parity with the mobile WebViewScreen.
+  void focusSearch() {}
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -44,7 +47,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.brandOrange.withOpacity(0.3),
+                        color: AppTheme.brandOrange.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -86,18 +89,18 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
                     color: const Color(0xFFFFF3EE),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: AppTheme.brandOrange.withOpacity(0.2),
+                      color: AppTheme.brandOrange.withValues(alpha: 0.2),
                     ),
                   ),
-                  child: Column(
+                  child: const Column(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.phone_android_rounded,
                         color: AppTheme.brandOrange,
                         size: 32,
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
+                      SizedBox(height: 12),
+                      Text(
                         'Run on Android or iOS',
                         style: TextStyle(
                           fontSize: 16,
@@ -105,8 +108,8 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
                           color: AppTheme.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
+                      SizedBox(height: 8),
+                      Text(
                         'The WebView is only available on mobile.\n'
                         'Use an Android emulator or iOS simulator\n'
                         'to see the full app experience.',

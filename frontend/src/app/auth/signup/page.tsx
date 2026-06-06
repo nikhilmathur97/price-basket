@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
@@ -13,15 +13,20 @@ import toast from "react-hot-toast";
 
 function getSignupErrorMessage(err: any): string {
   if (!err?.response) {
-    return err?.message === "Network Error"
-      ? "Cannot reach server — backend may be down. Please try again."
-      : (err?.message ?? "Registration failed");
+    // Raw network error — proxy itself is unreachable (should be rare after proxy fix)
+    return "Cannot reach server — please try again in a few seconds.";
   }
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
   if (status === 409) return "Email already registered. Try signing in instead.";
-  if (status === 502 || status === 503) return "Service unavailable — backend is not running. Please try again later.";
-  if (status === 500) return "Server error — database may not be set up. Contact support.";
+  if (status === 503) {
+    // Proxy returned 503: backend cold-starting or unreachable
+    return typeof detail === "string"
+      ? detail
+      : "Server is starting up — please wait a moment and try again.";
+  }
+  if (status === 502) return "Service unavailable — please try again in a few seconds.";
+  if (status === 500) return "Server error — please try again or contact support.";
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     const first = detail[0];
@@ -32,7 +37,7 @@ function getSignupErrorMessage(err: any): string {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const { setUser, setAccessToken, isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
@@ -40,20 +45,55 @@ export default function SignupPage() {
   const [emailError, setEmailError] = useState("");
   const signupInProgress = useRef(false);
 
-  // Redirect already-authenticated users away from the signup page
+  // "Waking up" banner state — shown when backend returns 503 (cold start)
+  const [wakingUp, setWakingUp] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Countdown tick
   useEffect(() => {
-    if (hasHydrated && isAuthenticated && !signupInProgress.current) {
+    if (retryCountdown <= 0) return;
+    const t = setTimeout(() => setRetryCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [retryCountdown]);
+
+  // Auto-retry when countdown reaches 0
+  useEffect(() => {
+    if (retryCountdown === 0 && wakingUp && !loading) {
+      setWakingUp(false);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        document.getElementById("signup-form")?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        );
+      }, 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCountdown]);
+
+  // Redirect already-authenticated users away from the signup page.
+  // Only redirect after session validation finishes — prevents phantom-session redirect.
+  useEffect(() => {
+    if (hasHydrated && !isValidatingSession && isAuthenticated && !signupInProgress.current) {
       router.replace("/");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
-  // Show loader while hydrating OR while already authenticated (redirect pending)
-  if (!hasHydrated || isAuthenticated) {
+  // Only block on hydration — NOT on isValidatingSession.
+  // isValidatingSession can hang if backend is slow (Render cold start) and would
+  // make the signup form invisible. The redirect above already waits for it.
+  if (!hasHydrated) {
+    return <PageLoader message="Loading" />;
+  }
+
+  // Redirect is imminent — show loader to avoid flash of form before navigation.
+  if (isAuthenticated && !isValidatingSession && !signupInProgress.current) {
     return <PageLoader message="Loading" />;
   }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return; // guard against double-submit
     const trimmedName = form.full_name.trim();
     const normalizedEmail = form.email.trim().toLowerCase();
 
@@ -66,20 +106,36 @@ export default function SignupPage() {
     setEmailError("");
     signupInProgress.current = true;
     setLoading(true);
+    setWakingUp(false);
     try {
-      await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
-      const { data } = await api.login({ email: normalizedEmail, password: form.password });
+      // Register now returns a TokenResponse (access_token + user) — no second login call needed.
+      const { data } = await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
       setAccessToken(data.access_token);
-      const { data: user } = await api.me();
+      // Register response includes user — no extra api.me() round-trip needed.
+      let user = data.user;
+      if (!user) {
+        const meRes = await api.me();
+        user = meRes.data;
+      }
       setUser(user);
-      resetCart();
-      await fetchCart().catch(() => {});
       toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
-      // Client-side navigation — keeps store alive so accessToken is never lost
+      // Clear loading BEFORE navigation so the spinner doesn't block the redirect
+      setLoading(false);
+      signupInProgress.current = false;
+      resetCart();
+      fetchCart().catch(() => {});
+      // Navigate after state is cleared
       router.replace("/");
     } catch (err: any) {
       signupInProgress.current = false;
       const status = err?.response?.status;
+      if (!err?.response || status === 503) {
+        // Backend cold-starting — show waking-up banner + auto-retry in 5s
+        setWakingUp(true);
+        setRetryCountdown(5);
+        setLoading(false);
+        return;
+      }
       if (status === 409) {
         setEmailError("This email is already registered. Sign in instead?");
       } else {
@@ -112,7 +168,20 @@ export default function SignupPage() {
             Start comparing prices and saving money
           </p>
 
-          <form onSubmit={handleSignup} className="space-y-4">
+          {/* Waking-up banner — shown when backend is cold-starting */}
+          {wakingUp && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+              <span>
+                Waking up servers, please wait…{" "}
+                <span className="font-semibold">
+                  {retryCountdown > 0 ? `Retrying in ${retryCountdown}s` : "Retrying…"}
+                </span>
+              </span>
+            </div>
+          )}
+
+          <form id="signup-form" onSubmit={handleSignup} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">Full Name</label>
               <input
@@ -199,10 +268,10 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={!!form.confirm && form.confirm !== form.password}
-              className="btn-primary w-full"
+              disabled={loading || wakingUp || (!!form.confirm && form.confirm !== form.password)}
+              className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Create Account
+              {wakingUp ? "Waking up…" : "Create Account"}
             </button>
           </form>
 

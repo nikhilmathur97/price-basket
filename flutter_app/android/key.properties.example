@@ -1,0 +1,18 @@
+# key.properties — EXAMPLE FILE
+# Copy this to flutter_app/android/key.properties and fill in real values.
+# NEVER commit key.properties to git — it is in .gitignore.
+#
+# How to generate a keystore:
+#   keytool -genkey -v \
+#     -keystore pricebasket-release.jks \
+#     -alias pricebasket \
+#     -keyalg RSA \
+#     -keysize 2048 \
+#     -validity 10000
+#
+# Then move pricebasket-release.jks to flutter_app/android/ and fill in below.
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=pricebasket
+storeFile=../pricebasket-release.jks

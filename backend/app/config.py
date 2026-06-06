@@ -97,7 +97,12 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    FCM_SERVER_KEY: str = ""
+    FCM_SERVER_KEY: str = ""  # legacy HTTP API — deprecated by Google (June 2024)
+    # Firebase Admin SDK credentials for FCM HTTP v1. Either an absolute path to
+    # a service-account JSON file OR the raw JSON string. Generate in Firebase
+    # Console → Project Settings → Service Accounts → "Generate new private key".
+    # Empty = push notifications disabled (service runs in stub mode).
+    FIREBASE_CREDENTIALS_JSON: str = ""
 
     # ── Marketing / SEO automation ────────────────────────────────────────────
     # Public site URL (used to build canonical links for content + social posts).

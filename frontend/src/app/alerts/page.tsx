@@ -174,15 +174,15 @@ function AlertCard({ alert, onDelete, isDeleting }: AlertCardProps) {
 export default function AlertsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-  // Redirect if not logged in
+  // Redirect if not logged in — wait for session validation to finish first
   useEffect(() => {
-    if (hasHydrated && !isAuthenticated) {
+    if (hasHydrated && !isValidatingSession && !isAuthenticated) {
       router.replace("/auth/login?next=/alerts");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
   const { data: alerts, isLoading, isError } = useQuery<PriceAlert[]>({
     queryKey: ["alerts"],
@@ -216,9 +216,9 @@ export default function AlertsPage() {
   const activeAlerts = alerts?.filter((a) => !a.triggered_at) ?? [];
   const triggeredAlerts = alerts?.filter((a) => !!a.triggered_at) ?? [];
 
-  if (!hasHydrated || (!isAuthenticated && hasHydrated)) {
-    return null;
-  }
+  // Wait for hydration + session validation before deciding to redirect.
+  if (!hasHydrated || isValidatingSession) return null;
+  if (!isAuthenticated) return null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">

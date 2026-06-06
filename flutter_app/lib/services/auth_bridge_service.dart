@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_config.dart';
 import '../providers/cart_count_provider.dart';
+import 'fcm_service.dart';
 
 /// Bridges authentication and cart state between the WebView (Next.js)
 /// and the native Flutter shell via a JavaScript channel named "FlutterBridge".
@@ -51,6 +52,8 @@ class AuthBridgeService {
     final String? userId = data['user_id']?.toString();
     if (token != null && token.isNotEmpty) {
       await _storage.write(key: AppConfig.keyJwtToken, value: token);
+      // Now that we have a JWT, register any FCM token captured before login.
+      await FcmService.syncTokenAfterLogin();
     }
     if (userId != null && userId.isNotEmpty) {
       await _storage.write(key: AppConfig.keyUserId, value: userId);

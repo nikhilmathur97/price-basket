@@ -12,11 +12,13 @@ import { Camera, Mail, Phone, MapPin, ShieldCheck, Calendar, Save } from "lucide
 export default function ProfilePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isAuthenticated, user: authUser, setUser } = useAuthStore();
+  const { isAuthenticated, hasHydrated, isValidatingSession, user: authUser, setUser } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated) router.replace("/auth/login");
-  }, [isAuthenticated, router]);
+    if (hasHydrated && !isValidatingSession && !isAuthenticated) {
+      router.replace("/auth/login");
+    }
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
   const { data: user } = useQuery({
     queryKey: ["me"],
@@ -56,7 +58,8 @@ export default function ProfilePage() {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name ?? user?.email ?? "User")}&background=ea580c&color=fff`;
   }, [user]);
 
-  if (!isAuthenticated || !authUser) {
+  // Wait for hydration + session validation before deciding to redirect.
+  if (!hasHydrated || isValidatingSession || !isAuthenticated || !authUser) {
     return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-surface-500">Loading profile...</div>;
   }
 

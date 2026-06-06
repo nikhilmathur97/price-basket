@@ -3,67 +3,119 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
+import { useBackendWakeup } from "@/hooks/useBackendWakeup";
 import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser, setAccessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const {
+    setUser,
+    setAccessToken,
+    isAuthenticated,
+    hasHydrated,
+    isValidatingSession,
+  } = useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { wakingUp, retryCountdown, trigger: triggerWakeup } = useBackendWakeup("login-form");
   // Prevent the "already authenticated" useEffect from firing during an active login
   const loginInProgress = useRef(false);
 
-  // Redirect already-authenticated users away from the login page
+  // Redirect already-authenticated users away from the login page.
   useEffect(() => {
-    if (hasHydrated && isAuthenticated && !loginInProgress.current) {
-      router.replace("/");
+    if (
+      hasHydrated &&
+      !isValidatingSession &&
+      isAuthenticated &&
+      !loginInProgress.current
+    ) {
+      const next = searchParams.get("next");
+      const safeNext = next && next.startsWith("/") ? next : "/";
+      router.replace(safeNext);
     }
-  }, [hasHydrated, isAuthenticated, router]);
-
-  // Show loader while hydrating OR while already authenticated (redirect pending)
-  if (!hasHydrated || isAuthenticated) {
-    return <PageLoader message="Loading" />;
-  }
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router, searchParams]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return; // guard against double-submit
     loginInProgress.current = true;
     setLoading(true);
     try {
       const { data } = await api.login(form);
       setAccessToken(data.access_token);
-      const { data: user } = await api.me();
+      // Login response includes user — no second api.me() round-trip needed.
+      // If for any reason user is absent (older backend), fall back to api.me().
+      let user = data.user;
+      if (!user) {
+        const meRes = await api.me();
+        user = meRes.data;
+      }
       setUser(user);
-      // Clear any stale cart state from a previous session, then fetch this
-      // user's server-side cart. We await it so the totalItems badge is correct
-      // before the page navigates — prevents the "badge shows 8, cart is blank" bug.
-      resetCart();
-      await fetchCart().catch(() => {});
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
-      // Client-side navigation: no full reload, store stays live, Header updates instantly
+      // Clear loading BEFORE navigation so the spinner doesn't block the redirect
+      setLoading(false);
+      loginInProgress.current = false;
+      resetCart();
+      fetchCart().catch(() => {});
+      // Navigate after state is cleared
       router.replace(safeNext);
     } catch (err: any) {
       loginInProgress.current = false;
-      const detail = err?.response?.data?.detail ?? "Login failed. Please check your credentials.";
-      toast.error(detail);
+      const status: number | undefined = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+
+      if (!err?.response || status === 503) {
+        // Backend cold-starting — show waking-up banner + auto-retry in 5s
+        triggerWakeup();
+        setLoading(false);
+        return;
+      }
+
+      let message: string;
+      if (status === 401) {
+        message = "Invalid email or password. Please try again.";
+      } else if (status === 403) {
+        message = "Your account has been disabled. Please contact support.";
+      } else if (typeof detail === "string") {
+        message = detail;
+      } else {
+        message = "Login failed. Please try again.";
+      }
+
+      toast.error(message);
       setLoading(false);
     }
   }
 
+  // Only show the full-page loader while the store is hydrating from localStorage.
+  // Do NOT block on isValidatingSession — that can hang if the backend is slow
+  // (cold start, network timeout) and would make the login form invisible.
+  if (!hasHydrated) {
+    return <PageLoader message="Loading" />;
+  }
+
+  // Show spinner only when actively logging in (user clicked Login button)
   if (loading) {
     return <PageLoader message="Logging you in" />;
   }
+
+  // NOTE: Do NOT add a PageLoader here for "already authenticated" state.
+  // The useEffect above handles the redirect. Adding a PageLoader here causes
+  // the login page to show a blank screen and immediately redirect, making it
+  // impossible for users to access the login form. The useEffect redirect is
+  // sufficient — it fires as soon as hasHydrated=true, isValidatingSession=false,
+  // and isAuthenticated=true.
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
@@ -71,7 +123,16 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} sizes="52px" className="w-[52px] h-[52px] object-contain" style={{ mixBlendMode: "multiply" }} priority />
+            <Image
+              src="/pricebasket-logo.png"
+              alt="PriceBasket"
+              width={52}
+              height={52}
+              sizes="52px"
+              className="w-[52px] h-[52px] object-contain"
+              style={{ mixBlendMode: "multiply" }}
+              priority
+            />
             <span className="text-2xl font-bold">
               Price<span className="text-brand-600">Basket</span>
             </span>
@@ -84,7 +145,20 @@ export default function LoginPage() {
             Welcome back to PriceBasket
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          {/* Waking-up banner — shown when backend is cold-starting */}
+          {wakingUp && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+              <span>
+                Waking up servers, please wait…{" "}
+                <span className="font-semibold">
+                  {retryCountdown > 0 ? `Retrying in ${retryCountdown}s` : "Retrying…"}
+                </span>
+              </span>
+            </div>
+          )}
+
+          <form id="login-form" onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">
                 Email
@@ -109,7 +183,9 @@ export default function LoginPage() {
                   type={showPw ? "text" : "password"}
                   required
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
                   placeholder="••••••••"
                   className="w-full border border-surface-200 rounded-xl px-4 py-2.5 pr-10 text-sm
                              focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -119,22 +195,39 @@ export default function LoginPage() {
                   onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
                 >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
 
+            <div className="flex justify-end">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-brand-600 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <button
               type="submit"
-              className="btn-primary w-full"
+              disabled={loading || wakingUp}
+              className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Login
+              {wakingUp ? "Waking up…" : "Login"}
             </button>
           </form>
 
           <p className="text-sm text-center text-surface-500 mt-6">
-            Don't have an account?{" "}
-            <Link href="/auth/signup" className="text-brand-600 font-semibold hover:underline">
+            Don&apos;t have an account?{" "}
+            <Link
+              href="/auth/signup"
+              className="text-brand-600 font-semibold hover:underline"
+            >
               Sign up
             </Link>
           </p>

@@ -10,6 +10,8 @@ dist/
 venv/
 .venv_mac/
 .venv_mac2/
+.venv-local/
+backend/.venv-local/
 .env
 !.env.example
 

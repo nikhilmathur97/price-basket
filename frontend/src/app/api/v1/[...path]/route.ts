@@ -6,15 +6,25 @@
  * - Read-only GET endpoints (featured, categories, search, product) pass through
  *   the backend's Cache-Control header so Vercel CDN caches them at the edge.
  * - Mutating requests (POST/PUT/PATCH/DELETE) are never cached.
+ *
+ * Reliability:
+ * - Auth endpoints (login/register) get up to 2 retries with a 25 s timeout each.
+ * - All other endpoints get a single attempt with a 20 s timeout.
+ * - On fetch failure (network error / timeout) the proxy returns a structured
+ *   JSON 503 so the browser always gets an HTTP response — never a raw network
+ *   error — which prevents the "Cannot reach server" Axios network-error path.
  */
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// BACKEND_URL is set in Vercel project env → AWS ALB.
-// Falls back to custom domain for local dev.
-const BACKEND =
-  process.env.BACKEND_URL ?? "https://api.test2.pricebasket.in";
+// BACKEND_URL / API_URL must be set in the Vercel project env → AWS ALB.
+// Falls back to localhost for local development only.
+const BACKEND = (
+  process.env.BACKEND_URL ||
+  process.env.API_URL ||
+  "http://localhost:8001"
+).replace(/\/$/, "");
 
 // Paths whose GET responses should be cached at Vercel's CDN edge.
 // The backend already sends Cache-Control headers; we preserve them here.
@@ -27,9 +37,30 @@ const CACHEABLE_PATHS = [
   /^products$/,                  // search (no query string)
 ];
 
+// Auth paths that may need extra time for Render cold-start warm-up.
+const AUTH_PATHS = /^auth\/(login|register|refresh)/;
+
 function isCacheable(method: string, path: string): boolean {
   if (method !== "GET") return false;
   return CACHEABLE_PATHS.some((re) => re.test(path));
+}
+
+/**
+ * Fetch with an AbortController timeout.
+ * Returns the Response on success, throws on network error or timeout.
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -37,49 +68,104 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   const pathStr = path.join("/");
   const url = `${BACKEND}/api/v1/${pathStr}${req.nextUrl.search}`;
 
-  const headers = new Headers(req.headers);
-  headers.delete("host");
+  // Auth endpoints: allow up to 2 retries with 25 s each.
+  // All other endpoints: 1 attempt with 20 s timeout.
+  const isAuth = AUTH_PATHS.test(pathStr);
+  const timeoutMs = isAuth ? 25_000 : 20_000;
+  const maxAttempts = isAuth ? 2 : 1;
 
-  const body = ["GET", "HEAD"].includes(req.method) ? undefined : req.body;
-
-  const res = await fetch(url, {
-    method: req.method,
-    headers,
-    body,
-    // Required to forward the readable stream body
-    // @ts-expect-error — Node.js fetch accepts ReadableStream
-    duplex: "half",
-  });
-
-  const resHeaders = new Headers(res.headers);
-  // Remove hop-by-hop headers that must not be forwarded
-  resHeaders.delete("transfer-encoding");
-  resHeaders.delete("connection");
-
-  // Preserve backend Cache-Control for cacheable GET endpoints.
-  // Vercel overrides Cache-Control on serverless responses by default;
-  // explicitly setting it here forces Vercel CDN to respect it.
-  if (isCacheable(req.method, pathStr)) {
-    const backendCC = res.headers.get("cache-control");
-    if (backendCC) {
-      resHeaders.set("cache-control", backendCC);
-      // CDN-Cache-Control is Vercel-specific: controls edge cache independently
-      // of the browser cache. This makes Vercel cache the response at the edge.
-      resHeaders.set("cdn-cache-control", backendCC);
-    } else {
-      // Fallback: cache for 60s at edge if backend didn't send a header
-      resHeaders.set("cache-control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
-      resHeaders.set("cdn-cache-control", "public, max-age=60, stale-while-revalidate=300");
+  // Forward request headers but strip hop-by-hop headers
+  const reqHeaders = new Headers();
+  req.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (!["host", "connection", "transfer-encoding", "te", "trailer", "upgrade"].includes(lower)) {
+      reqHeaders.set(key, value);
     }
-  } else {
-    // Never cache mutating or auth-sensitive responses
-    resHeaders.set("cache-control", "private, no-store");
+  });
+  // Always request uncompressed from backend — proxy handles compression itself
+  reqHeaders.set("accept-encoding", "identity");
+
+  const body = ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer();
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: req.method,
+          headers: reqHeaders,
+          body: body ? body : undefined,
+        },
+        timeoutMs
+      );
+
+      // 204/304 are null-body statuses per the Fetch spec — passing any body
+      // (even an empty ArrayBuffer) to new Response() with these statuses throws.
+      const isNullBody = res.status === 204 || res.status === 304;
+      const responseBody = isNullBody ? null : await res.arrayBuffer();
+
+      const resHeaders = new Headers();
+      res.headers.forEach((value, key) => {
+        const lower = key.toLowerCase();
+        // Strip hop-by-hop and encoding headers (we're sending raw buffer)
+        if (!["transfer-encoding", "connection", "content-encoding", "te", "trailer", "upgrade"].includes(lower)) {
+          resHeaders.set(key, value);
+        }
+      });
+
+      // Set correct content-length only when there is a body
+      if (!isNullBody) {
+        resHeaders.set("content-length", String((responseBody as ArrayBuffer).byteLength));
+      }
+
+      // Preserve backend Cache-Control for cacheable GET endpoints.
+      if (isCacheable(req.method, pathStr)) {
+        const backendCC = res.headers.get("cache-control");
+        if (backendCC) {
+          resHeaders.set("cache-control", backendCC);
+          resHeaders.set("cdn-cache-control", backendCC);
+        } else {
+          resHeaders.set("cache-control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
+          resHeaders.set("cdn-cache-control", "public, max-age=60, stale-while-revalidate=300");
+        }
+      } else {
+        resHeaders.set("cache-control", "private, no-store");
+      }
+
+      return new NextResponse(responseBody, {
+        status: res.status,
+        headers: resHeaders,
+      });
+    } catch (err: unknown) {
+      lastError = err;
+      // Only retry on network/timeout errors, not on successful HTTP error responses
+      if (attempt < maxAttempts) {
+        // Brief pause before retry
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
   }
 
-  return new NextResponse(res.body, {
-    status: res.status,
-    headers: resHeaders,
-  });
+  // All attempts failed — return a structured 503 so Axios always gets an HTTP
+  // response (err.response defined) instead of a raw network error.
+  const isTimeout =
+    lastError instanceof Error &&
+    (lastError.name === "AbortError" || lastError.message?.includes("abort"));
+
+  const detail = isTimeout
+    ? "The server is taking too long to respond. It may be starting up — please try again in a few seconds."
+    : "Cannot reach the backend server. Please try again.";
+
+  console.error(`[proxy] ${req.method} ${pathStr} failed after ${maxAttempts} attempt(s):`, lastError);
+
+  return NextResponse.json(
+    { detail },
+    {
+      status: 503,
+      headers: { "cache-control": "private, no-store" },
+    }
+  );
 }
 
 export const GET = proxy;

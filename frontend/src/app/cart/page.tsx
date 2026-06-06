@@ -319,16 +319,18 @@ function PlatformTotalCard({
 // ── Main Cart Page ────────────────────────────────────────────────────────────
 export default function CartPage() {
   const router = useRouter();
-  const { hasHydrated, isAuthenticated } = useAuthStore();
+  const { hasHydrated, isAuthenticated, isValidatingSession } = useAuthStore();
   const { cart, isLoading, fetchCart, _hasHydrated: cartHydrated } = useCartStore();
   const productIds = cart?.items.map((i) => i.product.id) ?? [];
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated — but WAIT until session validation completes.
+  // Without this guard, the cart page redirects to login while api.me() is still
+  // in flight (isAuthenticated is briefly false before the server confirms the session).
   useEffect(() => {
-    if (hasHydrated && !isAuthenticated) {
+    if (hasHydrated && !isValidatingSession && !isAuthenticated) {
       router.replace("/auth/login?next=/cart");
     }
-  }, [hasHydrated, isAuthenticated, router]);
+  }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
   // Fetch cart on mount — always fetch from server when authenticated so that
   // cross-device changes (items added on another device/session) are reflected.
@@ -451,8 +453,22 @@ export default function CartPage() {
       ).id
     : "";
 
-  // ── Guard: wait for auth hydration (all hooks above, safe to return now) ───
-  if (!hasHydrated || !isAuthenticated) {
+  // ── Guard: wait for auth hydration + session validation ───────────────────
+  // Must wait for isValidatingSession=false before deciding the user is logged
+  // out. Without this, a valid session with a slow backend (Render cold start)
+  // briefly shows isAuthenticated=false → triggers the redirect to login →
+  // user sees "Please login to view your cart" even though they ARE logged in.
+  if (!hasHydrated || isValidatingSession) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton h-44 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return <div className="max-w-5xl mx-auto px-4 py-10" />;
   }
 

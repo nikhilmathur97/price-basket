@@ -169,6 +169,7 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  user?: User;  // included on login/register — saves a round-trip /me call
 }
 
 // ── Price Alerts ──────────────────────────────────────────────────────────────

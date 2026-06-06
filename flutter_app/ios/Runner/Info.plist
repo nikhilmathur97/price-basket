@@ -2,12 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- ── Performance ──────────────────────────────────────────────────── -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+
+	<!-- ── Bundle identity ──────────────────────────────────────────────── -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Pricebasket</string>
+	<string>PriceBasket</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +18,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>pricebasket</string>
+	<string>PriceBasket</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,8 +27,29 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
+
+	<!-- ── Deep links: pricebasket:// scheme ────────────────────────────── -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>in.pricebasket.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pricebasket</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- ── Universal links: https://pricebasket.in ──────────────────────── -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:pricebasket.in</string>
+	</array>
+
+	<!-- ── Scene configuration ──────────────────────────────────────────── -->
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,24 +71,39 @@
 			</array>
 		</dict>
 	</dict>
+
+	<!-- ── Status bar: let Flutter control icon brightness (dark icons on white) ── -->
+	<!-- Without this key = false, SystemChrome.setSystemUIOverlayStyle is ignored on iOS -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- ── Portrait only (matches main.dart SystemChrome lock) ──────────── -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- ── Privacy descriptions (App Store requirement) ─────────────────── -->
+	<key>NSCameraUsageDescription</key>
+	<string>PriceBasket does not use the camera.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PriceBasket does not access your photo library.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PriceBasket does not use your location.</string>
+
 </dict>
 </plist>

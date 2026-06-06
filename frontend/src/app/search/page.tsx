@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useSearch } from "@/hooks/useSearch";
 import { ProductCard } from "@/components/ProductCard";
 import { PageLoader } from "@/components/PageLoader";
-import { SlidersHorizontal, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 
 export default function SearchPage() {
   return (
@@ -118,10 +118,14 @@ function SearchResults() {
 
       {results?.items.length === 0 && (
         <div className="text-center py-20">
-          <div className="text-5xl mb-4">🔍</div>
-          <p className="font-semibold text-surface-700 mb-2">No products found</p>
+          <div className="text-5xl mb-4">{categorySlug && !query ? "🛒" : "🔍"}</div>
+          <p className="font-semibold text-surface-700 mb-2">
+            {categorySlug && !query ? "Coming soon" : "No products found"}
+          </p>
           <p className="text-sm text-surface-400">
-            Try different keywords or browse categories
+            {categorySlug && !query
+              ? "We're adding products to this category. Check back soon!"
+              : "Try different keywords or browse categories"}
           </p>
         </div>
       )}

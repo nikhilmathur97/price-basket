@@ -38,7 +38,12 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry) {
+    // Never intercept 401s from auth endpoints themselves — login/register returning
+    // 401 means wrong credentials, not an expired session. Intercepting these causes
+    // the refresh cycle to run, then logout() to fire, which corrupts the login flow.
+    const url = original?.url ?? "";
+    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
       if (isRefreshing) {
@@ -59,6 +64,15 @@ apiClient.interceptors.response.use(
           {},
           { withCredentials: true }
         );
+        // Guard: if the user explicitly logged out while this refresh was in-flight
+        // (user === null), do NOT apply the new token. Without this, any background
+        // API call (cart, alerts, etc.) that triggered a 401 → refresh cycle would
+        // call setAccessToken() after logout, setting isAuthenticated=true, which
+        // immediately fires the login page's redirect effect → "button not working".
+        if (useAuthStore.getState().user === null) {
+          refreshQueue = [];
+          return Promise.reject(error);
+        }
         useAuthStore.getState().setAccessToken(data.access_token);
         refreshQueue.forEach((cb) => cb(data.access_token));
         refreshQueue = [];
@@ -83,8 +97,15 @@ export const api = {
     apiClient.post("/auth/register", data),
   login: (data: { email: string; password: string }) =>
     apiClient.post("/auth/login", data),
-  logout: () => apiClient.post("/auth/logout"),
+  // _retry:true tells the response interceptor to never attempt a token refresh on
+  // a 401 from this endpoint. Without it, an expired access token causes the
+  // interceptor to refresh → setAccessToken() → user re-authenticated after logout.
+  logout: () => apiClient.post("/auth/logout", {}, { _retry: true } as any),
   me: () => apiClient.get("/auth/me"),
+  forgotPassword: (email: string) =>
+    apiClient.post("/auth/forgot-password", { email }),
+  resetPassword: (token: string, new_password: string) =>
+    apiClient.post("/auth/reset-password", { token, new_password }),
   updateMe: (data: {
     full_name?: string;
     phone?: string;
@@ -98,7 +119,8 @@ export const api = {
 
   // Products
   getCategories: () => apiClient.get("/products/categories"),
-  getFeatured: (limit = 20) => apiClient.get(`/products/featured?limit=${limit}`),
+  getFeatured: (limit = 20, signal?: AbortSignal) =>
+    apiClient.get(`/products/featured?limit=${limit}`, { signal }),
   searchProducts: (params: Record<string, string | number>) =>
     apiClient.get("/products", { params }),
   getProduct: (id: string) => apiClient.get(`/products/${id}`),

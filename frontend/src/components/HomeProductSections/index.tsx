@@ -31,7 +31,6 @@ const CAT_COLORS: Record<string, { bg: string; text: string }> = {
   "chicken-meat":      { bg: "#FFF8E1", text: "#F57F17" },
   "frozen-foods":      { bg: "#E8F5E9", text: "#2E7D32" },
   "baby-care":         { bg: "#F8BBD9", text: "#880E4F" },
-  "pet-care":          { bg: "#EFEBE9", text: "#4E342E" },
   "staples":           { bg: "#FFFDE7", text: "#F57F17" },
   "oils-spices":       { bg: "#FFF3E0", text: "#BF360C" },
   "electronics":       { bg: "#E8EAF6", text: "#283593" },

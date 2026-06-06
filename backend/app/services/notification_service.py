@@ -1,4 +1,5 @@
 """Notification service — email and push notifications."""
+import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -32,6 +33,30 @@ class NotificationService:
                 to=user_email,
                 subject=f"Price Drop Alert: {product_name} is now ₹{current_price}",
                 body=self._price_drop_email_body(product_name, target, current_price),
+            )
+
+        # ── Push notification (FCM) — mobile app ────────────────────────────
+        user = alert.user
+        if user and user.notification_push and getattr(user, "fcm_token", None):
+            from app.services.push_notification_service import push_service
+
+            product_id = str(alert.product_id) if alert.product_id else ""
+            deep_link = (
+                f"pricebasket://product/{product_id}"
+                if product_id
+                else "pricebasket://alerts"
+            )
+            # push_service.send is a blocking network call — run off the loop.
+            await asyncio.to_thread(
+                push_service.send,
+                user.fcm_token,
+                "Price Drop Alert 🎉",
+                f"{product_name} is now ₹{current_price} (your target: ₹{target})",
+                {
+                    "type": "price_alert",
+                    "product_id": product_id,
+                    "deep_link": deep_link,
+                },
             )
 
     async def _send_email(self, to: str, subject: str, body: str) -> None:

@@ -64,6 +64,81 @@ def decode_access_token(token: str) -> dict:
     return payload
 
 
+def create_reset_token(user: "User") -> str:
+    # ph is a fingerprint of the current hashed password — makes the token
+    # single-use: once the password changes, ph mismatches and the token is invalid.
+    ph = hashlib.sha256(user.hashed_password.encode()).hexdigest()[:16]
+    return _create_token(
+        {"sub": str(user.id), "type": "password_reset", "ph": ph},
+        timedelta(hours=1),
+    )
+
+
+def decode_reset_token(token: str, user: "User") -> bool:
+    """Returns True if token is valid and matches the given user's current password fingerprint."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        return False
+    if payload.get("type") != "password_reset":
+        return False
+    if payload.get("sub") != str(user.id):
+        return False
+    ph = hashlib.sha256(user.hashed_password.encode()).hexdigest()[:16]
+    return payload.get("ph") == ph
+
+
+async def send_reset_email(to_email: str, reset_token: str) -> None:
+    import smtplib
+    import asyncio
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    import structlog
+
+    log = structlog.get_logger(__name__)
+    reset_url = f"{settings.SITE_URL}/auth/reset-password?token={reset_token}"
+
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        log.warning("smtp_not_configured_reset_link", url=reset_url)
+        return
+
+    def _send() -> None:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Reset your PriceBasket password"
+        msg["From"] = settings.SMTP_USER
+        msg["To"] = to_email
+        body = f"""
+        <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:480px">
+          <h2 style="color:#0C831F">Reset your password</h2>
+          <p>We received a request to reset your PriceBasket password.</p>
+          <p>Click the button below. This link expires in <strong>1 hour</strong>.</p>
+          <p style="margin:24px 0">
+            <a href="{reset_url}"
+               style="background:#0C831F;color:white;padding:12px 24px;
+                      text-decoration:none;border-radius:8px;font-weight:bold">
+              Reset Password
+            </a>
+          </p>
+          <p style="color:#666;font-size:13px">
+            If you didn't request this, ignore this email — your password won't change.
+          </p>
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+          <p style="color:#999;font-size:12px">PriceBasket · pricebasket.in</p>
+        </body></html>
+        """
+        msg.attach(MIMEText(body, "html"))
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
+
+    try:
+        await asyncio.to_thread(_send)
+        log.info("reset_email_sent", to=to_email)
+    except Exception as exc:
+        log.error("reset_email_failed", to=to_email, error=str(exc))
+
+
 # ── Database operations ───────────────────────────────────────────────────────
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:

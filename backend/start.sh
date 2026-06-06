@@ -115,16 +115,31 @@ else:
     print("  ℹ INDEXNOW_KEY not set — skipping IndexNow ping")
 PINGEOF
 
+echo "==> Ensuring Playwright Chromium is installed..."
+# Render's ephemeral filesystem wipes /opt/render/.cache between restarts.
+# The buildCommand installs Playwright during build, but the cache is lost
+# on every cold start / OOM restart. Re-running install here is fast (~5s)
+# if the binary already exists (no-op), and fixes the missing binary error.
+python3 -m playwright install chromium --with-deps 2>&1 | tail -3 || true
+
 echo "==> Starting uvicorn..."
-# Workers: 2 for Render free tier (1 vCPU, 512 MB RAM).
-# --timeout-keep-alive 75: keeps connections alive longer under load.
-# --timeout-graceful-shutdown 30: clean shutdown on SIGTERM.
-# --limit-concurrency 100: prevent memory exhaustion under traffic spikes.
+# ── Memory budget for Render free tier (512 MB RAM) ───────────────────────────
+# 1 worker only — 2 workers × ~250 MB each = OOM on 512 MB.
+# Each worker loads Python + SQLAlchemy + all scrapers ≈ 200–250 MB.
+# Playwright Chromium adds another ~150 MB when first scrape fires, but it is
+# lazily imported so it only loads on the first price-fetch request, not at boot.
+#
+# --limit-max-requests 500: recycle the worker after 500 requests to release
+#   accumulated memory (Python GC doesn't always free everything).
+# --limit-concurrency 50: cap in-flight requests to prevent memory spikes.
+# --timeout-keep-alive 30: shorter keep-alive frees connections faster.
+# --timeout-graceful-shutdown 20: clean shutdown on SIGTERM.
 exec uvicorn app.main:app \
   --host 0.0.0.0 \
   --port "${PORT:-8000}" \
-  --workers 2 \
-  --timeout-keep-alive 75 \
-  --timeout-graceful-shutdown 30 \
-  --limit-concurrency 100 \
+  --workers 1 \
+  --limit-max-requests 500 \
+  --limit-concurrency 50 \
+  --timeout-keep-alive 30 \
+  --timeout-graceful-shutdown 20 \
   --access-log

@@ -1,64 +1,90 @@
 /**
- * /api/keepalive — health check endpoint (optionally called by cron or monitoring)
+ * /api/keepalive — backend health check
  * ─────────────────────────────────────────────────────────────────────────────
- * Pings the AWS ECS backend /ping endpoint to verify it is reachable.
- * ECS Fargate is always-on (no cold starts), so this is purely a health check.
+ * Called by two sources:
+ *   1. Vercel Cron (every 5 min via vercel.json) — confirms AWS backend is alive.
+ *      Vercel adds Authorization: Bearer <CRON_SECRET>.
+ *   2. UptimeRobot (every 5 min) — external uptime monitoring. No auth header.
+ *      UptimeRobot monitors: https://pricebasket.in/api/keepalive
+ *      Expected response: HTTP 200 with JSON { ok: true }
  *
- * Security: Vercel automatically adds a `Authorization: Bearer <CRON_SECRET>`
- * header to cron requests. We verify it to prevent abuse.
+ * Security: open to GET without auth so UptimeRobot works. The endpoint only
+ * reads (pings the backend) — it never mutates data — so no auth is needed.
+ * CRON_SECRET is only checked when present to validate Vercel cron calls.
  */
 import { NextResponse } from "next/server";
 
-// Server-side: use BACKEND_URL (set in Vercel env → AWS ALB).
-// Falls back to NEXT_PUBLIC_API_URL, then to the ALB DNS directly.
-const BACKEND =
-  process.env.BACKEND_URL ??
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com";
+export const runtime = "nodejs"; // Node runtime: supports longer timeouts than Edge
 
-export const runtime = "edge"; // Edge runtime: lowest latency, no cold start
+// BACKEND_URL / API_URL must be set in Vercel env → AWS ALB.
+const BACKEND = (
+  process.env.BACKEND_URL ||
+  process.env.API_URL ||
+  "http://localhost:8001"
+).replace(/\/$/, "");
+
+// Try /health first (standard), fall back to /ping (legacy)
+const PING_URLS = [`${BACKEND}/health`, `${BACKEND}/ping`];
 
 export async function GET(request: Request) {
-  // Verify this is a legitimate Vercel cron call (or internal call)
+  // If CRON_SECRET is set, validate Vercel cron calls — but allow requests
+  // without the header (UptimeRobot, manual browser checks, etc.).
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const start = Date.now();
   let backendStatus = 0;
   let ok = false;
+  let pingedUrl = PING_URLS[0];
+  let error: string | null = null;
 
-  try {
-    const res = await fetch(`${BACKEND}/ping`, {
-      method: "GET",
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000), // 10 s timeout
-    });
-    backendStatus = res.status;
-    ok = res.ok;
-  } catch (err) {
-    // Backend is down / cold starting — log but don't fail the cron
-    console.error("[keepalive] ping failed:", err);
+  // Try each ping URL in order; stop at the first success
+  for (const url of PING_URLS) {
+    pingedUrl = url;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000), // 15 s — enough for Render cold start
+        headers: {
+          "User-Agent": "PriceBasket-Keepalive/1.0 (+https://pricebasket.in)",
+        },
+      });
+      backendStatus = res.status;
+      ok = res.ok;
+      if (ok) {
+        error = null;
+        break; // success — no need to try the next URL
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      console.error(`[keepalive] ping failed for ${url}:`, err);
+    }
   }
 
   const latencyMs = Date.now() - start;
 
+  if (!ok) {
+    console.warn(`[keepalive] backend unreachable — status=${backendStatus} error=${error}`);
+  }
+
+  // Always return HTTP 200 to UptimeRobot — the JSON body carries the real status.
+  // UptimeRobot keyword monitor: look for "ok":true to detect real downtime.
   return NextResponse.json(
     {
-      pinged: BACKEND,
-      backendStatus,
       ok,
+      pinged: pingedUrl,
+      backendStatus,
       latencyMs,
+      error: error ?? undefined,
       timestamp: new Date().toISOString(),
     },
     {
-      headers: {
-        // Never cache cron responses
-        "Cache-Control": "no-store",
-      },
+      status: 200, // always 200 so UptimeRobot HTTP check passes; use keyword monitor for real status
+      headers: { "Cache-Control": "no-store" },
     }
   );
 }

@@ -60,6 +60,22 @@ def upgrade() -> None:
         ["product_id", "is_available"],
     )
 
+    # Deduplicate before creating the unique index: keep only the most recently
+    # updated row per (platform_id, product_id) where is_available = TRUE.
+    # Duplicates accumulate when scrapers insert instead of upsert.
+    op.execute(
+        """
+        DELETE FROM platform_prices
+        WHERE is_available = TRUE
+          AND id NOT IN (
+            SELECT DISTINCT ON (platform_id, product_id) id
+            FROM platform_prices
+            WHERE is_available = TRUE
+            ORDER BY platform_id, product_id, last_updated DESC
+          )
+        """
+    )
+
     # Price lookup per platform: WHERE platform_id=? AND product_id=?
     op.create_index(
         "ix_platform_prices_platform_product",

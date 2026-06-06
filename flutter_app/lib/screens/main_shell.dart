@@ -7,6 +7,11 @@ import '../providers/cart_count_provider.dart';
 import '../providers/connectivity_provider.dart';
 import '../screens/webview_screen.dart';
 import '../services/deep_link_service.dart';
+import '../services/fcm_service.dart';
+
+// Search tab index — used to trigger focusSearch() on tap.
+const int _kSearchTabIndex = 1;
+const int _kCartTabIndex = 2;
 
 /// Tab definition
 class _Tab {
@@ -24,25 +29,25 @@ class _Tab {
 }
 
 List<_Tab> _buildTabs() => [
-  _Tab(
+  const _Tab(
     label: 'Home',
     icon: Icons.home_outlined,
     activeIcon: Icons.home_rounded,
     url: '${AppConfig.baseUrl}/?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Search',
     icon: Icons.search_rounded,
     activeIcon: Icons.search_rounded,
     url: '${AppConfig.baseUrl}/search?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Cart',
     icon: Icons.shopping_cart_outlined,
     activeIcon: Icons.shopping_cart_rounded,
     url: '${AppConfig.baseUrl}/cart?source=app',
   ),
-  _Tab(
+  const _Tab(
     label: 'Me',
     icon: Icons.person_outline_rounded,
     activeIcon: Icons.person_rounded,
@@ -50,11 +55,12 @@ List<_Tab> _buildTabs() => [
   ),
 ];
 
-/// Main shell: IndexedStack of WebViews + native BottomNavigationBar.
+/// Main shell: SINGLE WebView + native BottomNavigationBar.
 ///
-/// Each tab maintains its own WebView instance (pages stay alive when
-/// switching tabs — no reload). Android back button navigates WebView
-/// history before exiting the app.
+/// All tabs share ONE WebView instance so they share the same JavaScript
+/// context, localStorage, cookies, and auth state. Tab switches navigate
+/// the single WebView to the appropriate URL — no separate WebView per tab,
+/// no cross-tab auth isolation issues.
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -66,32 +72,84 @@ class _MainShellState extends ConsumerState<MainShell> {
   int _currentIndex = 0;
   late final List<_Tab> _tabs;
 
-  // One GlobalKey per tab so we can call methods on each WebViewScreen
-  late final List<GlobalKey<WebViewScreenState>> _webViewKeys;
+  // Single WebView key — all tabs share one WebView instance
+  final GlobalKey<WebViewScreenState> _webViewKey = GlobalKey<WebViewScreenState>();
 
   @override
   void initState() {
     super.initState();
     _tabs = _buildTabs();
-    _webViewKeys = List.generate(
-      _tabs.length,
-      (_) => GlobalKey<WebViewScreenState>(),
-    );
     _listenDeepLinks();
     _listenConnectivity();
+    _handleInitialDeepLink();
+    // Let notification taps navigate the WebView (active once FCM is configured).
+    FcmService.registerNavigator(_handleNotificationUrl);
+
+    // Bug 1 fix: make the status-bar area white + use light icons so the web
+    // app's white sticky header blends seamlessly into the status bar (Blinkit-
+    // style). This is set once at shell init and persists for the app lifetime.
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,          // transparent → Scaffold bg shows through
+        statusBarIconBrightness: Brightness.dark,    // dark icons on white bg (Android)
+        statusBarBrightness: Brightness.light,       // light bg → dark icons (iOS)
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    FcmService.unregisterNavigator();
+    super.dispose();
   }
 
   void _listenDeepLinks() {
-    DeepLinkService.startListening((String webUrl) {
-      // Find which tab this URL belongs to, or default to Home
-      int targetTab = 0;
-      if (webUrl.contains('/cart')) targetTab = 2;
-      else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) targetTab = 3;
-      else if (webUrl.contains('/search')) targetTab = 1;
+    // Links received while the app is already running (warm start).
+    DeepLinkService.startListening(_routeDeepLink);
+  }
 
-      setState(() => _currentIndex = targetTab);
-      _webViewKeys[targetTab].currentState?.loadUrl(webUrl);
+  /// Handles a deep link that cold-started the app (app was not running).
+  Future<void> _handleInitialDeepLink() async {
+    final String? webUrl = await DeepLinkService.getInitialDeepLink();
+    if (webUrl == null || !mounted) return;
+    _routeDeepLink(webUrl);
+  }
+
+  /// Routes a converted web URL to the matching tab, then loads it there.
+  void _routeDeepLink(String webUrl) {
+    // Find which tab this URL belongs to, or default to Home.
+    int targetTab = 0;
+    if (webUrl.contains('/cart')) {
+      targetTab = 2;
+    } else if (webUrl.contains('/profile') || webUrl.contains('/alerts')) {
+      targetTab = 3;
+    } else if (webUrl.contains('/search')) {
+      targetTab = 1;
+    }
+
+    if (!mounted) return;
+    setState(() => _currentIndex = targetTab);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _webViewKey.currentState?.loadUrl(webUrl);
     });
+  }
+
+  /// Converts a notification payload (full URL, pricebasket:// deep link, or a
+  /// bare path) into a web URL and routes to it. Wired to FcmService taps.
+  void _handleNotificationUrl(String raw) {
+    if (raw.isEmpty) return;
+    String webUrl;
+    if (raw.startsWith('http')) {
+      webUrl = raw;
+    } else if (raw.startsWith('pricebasket://')) {
+      final String? converted = DeepLinkService.deepLinkToWebUrl(Uri.parse(raw));
+      if (converted == null) return;
+      webUrl = converted;
+    } else {
+      final String path = raw.startsWith('/') ? raw : '/$raw';
+      webUrl = '${AppConfig.baseUrl}$path';
+    }
+    _routeDeepLink(webUrl);
   }
 
   void _listenConnectivity() {
@@ -103,24 +161,20 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 
   Future<bool> _onWillPop() async {
-    // Try to go back in current WebView history first
+    // Try to go back in WebView history first
     final bool wentBack =
-        await _webViewKeys[_currentIndex].currentState?.goBack() ?? false;
+        await _webViewKey.currentState?.goBack() ?? false;
     if (wentBack) return false; // Don't exit app
 
     // If on a non-home tab, go back to Home tab
     if (_currentIndex != 0) {
       setState(() => _currentIndex = 0);
+      _webViewKey.currentState?.loadUrl(_tabs[0].url);
       return false;
     }
 
     // Exit app
     return true;
-  }
-
-  /// Navigate to a specific URL — used for deep links from notifications.
-  void navigateTo(String url) {
-    _webViewKeys[_currentIndex].currentState?.loadUrl(url);
   }
 
   @override
@@ -137,19 +191,43 @@ class _MainShellState extends ConsumerState<MainShell> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: List.generate(_tabs.length, (i) {
-            return WebViewScreen(
-              key: _webViewKeys[i],
-              initialUrl: _tabs[i].url,
-            );
-          }),
+        // SafeArea keeps the WebView content below the status bar / notch.
+        // bottom: false — the bottom inset is handled by _NativeBottomNav.
+        body: SafeArea(
+          bottom: false,
+          child: WebViewScreen(
+            key: _webViewKey,
+            initialUrl: _tabs[0].url,
+          ),
         ),
         bottomNavigationBar: _NativeBottomNav(
           currentIndex: _currentIndex,
           cartCount: cartCount,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            final int prevIndex = _currentIndex;
+            setState(() => _currentIndex = index);
+
+            // Navigate the single WebView to the tapped tab's URL
+            if (index != prevIndex) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKey.currentState?.loadUrl(_tabs[index].url);
+              });
+            }
+
+            // Re-tapping the Search tab focuses the search input immediately.
+            if (index == _kSearchTabIndex) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKey.currentState?.focusSearch();
+              });
+            }
+
+            // Re-tapping the Cart tab (already on Cart) soft-refreshes cart data.
+            if (index == _kCartTabIndex && index == prevIndex) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _webViewKey.currentState?.refreshCart();
+              });
+            }
+          },
           tabs: _tabs,
         ),
       ),
