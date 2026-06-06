@@ -1,4 +1,13 @@
-name: Deploy → dev.pricebasket.in
+name: "1. Deploy → dev.pricebasket.in"
+
+# Runs automatically on every push to the dev branch.
+# Deploys backend to EC2 + frontend to dev.pricebasket.in
+#
+# Required GitHub Secrets:
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  — Vercel deploy
+#   EC2_HOST     — EC2 public IP or hostname
+#   EC2_USER     — EC2 SSH username (usually "ubuntu")
+#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents)
 
 on:
   push:
@@ -6,24 +15,64 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-dev:
-    name: Build & Deploy (dev preview)
+  # ── 1. Backend → EC2 ────────────────────────────────────────────────────────
+  deploy-backend:
+    name: "Backend → EC2"
     runs-on: ubuntu-latest
+    steps:
+      - name: Check EC2 secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠ EC2_HOST / EC2_SSH_KEY not set — skipping backend deploy"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
+      - name: SSH → pull latest dev + restart service
+        if: steps.check.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/pricebasket
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+            pip3 install -r backend/requirements.txt -q
+            sudo systemctl restart pricebasket-api.service
+            echo "✅ Backend restarted on EC2"
+
+  # ── 2. Frontend → dev.pricebasket.in ────────────────────────────────────────
+  deploy-frontend:
+    name: "Frontend → dev.pricebasket.in"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Build project (Vercel)
+      - name: Pull Vercel project settings (preview)
+        working-directory: frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
+
+      - name: Build
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -31,13 +80,13 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel build --token=$VERCEL_TOKEN
 
-      - name: Deploy to Vercel preview (→ dev.pricebasket.in)
+      - name: Deploy → dev.pricebasket.in
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          DEPLOY_URL=$(vercel deploy --prebuilt --token=$VERCEL_TOKEN)
-          echo "✅ Preview URL: $DEPLOY_URL"
-          echo "🌐 Branch domain: https://dev.pricebasket.in"
+          URL=$(vercel deploy --prebuilt --token=$VERCEL_TOKEN)
+          echo "✅ Deployed: $URL"
+          echo "🌐 Live at: https://dev.pricebasket.in"
