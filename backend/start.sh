@@ -115,6 +115,13 @@ else:
     print("  ℹ INDEXNOW_KEY not set — skipping IndexNow ping")
 PINGEOF
 
+echo "==> Ensuring Playwright Chromium is installed..."
+# Render's ephemeral filesystem wipes /opt/render/.cache between restarts.
+# The buildCommand installs Playwright during build, but the cache is lost
+# on every cold start / OOM restart. Re-running install here is fast (~5s)
+# if the binary already exists (no-op), and fixes the missing binary error.
+python3 -m playwright install chromium --with-deps 2>&1 | tail -3 || true
+
 echo "==> Starting uvicorn..."
 # ── Memory budget for Render free tier (512 MB RAM) ───────────────────────────
 # 1 worker only — 2 workers × ~250 MB each = OOM on 512 MB.
