@@ -38,7 +38,12 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry) {
+    // Never intercept 401s from auth endpoints themselves — login/register returning
+    // 401 means wrong credentials, not an expired session. Intercepting these causes
+    // the refresh cycle to run, then logout() to fire, which corrupts the login flow.
+    const url = original?.url ?? "";
+    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
       if (isRefreshing) {
