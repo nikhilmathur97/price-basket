@@ -105,7 +105,7 @@ async def send_reset_email(to_email: str, reset_token: str) -> None:
     def _send() -> None:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Reset your PriceBasket password"
-        msg["From"] = settings.SMTP_USER
+        msg["From"] = settings.SMTP_FROM or settings.SMTP_USER
         msg["To"] = to_email
         body = f"""
         <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:480px">

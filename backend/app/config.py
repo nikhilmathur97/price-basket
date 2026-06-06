@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
+    # From address shown in the email (e.g. "PriceBasket <noreply@pricebasket.in>").
+    # For Gmail leave empty — SMTP_USER doubles as the From address.
+    # For AWS SES set this because SMTP_USER is an IAM key ID, not an email.
+    SMTP_FROM: str = ""
     FCM_SERVER_KEY: str = ""  # legacy HTTP API — deprecated by Google (June 2024)
     # Firebase Admin SDK credentials for FCM HTTP v1. Either an absolute path to
     # a service-account JSON file OR the raw JSON string. Generate in Firebase
