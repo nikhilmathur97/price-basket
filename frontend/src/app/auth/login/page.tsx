@@ -108,10 +108,13 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${user.full_name ?? "there"}!`);
       const next = searchParams.get("next");
       const safeNext = next && next.startsWith("/") ? next : "/";
-      // Navigate immediately — fetch cart in background (non-blocking)
-      router.replace(safeNext);
+      // Clear loading BEFORE navigation so the spinner doesn't block the redirect
+      setLoading(false);
+      loginInProgress.current = false;
       resetCart();
       fetchCart().catch(() => {});
+      // Navigate after state is cleared
+      router.replace(safeNext);
     } catch (err: any) {
       loginInProgress.current = false;
       const status: number | undefined = err?.response?.status;

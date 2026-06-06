@@ -118,10 +118,13 @@ export default function SignupPage() {
         user = meRes.data;
       }
       setUser(user);
+      toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
+      // Clear loading BEFORE navigation so the spinner doesn't block the redirect
+      setLoading(false);
+      signupInProgress.current = false;
       resetCart();
       fetchCart().catch(() => {});
-      toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
-      // Client-side navigation — keeps store alive so accessToken is never lost
+      // Navigate after state is cleared
       router.replace("/");
     } catch (err: any) {
       signupInProgress.current = false;
