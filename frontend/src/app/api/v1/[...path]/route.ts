@@ -100,8 +100,10 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
         timeoutMs
       );
 
-      // Read body as buffer — more reliable than streaming in serverless
-      const responseBody = await res.arrayBuffer();
+      // 204/304 are null-body statuses per the Fetch spec — passing any body
+      // (even an empty ArrayBuffer) to new Response() with these statuses throws.
+      const isNullBody = res.status === 204 || res.status === 304;
+      const responseBody = isNullBody ? null : await res.arrayBuffer();
 
       const resHeaders = new Headers();
       res.headers.forEach((value, key) => {
@@ -112,8 +114,10 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
         }
       });
 
-      // Set correct content-length for the uncompressed buffer
-      resHeaders.set("content-length", String(responseBody.byteLength));
+      // Set correct content-length only when there is a body
+      if (!isNullBody) {
+        resHeaders.set("content-length", String((responseBody as ArrayBuffer).byteLength));
+      }
 
       // Preserve backend Cache-Control for cacheable GET endpoints.
       if (isCacheable(req.method, pathStr)) {
