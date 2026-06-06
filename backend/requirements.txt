@@ -1,3 +1,6 @@
+# ── System monitoring ────────────────────────────────────────────────────────
+psutil>=5.9.0,<7.0          # RAM/CPU stats in /health endpoint
+
 # ── Core Framework ──────────────────────────────────────────────────────────
 fastapi>=0.111.0,<1.0
 uvicorn[standard]>=0.29.0,<1.0

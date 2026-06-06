@@ -233,11 +233,27 @@ def create_app() -> FastAPI:
     # ── Health check ──────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], status_code=status.HTTP_200_OK)
     async def health():
-        from fastapi.responses import Response as FastAPIResponse
-        content = {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        import os
+        content: dict = {"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV}
+        # Include live RAM stats so you can check memory usage from terminal:
+        #   curl https://pricebasket-api.onrender.com/health
+        try:
+            import psutil
+            proc = psutil.Process(os.getpid())
+            mem = proc.memory_info()
+            vm  = psutil.virtual_memory()
+            content["memory"] = {
+                "process_rss_mb":  round(mem.rss  / 1024 / 1024, 1),  # this process RSS
+                "process_vms_mb":  round(mem.vms  / 1024 / 1024, 1),  # virtual memory
+                "system_used_mb":  round(vm.used  / 1024 / 1024, 1),  # total system used
+                "system_total_mb": round(vm.total / 1024 / 1024, 1),  # total system RAM
+                "system_pct":      round(vm.percent, 1),               # % used
+            }
+        except Exception:
+            pass  # psutil not installed — skip memory stats
         resp = JSONResponse(content=content)
-        # Allow CDN/browser to cache health for 30 s — reduces origin hits
-        resp.headers["Cache-Control"] = "public, max-age=30, s-maxage=30"
+        # Short cache — memory stats should be fresh
+        resp.headers["Cache-Control"] = "public, max-age=10, s-maxage=10"
         return resp
 
     # ── Lightweight ping for keep-alive probes (no logging overhead) ──────────
