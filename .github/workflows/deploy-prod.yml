@@ -29,7 +29,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # GH_PAT needs repo + workflow scopes (GITHUB_TOKEN can't push workflow files)
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Merge dev into main
         run: |
