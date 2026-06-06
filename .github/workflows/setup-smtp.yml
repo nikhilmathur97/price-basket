@@ -1,0 +1,101 @@
+name: "3. Configure SMTP (Brevo / any provider)"
+
+# Run this once after you have your Brevo SMTP key.
+# Also run any time you need to change SMTP credentials.
+#
+# What it does:
+#   1. Saves all SMTP settings to AWS SSM Parameter Store (encrypted)
+#   2. SSHs into EC2 and updates backend/.env + restarts the service
+#
+# Required GitHub Secrets (one-time setup):
+#   AWS_ROLE_ARN  = arn:aws:iam::443414059511:role/pricebasket-github-actions
+#   EC2_HOST      = your EC2 public IP (e.g. 13.x.x.x)
+#   EC2_USER      = ubuntu
+#   EC2_SSH_KEY   = contents of pricebasket-ec2-key.pem
+
+on:
+  workflow_dispatch:
+    inputs:
+      smtp_key:
+        description: "Brevo SMTP key (xsmtpsib-...)"
+        required: true
+      smtp_user:
+        description: "Brevo account email (used as SMTP_USER)"
+        required: true
+        default: "nikhilmathur428@gmail.com"
+      smtp_from:
+        description: "From address shown in emails"
+        required: false
+        default: "PriceBasket <nikhilmathur428@gmail.com>"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  configure-smtp:
+    name: "Save SMTP config + deploy to EC2"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials (OIDC — no long-lived keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Save SMTP credentials to SSM Parameter Store
+        run: |
+          aws ssm put-parameter --name "/pricebasket/smtp/host"     --value "smtp-relay.brevo.com"                   --type String       --overwrite --region ap-south-1
+          aws ssm put-parameter --name "/pricebasket/smtp/port"     --value "587"                                    --type String       --overwrite --region ap-south-1
+          aws ssm put-parameter --name "/pricebasket/smtp/user"     --value "${{ github.event.inputs.smtp_user }}"   --type SecureString --overwrite --region ap-south-1
+          aws ssm put-parameter --name "/pricebasket/smtp/password" --value "${{ github.event.inputs.smtp_key }}"    --type SecureString --overwrite --region ap-south-1
+          aws ssm put-parameter --name "/pricebasket/smtp/from"     --value "${{ github.event.inputs.smtp_from }}"   --type String       --overwrite --region ap-south-1
+          echo "✅ SMTP credentials saved to SSM"
+
+      - name: Push SMTP config to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/pricebasket
+
+            # Pull fresh SMTP values from SSM
+            SMTP_HOST=$(aws ssm get-parameter --name /pricebasket/smtp/host     --region ap-south-1 --query Parameter.Value --output text)
+            SMTP_PORT=$(aws ssm get-parameter --name /pricebasket/smtp/port     --region ap-south-1 --query Parameter.Value --output text)
+            SMTP_USER=$(aws ssm get-parameter --name /pricebasket/smtp/user     --with-decryption --region ap-south-1 --query Parameter.Value --output text)
+            SMTP_PASS=$(aws ssm get-parameter --name /pricebasket/smtp/password --with-decryption --region ap-south-1 --query Parameter.Value --output text)
+            SMTP_FROM=$(aws ssm get-parameter --name /pricebasket/smtp/from     --region ap-south-1 --query Parameter.Value --output text)
+
+            # Update .env (remove old SMTP lines, add fresh ones)
+            grep -v "^SMTP_" backend/.env > /tmp/env_clean
+            {
+              echo "SMTP_HOST=$SMTP_HOST"
+              echo "SMTP_PORT=$SMTP_PORT"
+              echo "SMTP_USER=$SMTP_USER"
+              echo "SMTP_PASSWORD=$SMTP_PASS"
+              echo "SMTP_FROM=$SMTP_FROM"
+            } >> /tmp/env_clean
+            mv /tmp/env_clean backend/.env
+
+            sudo systemctl restart pricebasket-api.service
+            echo "✅ SMTP configured and service restarted"
+
+      - name: Smoke-test forgot-password endpoint
+        run: |
+          echo "Waiting 5s for service to settle..."
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST https://api.pricebasket.in/api/v1/auth/forgot-password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"${{ github.event.inputs.smtp_user }}"}')
+          echo "forgot-password response: HTTP $STATUS"
+          if [ "$STATUS" = "204" ]; then
+            echo "✅ Endpoint working — check your inbox!"
+          else
+            echo "❌ Unexpected status $STATUS"
+            exit 1
+          fi
