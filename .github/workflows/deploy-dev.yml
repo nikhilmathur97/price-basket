@@ -113,5 +113,8 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           URL=$(vercel deploy --prebuilt --token=$VERCEL_TOKEN)
-          echo "✅ Deployed: $URL"
+          echo "✅ Deployed preview: $URL"
+          # Explicitly assign this deployment to dev.pricebasket.in
+          # (Vercel CLI can't detect the dev branch in CI detached-HEAD mode)
+          vercel alias set "$URL" dev.pricebasket.in --token=$VERCEL_TOKEN
           echo "🌐 Live at: https://dev.pricebasket.in"
