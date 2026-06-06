@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
@@ -62,11 +62,38 @@ export default function LoginPage() {
     return <PageLoader message="Loading" />;
   }
 
+  // "Waking up" banner state — shown when backend returns 503 (cold start)
+  const [wakingUp, setWakingUp] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-retry after countdown when backend is waking up
+  useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const t = setTimeout(() => setRetryCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [retryCountdown]);
+
+  useEffect(() => {
+    if (retryCountdown === 0 && wakingUp && !loading) {
+      // Countdown finished — auto-submit the form
+      setWakingUp(false);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        document.getElementById("login-form")?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        );
+      }, 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCountdown]);
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return; // guard against double-submit
     loginInProgress.current = true;
     setLoading(true);
+    setWakingUp(false);
     try {
       const { data } = await api.login(form);
       setAccessToken(data.access_token);
@@ -90,17 +117,16 @@ export default function LoginPage() {
       const status: number | undefined = err?.response?.status;
       const detail = err?.response?.data?.detail;
 
+      if (!err?.response || status === 503) {
+        // Backend cold-starting — show waking-up banner + auto-retry in 5s
+        setWakingUp(true);
+        setRetryCountdown(5);
+        setLoading(false);
+        return;
+      }
+
       let message: string;
-      if (!err?.response) {
-        // Network error — proxy is down or unreachable
-        message = "Cannot reach server — please try again in a few seconds.";
-      } else if (status === 503) {
-        // Proxy returned 503 (backend cold-starting or unreachable)
-        message =
-          typeof detail === "string"
-            ? detail
-            : "Server is starting up — please wait a moment and try again.";
-      } else if (status === 401) {
+      if (status === 401) {
         message = "Invalid email or password. Please try again.";
       } else if (status === 403) {
         message = "Your account has been disabled. Please contact support.";
@@ -147,7 +173,20 @@ export default function LoginPage() {
             Welcome back to PriceBasket
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          {/* Waking-up banner — shown when backend is cold-starting */}
+          {wakingUp && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+              <span>
+                Waking up servers, please wait…{" "}
+                <span className="font-semibold">
+                  {retryCountdown > 0 ? `Retrying in ${retryCountdown}s` : "Retrying…"}
+                </span>
+              </span>
+            </div>
+          )}
+
+          <form id="login-form" onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">
                 Email
@@ -195,10 +234,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || wakingUp}
               className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Login
+              {wakingUp ? "Waking up…" : "Login"}
             </button>
           </form>
 

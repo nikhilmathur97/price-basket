@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
@@ -45,6 +45,32 @@ export default function SignupPage() {
   const [emailError, setEmailError] = useState("");
   const signupInProgress = useRef(false);
 
+  // "Waking up" banner state — shown when backend returns 503 (cold start)
+  const [wakingUp, setWakingUp] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Countdown tick
+  useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const t = setTimeout(() => setRetryCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [retryCountdown]);
+
+  // Auto-retry when countdown reaches 0
+  useEffect(() => {
+    if (retryCountdown === 0 && wakingUp && !loading) {
+      setWakingUp(false);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        document.getElementById("signup-form")?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        );
+      }, 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCountdown]);
+
   // Redirect already-authenticated users away from the signup page.
   // Only redirect after session validation finishes — prevents phantom-session redirect.
   useEffect(() => {
@@ -80,6 +106,7 @@ export default function SignupPage() {
     setEmailError("");
     signupInProgress.current = true;
     setLoading(true);
+    setWakingUp(false);
     try {
       // Register now returns a TokenResponse (access_token + user) — no second login call needed.
       const { data } = await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
@@ -99,6 +126,13 @@ export default function SignupPage() {
     } catch (err: any) {
       signupInProgress.current = false;
       const status = err?.response?.status;
+      if (!err?.response || status === 503) {
+        // Backend cold-starting — show waking-up banner + auto-retry in 5s
+        setWakingUp(true);
+        setRetryCountdown(5);
+        setLoading(false);
+        return;
+      }
       if (status === 409) {
         setEmailError("This email is already registered. Sign in instead?");
       } else {
@@ -131,7 +165,20 @@ export default function SignupPage() {
             Start comparing prices and saving money
           </p>
 
-          <form onSubmit={handleSignup} className="space-y-4">
+          {/* Waking-up banner — shown when backend is cold-starting */}
+          {wakingUp && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+              <span>
+                Waking up servers, please wait…{" "}
+                <span className="font-semibold">
+                  {retryCountdown > 0 ? `Retrying in ${retryCountdown}s` : "Retrying…"}
+                </span>
+              </span>
+            </div>
+          )}
+
+          <form id="signup-form" onSubmit={handleSignup} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">Full Name</label>
               <input
@@ -218,10 +265,10 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={loading || (!!form.confirm && form.confirm !== form.password)}
+              disabled={loading || wakingUp || (!!form.confirm && form.confirm !== form.password)}
               className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Create Account
+              {wakingUp ? "Waking up…" : "Create Account"}
             </button>
           </form>
 
