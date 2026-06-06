@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, trackEvent } from "@/services/api";
-import type { ProductSearchResult } from "@/types";
+import type { ProductSearchResult, ProductWithPrices } from "@/types";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -63,39 +63,21 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
     staleTime: 30_000,
   });
 
-  // Return only real API results — no mock padding
-  const results = useMemo((): ProductSearchResult | undefined => {
-    if (!data) return undefined;
+  // Trust the API sort — sending `sort` as a param is enough.
+  // Client-side re-sort would shadow the API's sort and use only the first
+  // platform price, which may not match the server's cheapest-price logic.
+  const results = useMemo((): ProductSearchResult | undefined => data, [data]);
 
-    const items = [...data.items];
-    if (sort === "price_asc") {
-      items.sort(
-        (a, b) =>
-          (a.platform_prices?.[0]?.price ?? Infinity) -
-          (b.platform_prices?.[0]?.price ?? Infinity)
-      );
-    } else if (sort === "price_desc") {
-      items.sort(
-        (a, b) =>
-          (b.platform_prices?.[0]?.price ?? 0) -
-          (a.platform_prices?.[0]?.price ?? 0)
-      );
-    }
-
-    return { ...data, items };
-  }, [data, sort]);
-
-  // Auto-suggestions (lighter query while typing)
-  const { data: suggestions } = useQuery({
-    queryKey: ["suggestions", debouncedQuery],
-    queryFn: async () => {
-      if (debouncedQuery.length < 2) return [];
-      const { data } = await api.searchProducts({ q: debouncedQuery, page_size: 5 });
-      return data.items.map((p: any) => ({ id: p.id, name: p.name, brand: p.brand }));
-    },
-    enabled: debouncedQuery.length >= 2,
-    staleTime: 30_000,
-  });
+  // Derive suggestions from the already-cached search results — avoids a
+  // second parallel request to the same endpoint on every keystroke.
+  const suggestions = useMemo((): { id: string; name: string; brand?: string | null }[] => {
+    if (!data || debouncedQuery.length < 2) return [];
+    return data.items.slice(0, 5).map((p: ProductWithPrices) => ({
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+    }));
+  }, [data, debouncedQuery]);
 
   return {
     query,

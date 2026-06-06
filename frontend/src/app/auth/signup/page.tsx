@@ -8,6 +8,7 @@ import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
+import { useBackendWakeup } from "@/hooks/useBackendWakeup";
 import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
@@ -44,32 +45,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const signupInProgress = useRef(false);
-
-  // "Waking up" banner state — shown when backend returns 503 (cold start)
-  const [wakingUp, setWakingUp] = useState(false);
-  const [retryCountdown, setRetryCountdown] = useState(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Countdown tick
-  useEffect(() => {
-    if (retryCountdown <= 0) return;
-    const t = setTimeout(() => setRetryCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [retryCountdown]);
-
-  // Auto-retry when countdown reaches 0
-  useEffect(() => {
-    if (retryCountdown === 0 && wakingUp && !loading) {
-      setWakingUp(false);
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = setTimeout(() => {
-        document.getElementById("signup-form")?.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true })
-        );
-      }, 100);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryCountdown]);
+  const { wakingUp, retryCountdown, trigger: triggerWakeup } = useBackendWakeup("signup-form");
 
   // Redirect already-authenticated users away from the signup page.
   // Only redirect after session validation finishes — prevents phantom-session redirect.
@@ -106,7 +82,6 @@ export default function SignupPage() {
     setEmailError("");
     signupInProgress.current = true;
     setLoading(true);
-    setWakingUp(false);
     try {
       // Register now returns a TokenResponse (access_token + user) — no second login call needed.
       const { data } = await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
@@ -131,8 +106,7 @@ export default function SignupPage() {
       const status = err?.response?.status;
       if (!err?.response || status === 503) {
         // Backend cold-starting — show waking-up banner + auto-retry in 5s
-        setWakingUp(true);
-        setRetryCountdown(5);
+        triggerWakeup();
         setLoading(false);
         return;
       }

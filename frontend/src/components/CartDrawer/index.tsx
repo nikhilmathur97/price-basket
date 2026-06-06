@@ -195,7 +195,7 @@ export function CartDrawer() {
                         {/* Remove */}
                         <button
                           onClick={() => {
-                            removeItem(item.id);
+                            removeItem(item.id).catch(() => toast.error("Couldn't remove item"));
                             trackEvent({ event_type: "cart_remove", product_id: item.product.id, referrer_page: "cart" });
                           }}
                           className="text-surface-300 hover:text-red-500 transition-colors self-start mt-1"

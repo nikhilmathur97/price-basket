@@ -9,34 +9,26 @@ const SHORT_ALIASES: Record<string, string> = {
   "/logout":   "/",
 };
 
-// The real auth pages (after alias resolution)
-const AUTH_PAGES = ["/auth/login", "/auth/signup"];
-
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const hasSession = req.cookies.has("pb_refresh_token");
 
-  // 1. Short alias typed directly (e.g. /login, /signup)
-  //    → logged-in users go home; guests go to the real auth page
+  // Short alias typed directly (e.g. /login, /signup)
+  // → always redirect to the real auth page regardless of session state.
+  // Do NOT redirect logged-in users to "/" here — the cookie presence check
+  // is unreliable (expired/stale cookies still redirect users away from login,
+  // making it impossible to access the login page even when not authenticated).
+  // The client-side login page useEffect handles redirect for authenticated users
+  // after properly validating the session via api.me().
   if (SHORT_ALIASES[pathname]) {
-    const destination = hasSession ? "/" : SHORT_ALIASES[pathname];
-    return NextResponse.redirect(new URL(destination, req.url));
-  }
-
-  // 2. Real auth pages (/auth/login, /auth/signup)
-  //    → logged-in users go home
-  if (AUTH_PAGES.some((p) => pathname.startsWith(p)) && hasSession) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL(SHORT_ALIASES[pathname], req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  // Match both the real auth pages and the short aliases
+  // Match only the short aliases — real auth pages no longer need middleware
   matcher: [
-    "/auth/login",
-    "/auth/signup",
     "/login",
     "/signin",
     "/signup",

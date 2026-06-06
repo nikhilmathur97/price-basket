@@ -2,7 +2,10 @@
 /// Switch BASE_URL to test against local dev server.
 class AppConfig {
   // ── URLs ──────────────────────────────────────────────────────────────────
-  static const String baseUrl = 'https://pricebasket.in';
+  // ⚠️  DEV MODE — points to staging/dev environment.
+  // To go live, swap the two lines below (comment dev, uncomment prod).
+  static const String baseUrl = 'https://dev.pricebasket.in';
+  // static const String baseUrl = 'https://pricebasket.in'; // PRODUCTION — do not change until go-live
 
   // Backend API base. The Next.js frontend proxies /api/* → FastAPI backend,
   // so native API calls (e.g. FCM token registration) go through the same host.

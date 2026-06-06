@@ -1,4 +1,4 @@
-package `in`.pricebasket.pricebasket
+package `in`.pricebasket.app
 
 import io.flutter.embedding.android.FlutterActivity
 
