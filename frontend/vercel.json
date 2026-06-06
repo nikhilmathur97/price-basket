@@ -189,11 +189,5 @@
       "source": "/api/v1/:path*",
       "destination": "/api/v1/:path*"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/keepalive",
-      "schedule": "*/5 * * * *"
-    }
   ]
 }
