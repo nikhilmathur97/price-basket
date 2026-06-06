@@ -388,8 +388,14 @@ async def _ensure_browser():
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
+                    # ── Memory-saving flags (critical for Render 512 MB free tier) ──
+                    "--disable-dev-shm-usage",       # use /tmp instead of /dev/shm
+                    "--disable-gpu",                 # no GPU process = ~50 MB saved
+                    "--single-process",              # renderer in same process = ~80 MB saved
+                    "--no-zygote",                   # skip zygote process = ~20 MB saved
+                    "--renderer-process-limit=1",    # max 1 renderer at a time
+                    "--js-flags=--max-old-space-size=128",  # cap V8 heap at 128 MB
+                    # ── Anti-detection flags ──────────────────────────────────────
                     "--no-first-run",
                     "--no-default-browser-check",
                     "--disable-extensions",
@@ -397,8 +403,7 @@ async def _ensure_browser():
                     "--disable-features=IsolateOrigins,site-per-process",
                     "--disable-infobars",
                     "--window-size=1280,800",
-                    "--start-maximized",
-                    # Realistic Chrome flags
+                    # ── Misc performance/stability ────────────────────────────────
                     "--enable-features=NetworkService,NetworkServiceInProcess",
                     "--disable-background-networking",
                     "--disable-background-timer-throttling",
@@ -417,9 +422,7 @@ async def _ensure_browser():
                     "--metrics-recording-only",
                     "--password-store=basic",
                     "--use-mock-keychain",
-                    "--export-tagged-pdf",
                     "--no-pings",
-                    "--use-gl=swiftshader",
                 ],
             )
             log.info("playwright_browser_started")
