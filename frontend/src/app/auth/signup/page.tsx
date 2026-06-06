@@ -13,15 +13,20 @@ import toast from "react-hot-toast";
 
 function getSignupErrorMessage(err: any): string {
   if (!err?.response) {
-    return err?.message === "Network Error"
-      ? "Cannot reach server — backend may be down. Please try again."
-      : (err?.message ?? "Registration failed");
+    // Raw network error — proxy itself is unreachable (should be rare after proxy fix)
+    return "Cannot reach server — please try again in a few seconds.";
   }
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
   if (status === 409) return "Email already registered. Try signing in instead.";
-  if (status === 502 || status === 503) return "Service unavailable — backend is not running. Please try again later.";
-  if (status === 500) return "Server error — database may not be set up. Contact support.";
+  if (status === 503) {
+    // Proxy returned 503: backend cold-starting or unreachable
+    return typeof detail === "string"
+      ? detail
+      : "Server is starting up — please wait a moment and try again.";
+  }
+  if (status === 502) return "Service unavailable — please try again in a few seconds.";
+  if (status === 500) return "Server error — please try again or contact support.";
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     const first = detail[0];

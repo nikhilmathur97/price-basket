@@ -87,10 +87,30 @@ export default function LoginPage() {
       fetchCart().catch(() => {});
     } catch (err: any) {
       loginInProgress.current = false;
-      const detail =
-        err?.response?.data?.detail ??
-        "Login failed. Please check your credentials.";
-      toast.error(detail);
+      const status: number | undefined = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+
+      let message: string;
+      if (!err?.response) {
+        // Network error — proxy is down or unreachable
+        message = "Cannot reach server — please try again in a few seconds.";
+      } else if (status === 503) {
+        // Proxy returned 503 (backend cold-starting or unreachable)
+        message =
+          typeof detail === "string"
+            ? detail
+            : "Server is starting up — please wait a moment and try again.";
+      } else if (status === 401) {
+        message = "Invalid email or password. Please try again.";
+      } else if (status === 403) {
+        message = "Your account has been disabled. Please contact support.";
+      } else if (typeof detail === "string") {
+        message = detail;
+      } else {
+        message = "Login failed. Please try again.";
+      }
+
+      toast.error(message);
       setLoading(false);
     }
   }

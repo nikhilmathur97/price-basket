@@ -53,7 +53,17 @@ function AuthBootstrap() {
         setUser(data);
         fetchCart().catch(() => {});
       })
-      .catch(() => {
+      .catch((err: any) => {
+        const status: number | undefined = err?.response?.status;
+        // Do NOT log out if the backend is temporarily unavailable (503/502/network
+        // error during Render cold start). Only log out on explicit auth failures
+        // (401 after refresh also failed, or 403 account disabled).
+        // Without this guard, a slow cold start would log out a valid user every
+        // time they open the app while the backend is warming up.
+        if (!status || status === 503 || status === 502) {
+          // Backend unreachable — keep the persisted session; user stays logged in.
+          return;
+        }
         logout();
         resetCart();
       })
