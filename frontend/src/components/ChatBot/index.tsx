@@ -81,10 +81,32 @@ const GREETING: Message = {
 let _id = 1;
 const nextId = () => _id++;
 
+const STOP_WORDS = new Set(["what", "how", "why", "is", "are", "do", "does", "can", "a", "an", "the", "i", "my", "me", "to", "in", "on", "of", "for", "it", "this", "that"]);
+
+function matchFaq(input: string): QA | undefined {
+  const lower = input.toLowerCase().trim();
+  // Exact or full-substring match first
+  const exact = FAQ.find((q) => q.question.toLowerCase() === lower || lower.includes(q.question.toLowerCase()));
+  if (exact) return exact;
+  // Keyword overlap scoring — skip short stop words for better signal
+  const inputTokens = lower.split(/\s+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (inputTokens.length === 0) return undefined;
+  let best: QA | undefined;
+  let bestScore = 0;
+  for (const qa of FAQ) {
+    const qTokens = qa.question.toLowerCase().split(/\s+/);
+    const score = inputTokens.filter((t) => qTokens.some((qw) => qw.startsWith(t) || t.startsWith(qw))).length;
+    if (score > bestScore) { bestScore = score; best = qa; }
+  }
+  return bestScore >= 2 ? best : undefined;
+}
+
 /* ─── Animated Mascot SVG (Shinchan-style cartoon boy) ──────────────────── */
-function MascotCharacter({ isOpen, hasUnread }: { isOpen: boolean; hasUnread: boolean }) {
+function MascotCharacter({ isOpen, hasUnread, small }: { isOpen: boolean; hasUnread: boolean; small?: boolean }) {
+  const W = small ? 44 : 64;
+  const H = small ? 50 : 72;
   return (
-    <div className="relative flex items-end justify-center" style={{ width: 64, height: 72 }}>
+    <div className="relative flex items-end justify-center" style={{ width: W, height: H }}>
       <style>{`
         @keyframes wave {
           0%, 100% { transform: rotate(0deg); transform-origin: bottom right; }
@@ -119,20 +141,20 @@ function MascotCharacter({ isOpen, hasUnread }: { isOpen: boolean; hasUnread: bo
       {/* Speech bubble "Hi! 👋" — shows when closed & has unread OR on first load */}
       {!isOpen && (
         <div
-          className="mascot-bubble absolute -top-1 -right-8 bg-white border-2 border-brand-500
-                     text-brand-700 text-[11px] font-bold px-2 py-0.5 rounded-full shadow-md
+          className="mascot-bubble absolute -top-1 -right-7 bg-white border-2 border-brand-500
+                     text-brand-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md
                      whitespace-nowrap pointer-events-none z-10"
           style={{ borderRadius: "999px 999px 999px 4px" }}
         >
-          {hasUnread ? "New msg! 💬" : "Hi! 👋"}
+          {hasUnread ? "New! 💬" : "Hi! 👋"}
         </div>
       )}
 
       {/* Full mascot SVG */}
       <svg
         viewBox="0 0 64 72"
-        width="64"
-        height="72"
+        width={W}
+        height={H}
         xmlns="http://www.w3.org/2000/svg"
         className="mascot-body drop-shadow-lg"
         style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
@@ -243,12 +265,7 @@ export function ChatBot() {
   function sendMessage(text: string) {
     const userMsg: Message = { id: nextId(), from: "user", text };
 
-    // Fuzzy match — check if the typed text is close to any FAQ question
-    const matched = FAQ.find(
-      (q) =>
-        q.question.toLowerCase() === text.toLowerCase() ||
-        text.toLowerCase().includes(q.question.toLowerCase().split(" ").slice(1, 4).join(" "))
-    );
+    const matched = matchFaq(text);
 
     const botReply: Message = {
       id: nextId(),
@@ -279,25 +296,28 @@ export function ChatBot() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Open chat assistant"
-        className="fixed bottom-20 right-3 md:bottom-6 md:right-5 z-[9000]
+        className="fixed bottom-20 right-2 md:bottom-6 md:right-5 z-[9000]
                    flex flex-col items-center justify-end
                    focus:outline-none group"
         style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
       >
         {open ? (
           /* Close state — small pill button */
-          <div className="w-12 h-12 rounded-full bg-brand-600 shadow-xl flex items-center justify-center
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-brand-600 shadow-xl flex items-center justify-center
                           hover:bg-brand-700 transition-colors">
-            <X className="w-5 h-5 text-white" />
+            <X className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
         ) : (
-          <MascotCharacter isOpen={false} hasUnread={unread > 0} />
+          <>
+            <span className="md:hidden"><MascotCharacter isOpen={false} hasUnread={unread > 0} small /></span>
+            <span className="hidden md:block"><MascotCharacter isOpen={false} hasUnread={unread > 0} /></span>
+          </>
         )}
 
         {/* Unread badge */}
         {!open && unread > 0 && (
-          <span className="absolute top-0 right-0 w-5 h-5 rounded-full bg-red-500
-                           text-white text-[10px] flex items-center justify-center font-bold shadow">
+          <span className="absolute top-0 right-0 w-4 h-4 md:w-5 md:h-5 rounded-full bg-red-500
+                           text-white text-[9px] md:text-[10px] flex items-center justify-center font-bold shadow">
             {unread}
           </span>
         )}
@@ -306,16 +326,16 @@ export function ChatBot() {
       {/* ── Chat panel ── */}
       {open && (
         <div
-          className="fixed bottom-36 right-3 md:bottom-24 md:right-5 z-[8999]
-                     w-[calc(100vw-1.5rem)] max-w-sm bg-white rounded-2xl shadow-2xl
+          className="fixed bottom-32 right-2 md:bottom-24 md:right-5 z-[8999]
+                     w-[min(calc(100vw-1rem),320px)] md:w-80 md:max-w-sm bg-white rounded-2xl shadow-2xl
                      border border-surface-200 flex flex-col overflow-hidden"
-          style={{ maxHeight: "72vh", minHeight: "440px" }}
+          style={{ maxHeight: "60vh", minHeight: "300px" }}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-brand-600 to-orange-500 px-4 py-3 flex items-center gap-3">
+          <div className="bg-gradient-to-r from-brand-600 to-orange-500 px-3 py-2.5 flex items-center gap-2">
             {/* Mini mascot head in header */}
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              <svg viewBox="8 6 48 42" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <svg viewBox="8 6 48 42" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="32" cy="26" r="20" fill="#FBBF9C" />
                 <path d="M13 22 Q14 4 32 5 Q50 4 51 22 Q44 10 32 11 Q20 10 13 22Z" fill="#1a1a1a" />
                 <circle cx="25" cy="26" r="4" fill="white" /><circle cx="25" cy="26" r="2.5" fill="#1a1a1a" />
@@ -326,22 +346,22 @@ export function ChatBot() {
                 <path d="M26 37 Q32 41 38 37" fill="white" />
               </svg>
             </div>
-            <div className="flex-1">
-              <p className="text-white font-bold text-sm">Basco — PriceBasket Bot</p>
-              <p className="text-orange-100 text-xs">Here to help you save money! 💰</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-xs leading-tight">Basco — PriceBasket Bot</p>
+              <p className="text-orange-100 text-[10px]">Here to help you save! 💰</p>
             </div>
-            <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white transition-colors">
-              <X className="w-5 h-5" />
+            <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white transition-colors flex-shrink-0">
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-orange-50/30">
+          <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 bg-orange-50/30">
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex gap-2 ${msg.from === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={msg.id} className={`flex gap-1.5 ${msg.from === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.from === "bot" && (
-                  <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg viewBox="8 6 48 42" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+                  <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg viewBox="8 6 48 42" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="32" cy="26" r="20" fill="#FBBF9C" />
                       <path d="M13 22 Q14 4 32 5 Q50 4 51 22 Q44 10 32 11 Q20 10 13 22Z" fill="#1a1a1a" />
                       <circle cx="25" cy="26" r="4" fill="white" /><circle cx="25" cy="26" r="2.5" fill="#1a1a1a" />
@@ -351,7 +371,7 @@ export function ChatBot() {
                   </div>
                 )}
                 <div
-                  className={`max-w-[82%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed
+                  className={`max-w-[85%] px-2.5 py-1.5 rounded-2xl text-xs whitespace-pre-wrap leading-relaxed
                     ${msg.from === "user"
                       ? "bg-brand-600 text-white rounded-br-sm"
                       : "bg-white text-surface-800 border border-surface-100 rounded-bl-sm shadow-sm"
@@ -365,35 +385,35 @@ export function ChatBot() {
           </div>
 
           {/* Quick question chips */}
-          <div className="px-3 pt-2 pb-1 border-t border-surface-100 bg-white">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-semibold text-surface-500">Quick questions</p>
-              <div className="flex items-center gap-1">
+          <div className="px-2.5 pt-1.5 pb-1 border-t border-surface-100 bg-white">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-semibold text-surface-500">Quick questions</p>
+              <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="w-5 h-5 rounded flex items-center justify-center text-surface-400
+                  className="w-4 h-4 rounded flex items-center justify-center text-surface-400
                              hover:text-brand-600 disabled:opacity-30 text-xs"
                 >‹</button>
-                <span className="text-[10px] text-surface-400">{page + 1}/{totalPages}</span>
+                <span className="text-[9px] text-surface-400">{page + 1}/{totalPages}</span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page === totalPages - 1}
-                  className="w-5 h-5 rounded flex items-center justify-center text-surface-400
+                  className="w-4 h-4 rounded flex items-center justify-center text-surface-400
                              hover:text-brand-600 disabled:opacity-30 text-xs"
                 >›</button>
               </div>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {visibleFAQs.map((faq) => (
                 <button
                   key={faq.question}
                   onClick={() => sendMessage(faq.question)}
-                  className="flex items-center gap-1.5 text-left text-xs text-brand-700
+                  className="flex items-center gap-1 text-left text-[11px] text-brand-700
                              hover:text-brand-900 bg-brand-50 hover:bg-brand-100
-                             rounded-lg px-2.5 py-1.5 transition-colors"
+                             rounded-lg px-2 py-1 transition-colors"
                 >
-                  <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                  <ChevronRight className="w-2.5 h-2.5 flex-shrink-0" />
                   <span className="truncate">{faq.question}</span>
                 </button>
               ))}
@@ -401,23 +421,23 @@ export function ChatBot() {
           </div>
 
           {/* Input */}
-          <div className="px-3 py-2 border-t border-surface-100 bg-white flex gap-2">
+          <div className="px-2.5 py-1.5 border-t border-surface-100 bg-white flex gap-1.5">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKey}
               placeholder="Ask Basco anything…"
-              className="flex-1 border border-surface-200 rounded-xl px-3 py-2 text-sm
+              className="flex-1 border border-surface-200 rounded-xl px-2.5 py-1.5 text-xs
                          focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center
+              className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center
                          hover:bg-brand-700 disabled:opacity-40 transition-colors flex-shrink-0"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

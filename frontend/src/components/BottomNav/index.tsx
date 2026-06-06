@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { Home, Search, ShoppingCart, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
@@ -13,17 +14,28 @@ const NAV_ITEMS: Array<{
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   isCart?: boolean;
+  isProfile?: boolean;
 }> = [
   { href: "/",        icon: Home,         label: "Home"   },
   { href: "/search",  icon: Search,       label: "Search" },
   { href: "/cart",    icon: ShoppingCart, label: "Cart",  isCart: true },
-  { href: "/profile", icon: User,         label: "Me"     },
+  { href: "/profile", icon: User,         label: "Me",    isProfile: true },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
   const { totalItems, openCart } = useCartStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const [isFlutterApp, setIsFlutterApp] = useState(false);
+
+  // Detect Flutter WebView after mount only — avoids hydration mismatch
+  // (server has no window, so checking UA during render causes server/client mismatch)
+  useEffect(() => {
+    setIsFlutterApp(
+      window.navigator.userAgent.includes("PriceBasketApp") ||
+      new URLSearchParams(window.location.search).get("source") === "app"
+    );
+  }, []);
 
   // Hide on auth and admin pages
   if (
@@ -33,14 +45,8 @@ export function BottomNav() {
     return null;
   }
 
-  // Hide when running inside the Flutter WebView shell.
-  // Detected via custom User-Agent OR ?source=app query param.
-  if (typeof window !== "undefined") {
-    const isFlutterApp =
-      window.navigator.userAgent.includes("PriceBasketApp") ||
-      new URLSearchParams(window.location.search).get("source") === "app";
-    if (isFlutterApp) return null;
-  }
+  // Hide when running inside the Flutter WebView shell
+  if (isFlutterApp) return null;
 
   return (
     <nav
@@ -50,10 +56,17 @@ export function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex h-[58px]">
-        {NAV_ITEMS.map(({ href, icon: Icon, label, isCart }) => {
+        {NAV_ITEMS.map(({ href, icon: Icon, label, isCart, isProfile }) => {
           const isActive =
             href === "/" ? pathname === "/" : pathname?.startsWith(href);
           const showBadge = isCart && isAuthenticated && totalItems > 0;
+
+          // Determine the effective href for auth-gated tabs
+          const effectiveHref = hasHydrated && !isAuthenticated && isCart
+            ? "/auth/login?next=/cart"
+            : hasHydrated && !isAuthenticated && isProfile
+            ? "/auth/login?next=/profile"
+            : href;
 
           function handleClick() {
             if (isCart && isAuthenticated) {
@@ -64,7 +77,7 @@ export function BottomNav() {
           const Wrapper = isCart && isAuthenticated ? "button" : Link;
           const wrapperProps = isCart && isAuthenticated
             ? { onClick: handleClick }
-            : { href };
+            : { href: effectiveHref };
 
           return (
             <Wrapper

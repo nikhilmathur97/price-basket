@@ -453,12 +453,9 @@ export default function CartPage() {
       ).id
     : "";
 
-  // ── Guard: wait for auth hydration + session validation ───────────────────
-  // Must wait for isValidatingSession=false before deciding the user is logged
-  // out. Without this, a valid session with a slow backend (Render cold start)
-  // briefly shows isAuthenticated=false → triggers the redirect to login →
-  // user sees "Please login to view your cart" even though they ARE logged in.
-  if (!hasHydrated || isValidatingSession) {
+  // Show skeleton while: waiting for hydration, session validation, or cart fetch.
+  // isLoading only fires when authenticated so the order here is safe.
+  if (!hasHydrated || isValidatingSession || isLoading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
         {[1, 2, 3].map((i) => (
@@ -470,17 +467,6 @@ export default function CartPage() {
 
   if (!isAuthenticated) {
     return <div className="max-w-5xl mx-auto px-4 py-10" />;
-  }
-
-  // ── Loading skeleton
-  if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="skeleton h-44 rounded-2xl" />
-        ))}
-      </div>
-    );
   }
 
   // ── Empty state

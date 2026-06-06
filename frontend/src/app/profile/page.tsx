@@ -60,7 +60,15 @@ export default function ProfilePage() {
 
   // Wait for hydration + session validation before deciding to redirect.
   if (!hasHydrated || isValidatingSession || !isAuthenticated || !authUser) {
-    return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-surface-500">Loading profile...</div>;
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <div className="skeleton h-32 rounded-2xl" />
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 skeleton h-72 rounded-2xl" />
+          <div className="skeleton h-72 rounded-2xl" />
+        </div>
+      </div>
+    );
   }
 
   return (

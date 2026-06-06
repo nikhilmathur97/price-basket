@@ -46,6 +46,9 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..clearCache()
+      // NOTE: do NOT call clearLocalStorage() — it wipes pb_auth (Zustand
+      // persisted session) and pb_session_id (guest cart), breaking login.
       ..setUserAgent(_userAgent())
       ..setBackgroundColor(AppTheme.background)
       ..addJavaScriptChannel(

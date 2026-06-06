@@ -45,6 +45,8 @@ export function useWebSocket(productIds: string[]) {
     };
 
     ws.current.onclose = () => {
+      // ws.current is nulled in cleanup to signal an intentional close — don't reconnect then
+      if (ws.current === null) return;
       reconnectTimer.current = setTimeout(connect, 3000);
     };
 
@@ -55,11 +57,21 @@ export function useWebSocket(productIds: string[]) {
 
   useEffect(() => {
     connect();
+    // If already open (e.g. navigating between products), send an updated subscribe
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      const ids: string[] = JSON.parse(productIdsKey);
+      if (ids.length > 0) {
+        ws.current.send(JSON.stringify({ action: "subscribe", product_ids: ids }));
+      }
+    }
     return () => {
       clearTimeout(reconnectTimer.current);
-      ws.current?.close();
+      // Null ws.current BEFORE close so the onclose handler knows this was intentional
+      const socket = ws.current;
+      ws.current = null;
+      socket?.close();
     };
-  }, [connect]);
+  }, [connect, productIdsKey]);
 
   return ws;
 }

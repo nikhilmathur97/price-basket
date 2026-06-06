@@ -72,8 +72,7 @@ interface AlertCardProps {
 function AlertCard({ alert, onDelete, isDeleting }: AlertCardProps) {
   const { product, target_price, is_active, triggered_at, created_at } = alert;
 
-  const imageSrc =
-    product.thumbnail_url ?? product.image_url ?? `https://picsum.photos/seed/${product.id}/80/80`;
+  const imageSrc = product.thumbnail_url ?? product.image_url ?? null;
 
   const isTriggered = !!triggered_at;
 
@@ -87,14 +86,18 @@ function AlertCard({ alert, onDelete, isDeleting }: AlertCardProps) {
     >
       {/* Product thumbnail */}
       <Link href={`/product/${product.id}`} className="flex-shrink-0">
-        <div className="w-16 h-16 rounded-xl overflow-hidden border border-surface-100 bg-surface-50 relative">
-          <Image
-            src={imageSrc}
-            alt={product.name}
-            fill
-            className="object-contain p-1"
-            sizes="64px"
-          />
+        <div className="w-16 h-16 rounded-xl overflow-hidden border border-surface-100 bg-surface-50 relative flex items-center justify-center">
+          {imageSrc ? (
+            <Image
+              src={imageSrc}
+              alt={product.name}
+              fill
+              className="object-contain p-1"
+              sizes="64px"
+            />
+          ) : (
+            <span className="text-2xl select-none">🛒</span>
+          )}
         </div>
       </Link>
 

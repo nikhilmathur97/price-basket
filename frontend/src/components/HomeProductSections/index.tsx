@@ -158,16 +158,9 @@ export function HomeProductSections() {
 
   const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
-    queryFn: async () => {
-      // 25 s timeout — if the backend is cold-starting, give it time to wake up
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 25_000);
-      try {
-        const { data } = await api.getFeatured(60);
-        return data ?? [];
-      } finally {
-        clearTimeout(timer);
-      }
+    queryFn: async ({ signal }) => {
+      const { data } = await api.getFeatured(60, signal);
+      return data ?? [];
     },
     staleTime: 300_000,       // 5 min — don't refetch if data is fresh
     gcTime: 600_000,          // 10 min — keep in memory after unmount

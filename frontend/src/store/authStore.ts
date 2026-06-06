@@ -44,6 +44,13 @@ export const useAuthStore = create<AuthState>()(
           // Using user alone prevents the "no token → isAuthenticated=false → cart
           // redirects to login" race condition on page load.
           isAuthenticated: Boolean(state.user),
+          // If we have a persisted user, immediately mark session as validating so
+          // the login page redirect guard waits for AuthBootstrap's api.me() to
+          // finish before deciding to redirect. Without this, the login page
+          // useEffect fires with isValidatingSession=false before AuthBootstrap
+          // has a chance to set it to true — causing an instant redirect to "/" when
+          // the user navigates to /auth/login (even if they want to switch accounts).
+          isValidatingSession: Boolean(state.user),
         })),
 
       setValidatingSession: (v) => set({ isValidatingSession: v }),

@@ -2,6 +2,12 @@
  * Cart store — manages local cart state with optimistic updates.
  */
 
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { Cart, CartItem } from "@/types";
+import { api } from "@/services/api";
+import { MOCK_PRODUCTS } from "@/lib/mockData";
+
 /** Notify the Flutter native shell about the current cart item count. */
 function _notifyFlutterCartCount(count: number) {
   if (typeof window !== "undefined" && window.FlutterBridge) {
@@ -10,12 +16,6 @@ function _notifyFlutterCartCount(count: number) {
     );
   }
 }
-
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { Cart, CartItem } from "@/types";
-import { api } from "@/services/api";
-import { MOCK_PRODUCTS } from "@/lib/mockData";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -131,12 +131,30 @@ export const useCartStore = create<CartState>()(
               : current.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
           const updated = makeMockCart(updatedItems);
           set({ cart: updated, totalItems: updated.total_items });
+          _notifyFlutterCartCount(updated.total_items);
           return;
+        }
+        // Optimistic update so badge/count reflects the change immediately
+        const prev = get().cart;
+        if (prev) {
+          const updatedItems =
+            quantity <= 0
+              ? prev.items.filter((i) => i.id !== itemId)
+              : prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
+          const newCount = updatedItems.reduce((s, i) => s + i.quantity, 0);
+          set({ cart: { ...prev, items: updatedItems }, totalItems: newCount });
+          _notifyFlutterCartCount(newCount);
         }
         try {
           const { data } = await api.updateCartItem(itemId, { quantity });
           set({ cart: data, totalItems: data.total_items });
+          _notifyFlutterCartCount(data.total_items);
         } catch {
+          // Revert optimistic update on failure
+          if (prev) {
+            set({ cart: prev, totalItems: prev.total_items });
+            _notifyFlutterCartCount(prev.total_items);
+          }
           await get().fetchCart();
         }
       },
@@ -149,6 +167,7 @@ export const useCartStore = create<CartState>()(
           const updatedItems = current.items.filter((i) => i.id !== itemId);
           const updated = makeMockCart(updatedItems);
           set({ cart: updated, totalItems: updated.total_items });
+          _notifyFlutterCartCount(updated.total_items);
           return;
         }
         // Optimistic remove for real items
@@ -158,18 +177,30 @@ export const useCartStore = create<CartState>()(
             ...prev,
             items: prev.items.filter((i) => i.id !== itemId),
           };
-          set({ cart: updated, totalItems: updated.items.reduce((s, i) => s + i.quantity, 0) });
+          const newCount = updated.items.reduce((s, i) => s + i.quantity, 0);
+          set({ cart: updated, totalItems: newCount });
+          _notifyFlutterCartCount(newCount);
         }
         try {
           await api.removeCartItem(itemId);
-        } catch {
+        } catch (err) {
           set({ cart: prev, totalItems: prev?.total_items ?? 0 });
+          _notifyFlutterCartCount(prev?.total_items ?? 0);
+          throw err;
         }
       },
 
       clearCart: async () => {
-        await api.clearCart();
+        const prev = get().cart;
         set({ cart: null, totalItems: 0 });
+        _notifyFlutterCartCount(0);
+        try {
+          await api.clearCart();
+        } catch {
+          // Revert on failure
+          set({ cart: prev, totalItems: prev?.total_items ?? 0 });
+          _notifyFlutterCartCount(prev?.total_items ?? 0);
+        }
       },
 
       resetCart: () => {

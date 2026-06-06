@@ -65,7 +65,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
   async function handleAdd(e: React.MouseEvent) {
     e.preventDefault();
     if (!isAuthenticated) {
-      toast("Please log in to add items", { icon: "🔒" });
+      toast("Please sign in to add items", { icon: "🔒" });
       router.push("/auth/login");
       return;
     }

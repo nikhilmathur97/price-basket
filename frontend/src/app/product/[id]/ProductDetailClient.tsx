@@ -315,7 +315,7 @@ export default function ProductDetailClient() {
     },
     enabled: isUUID,
     staleTime: 60_000,
-    retry: 0,
+    retry: 1,
   });
 
   const apiErrorStatus: number | null =

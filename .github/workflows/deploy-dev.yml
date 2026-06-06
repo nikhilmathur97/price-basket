@@ -6,8 +6,8 @@ name: "1. Deploy → dev.pricebasket.in"
 # Required GitHub Secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  — Vercel deploy
 #   EC2_HOST     — EC2 public IP or hostname
-#   EC2_USER     — EC2 SSH username (usually "ubuntu")
-#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents)
+#   EC2_USER     — EC2 SSH username ("ec2-user" for Amazon Linux)
+#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents of github-actions deploy key)
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          username: ${{ secrets.EC2_USER || 'ec2-user' }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
@@ -93,7 +93,6 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Pull Vercel project settings (preview)
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -101,7 +100,6 @@ jobs:
         run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
 
       - name: Build
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -109,7 +107,6 @@ jobs:
         run: vercel build --token=$VERCEL_TOKEN
 
       - name: Deploy → dev.pricebasket.in
-        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
