@@ -368,6 +368,11 @@ export default function ProductDetailClient() {
     : 0;
   const inStock = availablePrices.length > 0;
 
+  // ── Safe intelligence / coverage accessors ─────────────────────────────────
+  // Guard against stale Redis cache entries that may be missing these fields.
+  const intelligence = product?.intelligence;
+  const coverageSummary = product?.coverage_summary;
+
   const sortedPrices = useMemo(
     () => [...(product?.platform_prices ?? [])].sort((a, b) => a.price - b.price),
     [product],
@@ -854,7 +859,7 @@ export default function ProductDetailClient() {
         {isUUID && <PriceAlertSection productId={id} productName={product.name} currentBestPrice={cheapestPrice} />}
 
         {/* ── Savings callout ── */}
-        {(product.intelligence?.savings_amount ?? 0) > 0 && (
+        {(intelligence?.savings_amount ?? 0) > 0 && (
           <div className="mb-4 bg-gradient-to-r from-green-50 to-emerald-50
                           border border-green-200 rounded-2xl p-4 flex items-center gap-3">
             <div className="w-11 h-11 bg-green-500 rounded-2xl flex items-center
@@ -863,10 +868,10 @@ export default function ProductDetailClient() {
             </div>
             <div>
               <p className="font-extrabold text-green-800 text-sm">
-                Save up to ₹{product.intelligence?.savings_amount} on this product!
+                Save up to ₹{intelligence?.savings_amount} on this product!
               </p>
               <p className="text-xs text-green-600 mt-0.5 leading-relaxed">
-                Price varies by {product.intelligence?.price_spread_percent}% across platforms.
+                Price varies by {intelligence?.price_spread_percent}% across platforms.
                 {" "}Best deal on{" "}
                 <strong>{product.cheapest_platform?.name ?? "BigBasket"}</strong>.
               </p>
@@ -886,9 +891,9 @@ export default function ProductDetailClient() {
               { label: "Net Weight",   value: product.unit ?? "Standard" },
               { label: "Category",     value: product.category?.name ?? "General" },
               { label: "Shelf Life",   value: meta.shelf },
-              { label: "Available on", value: `${product.coverage_summary?.available_platform_count ?? allPrices.length} of 4 platforms` },
-              { label: "Fastest ETA",  value: product.coverage_summary?.best_eta_minutes
-                ? `${product.coverage_summary.best_eta_minutes} min`
+              { label: "Available on", value: `${coverageSummary?.available_platform_count ?? availablePrices.length} of ${allPrices.length || 4} platforms` },
+              { label: "Fastest ETA",  value: coverageSummary?.best_eta_minutes
+                ? `${coverageSummary.best_eta_minutes} min`
                 : "~10 min" },
             ].map(({ label, value }) => (
               <div key={label}>

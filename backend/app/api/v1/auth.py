@@ -3,10 +3,13 @@ from __future__ import annotations
 Auth router — register, login, refresh, logout.
 All tokens use httpOnly cookies for XSS protection, with CSRF header requirement.
 """
+import uuid as _uuid
 from datetime import timezone, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from jose import JWTError
+from jose import jwt as _jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -174,10 +177,6 @@ async def reset_password(
     body: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    import uuid as _uuid
-    from jose import JWTError
-    from jose import jwt as _jwt
-
     try:
         payload = _jwt.decode(body.token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except JWTError:

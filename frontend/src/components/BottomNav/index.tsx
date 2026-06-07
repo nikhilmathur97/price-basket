@@ -74,8 +74,10 @@ export function BottomNav() {
             }
           }
 
-          const Wrapper = isCart && isAuthenticated ? "button" : Link;
-          const wrapperProps = isCart && isAuthenticated
+          // On the /cart page itself, always navigate (don't re-open the drawer)
+          const isOnCartPage = pathname === "/cart";
+          const Wrapper = isCart && isAuthenticated && !isOnCartPage ? "button" : Link;
+          const wrapperProps = isCart && isAuthenticated && !isOnCartPage
             ? { onClick: handleClick }
             : { href: effectiveHref };
 

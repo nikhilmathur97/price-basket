@@ -6,11 +6,13 @@ Product & Search API
 - GET /products/categories — category tree
 - GET /products/featured  — homepage featured products
 """
+import hashlib
+import json
 import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response as FastAPIResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -35,15 +37,21 @@ from app.schemas import (
 from app.services.price_engine import PriceEngine
 from app.services.product_intelligence import ProductIntelligenceService
 
-import json
-
 router = APIRouter()
 intelligence_service = ProductIntelligenceService()
 
 
 def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
-    """Attach live prices and compute highlight platforms."""
+    """Attach live prices and compute highlight platforms.
+
+    Includes ALL platform prices (available and unavailable) so the frontend
+    can render "Unavailable" badges. cheapest/fastest/best_value are derived
+    only from available prices.
+    """
     intelligence = intelligence_service.build_snapshot(product, prices)
+
+    # Build price_outs for ALL prices — unavailable ones get is_available=False
+    # so the frontend can show "Out of stock" / "Unavailable" badges.
     price_outs = [
         PlatformPriceOut(
             platform=PlatformOut.model_validate(pp.platform),
@@ -57,33 +65,36 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
             platform_image_url=pp.platform_image_url if hasattr(pp, "platform_image_url") else None,
             buy_url=intelligence_service.build_buy_url(product.id, pp.platform.id) if pp.platform_product_url else None,
             last_updated=pp.last_updated,
+            source=getattr(pp, "source", None),
         )
         for pp in prices
-        if pp.is_available
     ]
 
-    cheapest = min(price_outs, key=lambda p: p.price, default=None) if price_outs else None
+    # Highlight platforms derived from available prices only
+    available_outs = [p for p in price_outs if p.is_available]
+
+    cheapest = min(available_outs, key=lambda p: p.price, default=None) if available_outs else None
     fastest = (
         min(
-            [p for p in price_outs if p.delivery_time_minutes],
+            [p for p in available_outs if p.delivery_time_minutes],
             key=lambda p: p.delivery_time_minutes,
             default=None,
         )
-        if price_outs
+        if available_outs
         else None
     )
 
     def bv_score(p: PlatformPriceOut) -> float:
-        prices_list = [x.price for x in price_outs]
+        prices_list = [x.price for x in available_outs]
         min_p, max_p = min(prices_list, default=1), max(prices_list, default=1)
-        times = [x.delivery_time_minutes or 60 for x in price_outs]
+        times = [x.delivery_time_minutes or 60 for x in available_outs]
         min_t, max_t = min(times, default=1), max(times, default=1)
         np_ = (p.price - min_p) / (max_p - min_p + 1e-9)
         nt = ((p.delivery_time_minutes or 60) - min_t) / (max_t - min_t + 1e-9)
         return 0.7 * np_ + 0.3 * nt
 
-    best_value = min(price_outs, key=bv_score, default=None) if price_outs else None
-    eta_values = [price.delivery_time_minutes for price in prices if price.is_available and price.delivery_time_minutes]
+    best_value = min(available_outs, key=bv_score, default=None) if available_outs else None
+    eta_values = [p.delivery_time_minutes for p in available_outs if p.delivery_time_minutes]
 
     return ProductWithPrices(
         **ProductOut.model_validate(product).model_dump(),
@@ -110,14 +121,13 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
             total_platform_count=intelligence.total_platform_count,
             best_eta_minutes=min(eta_values) if eta_values else None,
             average_eta_minutes=round(sum(eta_values) / len(eta_values)) if eta_values else None,
-            live_offer_count=len(price_outs),
+            live_offer_count=len(available_outs),
         ),
     )
 
 
 @router.get("/categories", response_model=List[CategoryOut])
 async def list_categories(db: AsyncSession = Depends(get_db)):
-    from fastapi.responses import Response as FastAPIResponse
     cache_key = "categories:all"
     cached = await cache_get(cache_key)
     if cached:
@@ -187,7 +197,6 @@ async def featured_products(
     cached = await cache_get(cache_key)
     if cached:
         # Return raw JSON string directly — avoids double-serialisation overhead
-        from fastapi.responses import Response as FastAPIResponse
         return FastAPIResponse(
             content=cached,
             media_type="application/json",
@@ -225,7 +234,6 @@ async def featured_products(
     serialised = json.dumps(out)
     # Cache for 5 minutes
     await cache_set(cache_key, serialised, 300)
-    from fastapi.responses import Response as FastAPIResponse
     return FastAPIResponse(
         content=serialised,
         media_type="application/json",
@@ -246,13 +254,11 @@ async def search_products(
     db: AsyncSession = Depends(get_db),
 ):
     # ── Cache key: hash all query params so identical searches are instant ────
-    import hashlib
     cache_key = "search:v1:" + hashlib.md5(
         f"{q}|{category_slug}|{platform_slug}|{min_price}|{max_price}|{sort}|{page}|{page_size}".encode()
     ).hexdigest()
     cached = await cache_get(cache_key)
     if cached:
-        from fastapi.responses import Response as FastAPIResponse
         return FastAPIResponse(
             content=cached,
             media_type="application/json",
@@ -283,19 +289,20 @@ async def search_products(
             Category.slug == category_slug
         )
 
-    # Count total (use a lightweight count-only query)
-    count_stmt = select(func.count()).select_from(
-        select(Product.id)
-        .where(Product.is_active == True)  # noqa: E712
-        .filter(
-            *([or_(
+    # Count total — must mirror the same filters as stmt (including category_slug)
+    count_stmt = select(func.count(Product.id)).where(Product.is_active == True)  # noqa: E712
+    if q:
+        count_stmt = count_stmt.where(
+            or_(
                 Product.name.ilike(f"%{q}%"),
                 Product.brand.ilike(f"%{q}%"),
                 Product.description.ilike(f"%{q}%"),
-            )] if q else [])
+            )
         )
-        .subquery()
-    )
+    if category_slug:
+        count_stmt = count_stmt.join(Category, Product.category_id == Category.id).where(
+            Category.slug == category_slug
+        )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Pagination
@@ -327,7 +334,6 @@ async def search_products(
     serialised = out.model_dump_json()
     # Cache search results for 2 minutes (short TTL so price changes propagate)
     await cache_set(cache_key, serialised, 120)
-    from fastapi.responses import Response as FastAPIResponse
     return FastAPIResponse(content=serialised, media_type="application/json", headers={"X-Cache": "MISS"})
 
 
@@ -354,8 +360,6 @@ async def bulk_products(
     with one request. Cached per-product in Redis (same TTL as single-product
     endpoint) so repeated cart loads are instant.
     """
-    from fastapi.responses import Response as FastAPIResponse
-
     if not body.ids:
         return FastAPIResponse(content="[]", media_type="application/json",
                                headers={"Cache-Control": "public, max-age=60, s-maxage=60"})
@@ -434,8 +438,6 @@ async def get_product(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    from fastapi.responses import Response as FastAPIResponse
-
     # ── Cache hit: return instantly, refresh in background ────────────────────
     cache_key = f"product:v1:{product_id}"
     cached = await cache_get(cache_key)
