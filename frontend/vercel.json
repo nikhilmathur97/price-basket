@@ -2,7 +2,13 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "installCommand": "npm ci",
+  "git": {
+    "deploymentEnabled": {
+      "main": false,
+      "dev": false
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
