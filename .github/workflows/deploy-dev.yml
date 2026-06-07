@@ -8,6 +8,8 @@ name: "1. Deploy → dev.pricebasket.in"
 #   EC2_HOST     — EC2 public IP or hostname
 #   EC2_USER     — EC2 SSH username ("ec2-user" for Amazon Linux)
 #   EC2_SSH_KEY  — EC2 private SSH key (PEM contents of github-actions deploy key)
+#   EC2_SG_ID    — EC2 Security Group ID (e.g. sg-0abc123) for dynamic port-22 whitelisting
+#   AWS_ROLE_ARN — IAM role ARN for OIDC (needed for SG open/close); optional if EC2_SG_ID not set
 
 on:
   push:
@@ -34,23 +36,35 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Check SG secret
+        id: check_sg
         if: steps.check.outputs.skip != 'true'
+        run: |
+          if [ -z "${{ secrets.EC2_SG_ID }}" ] || [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then
+            echo "skip_sg=true" >> $GITHUB_OUTPUT
+            echo "⚠ EC2_SG_ID / AWS_ROLE_ARN not set — skipping dynamic SG management"
+          else
+            echo "skip_sg=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.check.outputs.skip != 'true' && steps.check_sg.outputs.skip_sg != 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
-        continue-on-error: true
 
       - name: Open port 22 for this runner's IP
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && steps.check_sg.outputs.skip_sg != 'true'
+        id: open_sg
+        continue-on-error: true
         env:
           EC2_SG_ID: ${{ secrets.EC2_SG_ID }}
-          AWS_DEFAULT_REGION: ap-south-1
         run: |
           # Get this runner's public IP
           RUNNER_IP=$(curl -sf https://checkip.amazonaws.com)
           echo "Runner IP: $RUNNER_IP"
+          echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
           # Add SSH inbound rule — ignore error if rule already exists
           aws ec2 authorize-security-group-ingress \
             --group-id "$EC2_SG_ID" \
@@ -59,23 +73,27 @@ jobs:
             --cidr "${RUNNER_IP}/32" \
             --region ap-south-1 2>/dev/null || echo "Rule already exists or skipped"
           echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
+          echo "✅ Port 22 opened for $RUNNER_IP"
 
       - name: SSH → pull latest dev + sync SMTP from SSM + restart
         if: steps.check.outputs.skip != 'true'
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
+          EC2_USER: ${{ secrets.EC2_USER != '' && secrets.EC2_USER || 'ec2-user' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           # Write key to temp file
           echo "$EC2_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
+          # Resolve EC2_USER — default to ec2-user if secret is empty
+          RESOLVED_USER="${EC2_USER:-ec2-user}"
+
           ssh -i /tmp/deploy_key \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=10 \
-            "${EC2_USER}@${EC2_HOST}" << 'ENDSSH'
+            "${RESOLVED_USER}@${EC2_HOST}" << 'ENDSSH'
           set -e
           cd /opt/pricebasket
           git fetch origin
@@ -104,14 +122,17 @@ jobs:
           rm -f /tmp/deploy_key
 
       - name: Revoke port 22 for this runner's IP
-        if: always() && steps.check.outputs.skip != 'true'
+        if: always() && steps.check.outputs.skip != 'true' && steps.check_sg.outputs.skip_sg != 'true'
         env:
           EC2_SG_ID: ${{ secrets.EC2_SG_ID }}
-          AWS_DEFAULT_REGION: ap-south-1
         run: |
-          # Always clean up — even if SSH step failed
-          RUNNER_IP="${{ env.RUNNER_IP }}"
-          if [ -n "$RUNNER_IP" ]; then
+          # Use the IP captured in the open step output (more reliable than env var)
+          RUNNER_IP="${{ steps.open_sg.outputs.runner_ip }}"
+          # Fallback to env var if step output not available
+          if [ -z "$RUNNER_IP" ]; then
+            RUNNER_IP="${{ env.RUNNER_IP }}"
+          fi
+          if [ -n "$RUNNER_IP" ] && [ -n "$EC2_SG_ID" ]; then
             aws ec2 revoke-security-group-ingress \
               --group-id "$EC2_SG_ID" \
               --protocol tcp \
@@ -119,6 +140,8 @@ jobs:
               --cidr "${RUNNER_IP}/32" \
               --region ap-south-1 2>/dev/null || true
             echo "✅ Port 22 revoked for $RUNNER_IP"
+          else
+            echo "⚠ No RUNNER_IP or EC2_SG_ID — nothing to revoke"
           fi
 
   # ── 2. Frontend → dev.pricebasket.in ────────────────────────────────────────
@@ -139,6 +162,7 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Pull Vercel project settings (preview)
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -146,6 +170,7 @@ jobs:
         run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
 
       - name: Build
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -153,6 +178,7 @@ jobs:
         run: vercel build --token=$VERCEL_TOKEN
 
       - name: Deploy → dev.pricebasket.in
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
