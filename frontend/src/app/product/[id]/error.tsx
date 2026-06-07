@@ -25,6 +25,12 @@ export default function ProductError({
       <p className="text-sm text-surface-500 mb-8">
         We couldn&apos;t load this product page. This is usually a temporary issue.
       </p>
+      {/* Temporary: show error message to diagnose the crash */}
+      {process.env.NODE_ENV !== "production" || error?.message ? (
+        <p className="text-xs text-red-400 font-mono bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-6 text-left break-all">
+          {error?.message || "Unknown error"}{error?.digest ? ` (digest: ${error.digest})` : ""}
+        </p>
+      ) : null}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         <button
           onClick={reset}
