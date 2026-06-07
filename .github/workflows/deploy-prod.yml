@@ -123,7 +123,8 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+          # --archive=tgz bundles all files into one tarball upload (avoids 5000-file free-tier limit)
+          URL=$(vercel deploy --prebuilt --prod --archive=tgz --token=$VERCEL_TOKEN)
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "✅ Production deployed: $URL"
           echo "🌐 Live at: https://pricebasket.in"
