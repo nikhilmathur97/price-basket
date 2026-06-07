@@ -31,11 +31,13 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
   useEffect(() => {
     setQuery(initialQuery);
     setPage(1);
+    setSort("relevance");
   }, [initialQuery]);
 
   useEffect(() => {
     setCategorySlug(initialCategory);
     setPage(1);
+    setSort("relevance");
   }, [initialCategory]);
 
   const debouncedQuery = useDebounce(query, 350);

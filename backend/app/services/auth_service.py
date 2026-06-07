@@ -103,9 +103,14 @@ async def send_reset_email(to_email: str, reset_token: str) -> None:
         return
 
     def _send() -> None:
+        from email.utils import parseaddr
+        smtp_from = settings.SMTP_FROM or settings.SMTP_USER
+        # Extract bare address for envelope sender (DMARC SPF alignment)
+        envelope_from = parseaddr(smtp_from)[1] or settings.SMTP_USER
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Reset your PriceBasket password"
-        msg["From"] = settings.SMTP_FROM or settings.SMTP_USER
+        msg["From"] = smtp_from
         msg["To"] = to_email
         body = f"""
         <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:480px">
@@ -130,7 +135,7 @@ async def send_reset_email(to_email: str, reset_token: str) -> None:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
+            server.sendmail(envelope_from, to_email, msg.as_string())
 
     try:
         await asyncio.to_thread(_send)

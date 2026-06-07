@@ -12,7 +12,7 @@
  *   4. Category sections only render when products exist for that category.
  */
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
 import { CATEGORY_SECTIONS } from "@/lib/mockData";
@@ -199,28 +199,48 @@ export function HomeProductSections() {
     );
   }
 
-  // FIX #2: Filter out products with no image_url — don't show imageless products on homepage
-  const products: ProductWithPrices[] = (apiProducts ?? []).filter(
-    (p) => p.image_url && p.image_url.trim() !== ""
+  // Filter out products with no image_url — don't show imageless products on homepage
+  const products: ProductWithPrices[] = useMemo(
+    () => (apiProducts ?? []).filter((p) => p.image_url && p.image_url.trim() !== ""),
+    [apiProducts]
   );
   const isFromAPI = products.length > 0;
 
-  // Derive sections
-  const trendingNow = products.slice(0, 10);
-  const bestDeals = [...products]
-    .filter((p) => p.intelligence.savings_amount > 5)
-    .sort((a, b) => b.intelligence.savings_amount - a.intelligence.savings_amount)
-    .slice(0, 10);
-  const fastestDelivery = [...products]
-    .sort(
-      (a, b) =>
-        (a.coverage_summary.best_eta_minutes ?? 999) -
-        (b.coverage_summary.best_eta_minutes ?? 999)
-    )
-    .slice(0, 10);
-  const highlyRecommended = [...products]
-    .sort((a, b) => b.intelligence.price_spread_percent - a.intelligence.price_spread_percent)
-    .slice(0, 10);
+  // Derive sections — wrapped in useMemo to avoid re-sorting on every render
+  const trendingNow = useMemo(() => products.slice(0, 10), [products]);
+
+  const bestDeals = useMemo(
+    () =>
+      [...products]
+        .filter((p) => (p.intelligence?.savings_amount ?? 0) > 5)
+        .sort((a, b) => (b.intelligence?.savings_amount ?? 0) - (a.intelligence?.savings_amount ?? 0))
+        .slice(0, 10),
+    [products]
+  );
+
+  const fastestDelivery = useMemo(
+    () =>
+      [...products]
+        .sort(
+          (a, b) =>
+            (a.coverage_summary?.best_eta_minutes ?? 999) -
+            (b.coverage_summary?.best_eta_minutes ?? 999)
+        )
+        .slice(0, 10),
+    [products]
+  );
+
+  const highlyRecommended = useMemo(
+    () =>
+      [...products]
+        .sort(
+          (a, b) =>
+            (b.intelligence?.price_spread_percent ?? 0) -
+            (a.intelligence?.price_spread_percent ?? 0)
+        )
+        .slice(0, 10),
+    [products]
+  );
 
   if (products.length === 0) {
     return <EmptyState />;

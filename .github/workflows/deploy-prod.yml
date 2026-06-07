@@ -11,6 +11,8 @@ name: "2. Promote dev → Production (pricebasket.in)"
 #
 # Required GitHub Secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   GH_PAT                — Personal Access Token with repo + workflow scopes
+#                           (GITHUB_TOKEN cannot push workflow file changes)
 #   INDEXNOW_KEY          — for instant indexing (optional)
 #   TELEGRAM_BOT_TOKEN    — for deploy notification (optional)
 #   TELEGRAM_CHANNEL_ID   — for deploy notification (optional)
@@ -26,11 +28,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check GH_PAT secret
+        id: check_pat
+        run: |
+          if [ -z "${{ secrets.GH_PAT }}" ]; then
+            echo "❌ GH_PAT secret is not set. A Personal Access Token with repo + workflow scopes is required to push workflow file changes."
+            exit 1
+          fi
+          echo "✅ GH_PAT is set"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           # GH_PAT needs repo + workflow scopes (GITHUB_TOKEN can't push workflow files)
-          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
 
       - name: Merge dev into main
         env:
@@ -67,14 +78,37 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
+      - name: Clear Vercel project rootDirectory via API
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          # The Vercel project has rootDirectory="frontend" set on vercel.com.
+          # Running vercel build/deploy from inside frontend/ doubles it to frontend/frontend/.
+          # Patch it to null via the Vercel API so CLI uses "." (current dir).
+          curl -sf -X PATCH \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"rootDirectory": null}' \
+            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory now:', j.rootDirectory ?? 'null (cleared)');" \
+            || echo "⚠ API patch failed — continuing anyway"
+
       - name: Pull Vercel project settings (production)
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
       - name: Build (production)
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -83,12 +117,14 @@ jobs:
 
       - name: Deploy → pricebasket.in
         id: deploy
+        working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+          # --archive=tgz bundles all files into one tarball upload (avoids 5000-file free-tier limit)
+          URL=$(vercel deploy --prebuilt --prod --archive=tgz --token=$VERCEL_TOKEN)
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "✅ Production deployed: $URL"
           echo "🌐 Live at: https://pricebasket.in"

@@ -168,7 +168,9 @@ export function CartDrawer() {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => {
-                                  updateItem(item.id, item.quantity - 1);
+                                  updateItem(item.id, item.quantity - 1).catch(() =>
+                                    toast.error("Couldn't update quantity")
+                                  );
                                   if (item.quantity <= 1) {
                                     trackEvent({ event_type: "cart_remove", product_id: item.product.id, referrer_page: "cart" });
                                   }
@@ -182,7 +184,11 @@ export function CartDrawer() {
                                 {item.quantity}
                               </span>
                               <button
-                                onClick={() => updateItem(item.id, item.quantity + 1)}
+                                onClick={() =>
+                                  updateItem(item.id, item.quantity + 1).catch(() =>
+                                    toast.error("Couldn't update quantity")
+                                  )
+                                }
                                 className="w-7 h-7 rounded-lg bg-brand-600 hover:bg-brand-700
                                            text-white flex items-center justify-center transition-colors"
                               >
