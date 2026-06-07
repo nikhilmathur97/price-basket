@@ -163,26 +163,30 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
+      - name: Clear Vercel project rootDirectory via API
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          # The Vercel project has rootDirectory="frontend" set on vercel.com.
+          # Running vercel build/deploy from inside frontend/ doubles it to frontend/frontend/.
+          # Patch it to empty string via the Vercel API so CLI uses "." (current dir).
+          curl -sf -X PATCH \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"rootDirectory": null}' \
+            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory now:', j.rootDirectory ?? 'null (cleared)');" \
+            || echo "⚠ API patch failed — continuing anyway"
+
       - name: Pull Vercel project settings (preview)
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
-          # The Vercel project has rootDirectory="frontend" set on vercel.com.
-          # When we run vercel build from inside frontend/, that doubles to frontend/frontend/.
-          # Clear rootDirectory in the pulled project.json so vercel build uses "." (current dir).
-          node -e "
-            const fs = require('fs');
-            const p = '.vercel/project.json';
-            const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-            cfg.settings = cfg.settings || {};
-            cfg.settings.rootDirectory = null;
-            fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
-            console.log('Patched rootDirectory to null in', p);
-          "
+        run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
 
       - name: Install frontend dependencies
         working-directory: frontend
