@@ -82,7 +82,7 @@ export interface ProductWithPrices extends Product {
     highest_price: number | null;
     savings_amount: number;
     price_spread_percent: number;
-    recommendation_reason: string;
+    recommendation_reason: string | null;
   };
   coverage_summary: {
     available_platform_count: number;
