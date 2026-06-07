@@ -42,6 +42,24 @@ jobs:
           aws-region: ap-south-1
         continue-on-error: true
 
+      - name: Open port 22 for this runner's IP
+        if: steps.check.outputs.skip != 'true'
+        env:
+          EC2_SG_ID: ${{ secrets.EC2_SG_ID }}
+          AWS_DEFAULT_REGION: ap-south-1
+        run: |
+          # Get this runner's public IP
+          RUNNER_IP=$(curl -sf https://checkip.amazonaws.com)
+          echo "Runner IP: $RUNNER_IP"
+          # Add SSH inbound rule — ignore error if rule already exists
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$EC2_SG_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32" \
+            --region ap-south-1 2>/dev/null || echo "Rule already exists or skipped"
+          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
+
       - name: SSH → pull latest dev + sync SMTP from SSM + restart
         if: steps.check.outputs.skip != 'true'
         env:
@@ -84,6 +102,24 @@ jobs:
           echo "✅ Backend deployed and restarted"
           ENDSSH
           rm -f /tmp/deploy_key
+
+      - name: Revoke port 22 for this runner's IP
+        if: always() && steps.check.outputs.skip != 'true'
+        env:
+          EC2_SG_ID: ${{ secrets.EC2_SG_ID }}
+          AWS_DEFAULT_REGION: ap-south-1
+        run: |
+          # Always clean up — even if SSH step failed
+          RUNNER_IP="${{ env.RUNNER_IP }}"
+          if [ -n "$RUNNER_IP" ]; then
+            aws ec2 revoke-security-group-ingress \
+              --group-id "$EC2_SG_ID" \
+              --protocol tcp \
+              --port 22 \
+              --cidr "${RUNNER_IP}/32" \
+              --region ap-south-1 2>/dev/null || true
+            echo "✅ Port 22 revoked for $RUNNER_IP"
+          fi
 
   # ── 2. Frontend → dev.pricebasket.in ────────────────────────────────────────
   deploy-frontend:
