@@ -176,28 +176,9 @@ export function HomeProductSections() {
     return () => clearTimeout(t);
   }, [isLoading]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {slowLoad && (
-          <div className="flex items-center justify-center gap-2 py-2 bg-orange-50 rounded-xl border border-orange-100">
-            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-            <span className="text-[12px] font-medium text-orange-600 ml-1">
-              Waking up servers, please wait a moment…
-            </span>
-          </div>
-        )}
-        {[1, 2, 3].map((i) => (
-          <div key={i}>
-            <div className="h-5 w-40 bg-surface-200 rounded animate-pulse mb-3" />
-            <SkeletonRow />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // ── All useMemo hooks MUST be declared before any conditional return ──────
+  // Violating Rules of Hooks (hooks after early return) causes a client-side
+  // crash: "Application error: a client-side exception has occurred".
 
   // Filter out products with no image_url — don't show imageless products on homepage
   const products: ProductWithPrices[] = useMemo(
@@ -241,6 +222,30 @@ export function HomeProductSections() {
         .slice(0, 10),
     [products]
   );
+
+  // ── Conditional renders (after all hooks) ────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {slowLoad && (
+          <div className="flex items-center justify-center gap-2 py-2 bg-orange-50 rounded-xl border border-orange-100">
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            <span className="text-[12px] font-medium text-orange-600 ml-1">
+              Waking up servers, please wait a moment…
+            </span>
+          </div>
+        )}
+        {[1, 2, 3].map((i) => (
+          <div key={i}>
+            <div className="h-5 w-40 bg-surface-200 rounded animate-pulse mb-3" />
+            <SkeletonRow />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (products.length === 0) {
     return <EmptyState />;
