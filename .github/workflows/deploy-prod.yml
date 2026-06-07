@@ -84,7 +84,20 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+        run: |
+          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          # The Vercel project has rootDirectory="frontend" set on vercel.com.
+          # When we run vercel build from inside frontend/, that doubles to frontend/frontend/.
+          # Clear rootDirectory in the pulled project.json so vercel build uses "." (current dir).
+          node -e "
+            const fs = require('fs');
+            const p = '.vercel/project.json';
+            const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+            cfg.settings = cfg.settings || {};
+            cfg.settings.rootDirectory = null;
+            fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+            console.log('Patched rootDirectory to null in', p);
+          "
 
       - name: Install frontend dependencies
         working-directory: frontend
