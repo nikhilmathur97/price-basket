@@ -107,34 +107,56 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
   }
 
   /// Intercepts navigation — external platform links open in system browser.
+  /// Only URLs on the PriceBasket domain (prod or dev) are allowed in the WebView.
+  /// Any other http/https URL is opened in the system browser (Safari/Chrome).
   NavigationDecision _handleNavigation(NavigationRequest request) {
     final String url = request.url;
-    final String allowedHost = Uri.parse(AppConfig.baseUrl).host;
 
-    // Allow the app's own host (prod or dev) to load in WebView
-    if (url.contains(allowedHost) ||
-        url.startsWith('about:') ||
-        url.startsWith('data:')) {
+    // ── Always allow non-http schemes used internally ──────────────────────
+    if (url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) {
       return NavigationDecision.navigate;
     }
 
-    // Handle mailto: and tel: natively
+    // ── Handle mailto: and tel: natively ──────────────────────────────────
     if (url.startsWith('mailto:') || url.startsWith('tel:')) {
       launchUrl(Uri.parse(url));
       return NavigationDecision.prevent;
     }
 
-    // Check if it's an external platform domain
-    final bool isExternal =
-        AppConfig.externalDomains.any((domain) => url.contains(domain));
+    // ── Determine the allowed PriceBasket hosts ────────────────────────────
+    // Always allow both prod and dev hosts so switching baseUrl never breaks
+    // navigation. This also prevents any non-PriceBasket domain (including
+    // versal.live or any Vercel parking page) from loading inside the WebView.
+    const List<String> allowedHosts = [
+      'pricebasket.in',       // production
+      'dev.pricebasket.in',   // staging / dev
+      'www.pricebasket.in',   // www alias (redirects to prod, but allow in WebView)
+    ];
 
-    if (isExternal ||
-        (!url.contains(allowedHost) && url.startsWith('http'))) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    final Uri? parsedUri = Uri.tryParse(url);
+    if (parsedUri == null) {
+      debugPrint('[Nav] Blocked unparseable URL: $url');
       return NavigationDecision.prevent;
     }
 
-    return NavigationDecision.navigate;
+    final String host = parsedUri.host;
+    final bool isPriceBasketHost = allowedHosts.any((h) => host == h || host.endsWith('.$h'));
+
+    if (isPriceBasketHost) {
+      debugPrint('[Nav] ✅ Allow PriceBasket URL: $url');
+      return NavigationDecision.navigate;
+    }
+
+    // ── Block and open externally any non-PriceBasket http/https URL ───────
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      debugPrint('[Nav] 🚫 External URL — opening in system browser: $url');
+      launchUrl(parsedUri, mode: LaunchMode.externalApplication);
+      return NavigationDecision.prevent;
+    }
+
+    // ── Fallback: block anything else ─────────────────────────────────────
+    debugPrint('[Nav] ⚠️ Blocked unknown URL scheme: $url');
+    return NavigationDecision.prevent;
   }
 
   /// Platform-accurate User-Agent that still carries the PriceBasketApp token

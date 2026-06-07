@@ -29,29 +29,29 @@ class _Tab {
 }
 
 List<_Tab> _buildTabs() => [
-  const _Tab(
+  _Tab(
     label: 'Home',
     icon: Icons.home_outlined,
     activeIcon: Icons.home_rounded,
-    url: '${AppConfig.baseUrl}/?source=app',
+    url: AppConfig.homeUrl,
   ),
-  const _Tab(
+  _Tab(
     label: 'Search',
     icon: Icons.search_rounded,
     activeIcon: Icons.search_rounded,
-    url: '${AppConfig.baseUrl}/search?source=app',
+    url: AppConfig.searchUrl,
   ),
-  const _Tab(
+  _Tab(
     label: 'Cart',
     icon: Icons.shopping_cart_outlined,
     activeIcon: Icons.shopping_cart_rounded,
-    url: '${AppConfig.baseUrl}/cart?source=app',
+    url: AppConfig.cartUrl,
   ),
-  const _Tab(
+  _Tab(
     label: 'Me',
     icon: Icons.person_outline_rounded,
     activeIcon: Icons.person_rounded,
-    url: '${AppConfig.baseUrl}/profile?source=app',
+    url: AppConfig.profileUrl,
   ),
 ];
 
