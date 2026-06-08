@@ -1,0 +1,202 @@
+name: "3. iOS → Firebase App Distribution"
+
+# Builds a signed iOS IPA and uploads it to Firebase App Distribution.
+# Triggered manually (workflow_dispatch) or on push to dev branch.
+#
+# ── Required GitHub Secrets ────────────────────────────────────────────────────
+#
+#   APPLE_TEAM_ID               Apple Developer Team ID
+#                               (developer.apple.com → Account → Membership)
+#
+#   APPLE_CERTIFICATE_BASE64    Base64-encoded .p12 signing certificate
+#                               Export from Keychain Access → export as .p12
+#                               Encode: base64 -i cert.p12 | pbcopy
+#
+#   APPLE_CERTIFICATE_PASSWORD  Password set when exporting the .p12
+#
+#   APPLE_PROVISIONING_PROFILE_BASE64
+#                               Base64-encoded Ad Hoc provisioning profile (.mobileprovision)
+#                               Download from developer.apple.com → Profiles
+#                               Encode: base64 -i profile.mobileprovision | pbcopy
+#
+#   FIREBASE_IOS_APP_ID         Firebase iOS App ID
+#                               Firebase Console → Project Settings → Your Apps → App ID
+#                               Format: 1:123456789:ios:abcdef123456
+#
+#   FIREBASE_SERVICE_ACCOUNT    Firebase service account JSON (for CLI auth)
+#                               Firebase Console → Project Settings → Service Accounts
+#                               → Generate new private key → copy full JSON content
+#
+# ── Optional Secrets ───────────────────────────────────────────────────────────
+#
+#   FIREBASE_TESTER_GROUPS      Comma-separated Firebase tester group aliases
+#                               e.g. "internal-testers,qa-team"
+#                               Default: "testers"
+#
+# ── One-time Setup ─────────────────────────────────────────────────────────────
+#
+#   1. Create Firebase project at console.firebase.google.com
+#   2. Add iOS app (bundle: in.pricebasket.app) → download GoogleService-Info.plist
+#      → commit to flutter_app/ios/Runner/GoogleService-Info.plist
+#   3. Enable App Distribution in Firebase Console
+#   4. Create tester group named "testers" (or set FIREBASE_TESTER_GROUPS secret)
+#   5. Add all secrets listed above to GitHub → Settings → Secrets → Actions
+#   6. Run: flutterfire configure --project=YOUR_PROJECT_ID
+#      to generate flutter_app/lib/firebase_options.dart
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'flutter_app/**'
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Release notes for testers'
+        required: false
+        default: 'New build from dev branch'
+      tester_groups:
+        description: 'Firebase tester groups (comma-separated)'
+        required: false
+        default: 'testers'
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.32.0'
+  XCODE_VERSION: 'latest-stable'
+
+jobs:
+  build-and-distribute:
+    name: "Build iOS IPA → Firebase"
+    runs-on: macos-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Flutter ─────────────────────────────────────────────────────
+      - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # ── 3. Install Flutter dependencies ──────────────────────────────────────
+      - name: Install Flutter dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      # ── 4. Install CocoaPods dependencies ────────────────────────────────────
+      - name: Install CocoaPods
+        working-directory: flutter_app/ios
+        run: |
+          gem install cocoapods --no-document 2>/dev/null || true
+          pod install --repo-update
+
+      # ── 5. Import Apple signing certificate ──────────────────────────────────
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Add to search list
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          echo "✅ Certificate imported"
+
+      # ── 6. Install provisioning profile ──────────────────────────────────────
+      - name: Install provisioning profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/profile.mobileprovision
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
+
+          # Extract UUID from profile
+          UUID=$(security cms -D -i "$PP_PATH" | \
+            plutil -extract UUID xml1 -o - - | \
+            sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+          echo "✅ Provisioning profile installed: $UUID"
+
+      # ── 7. Substitute APPLE_TEAM_ID in ExportOptions.plist ───────────────────
+      - name: Configure ExportOptions.plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/g" \
+            flutter_app/ios/ExportOptions.plist
+          echo "✅ ExportOptions.plist configured for team: $APPLE_TEAM_ID"
+
+      # ── 8. Build Flutter iOS release IPA ─────────────────────────────────────
+      - name: Build iOS IPA
+        working-directory: flutter_app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=ios/ExportOptions.plist \
+            --dart-define=FLUTTER_BUILD_NUMBER=${{ github.run_number }}
+
+          echo "✅ IPA built successfully"
+          ls -lh build/ios/ipa/
+
+      # ── 9. Upload to Firebase App Distribution ────────────────────────────────
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: ${{ github.event.inputs.tester_groups || secrets.FIREBASE_TESTER_GROUPS || 'testers' }}
+          file: flutter_app/build/ios/ipa/pricebasket.ipa
+          releaseNotes: |
+            ${{ github.event.inputs.release_notes || format('Build #{0} from {1} branch — {2}', github.run_number, github.ref_name, github.sha) }}
+
+            Changes in this build:
+            - Fix: bottom nav no longer redirects to versal.live
+            - Fix: Vercel preview toolbar blocked in WebView
+            - Fix: navigation guard uses isMainFrame check
+
+      # ── 10. Upload IPA as build artifact (for manual download) ───────────────
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricebasket-ios-${{ github.run_number }}
+          path: flutter_app/build/ios/ipa/pricebasket.ipa
+          retention-days: 14
+
+      # ── 11. Summary ───────────────────────────────────────────────────────────
+      - name: Build summary
+        run: |
+          echo "## ✅ iOS Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build # | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Distribution | Firebase App Distribution |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tester Groups | ${{ github.event.inputs.tester_groups || 'testers' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Testers will receive an email with the install link." >> $GITHUB_STEP_SUMMARY

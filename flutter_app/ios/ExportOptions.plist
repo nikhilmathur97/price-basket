@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ── Distribution method ───────────────────────────────────────────── -->
+	<!-- "ad-hoc" for Firebase App Distribution / direct device install      -->
+	<!-- Change to "app-store" when submitting to App Store                  -->
+	<key>method</key>
+	<string>ad-hoc</string>
+
+	<!-- ── Apple Developer Team ID ───────────────────────────────────────── -->
+	<!-- Find in: developer.apple.com → Account → Membership → Team ID       -->
+	<!-- Also set as GitHub Secret: APPLE_TEAM_ID                            -->
+	<key>teamID</key>
+	<string>$(APPLE_TEAM_ID)</string>
+
+	<!-- ── Signing style ─────────────────────────────────────────────────── -->
+	<!-- "automatic" lets Xcode manage provisioning profiles                 -->
+	<!-- "manual" requires explicit profile names below                      -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+
+	<!-- ── Bundle identifier → signing identity mapping ─────────────────── -->
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>in.pricebasket.app</key>
+		<string>PriceBasket Ad Hoc</string>
+	</dict>
+
+	<!-- ── Bitcode / symbols ─────────────────────────────────────────────── -->
+	<key>uploadBitcode</key>
+	<false/>
+	<key>compileBitcode</key>
+	<false/>
+	<key>uploadSymbols</key>
+	<true/>
+
+	<!-- ── Strip Swift symbols (reduces IPA size) ────────────────────────── -->
+	<key>stripSwiftSymbols</key>
+	<true/>
+
+	<!-- ── Thinning: none = universal IPA (works on all devices) ─────────── -->
+	<!-- Use "<thin-for-all-variants>" for App Store, "none" for Ad Hoc      -->
+	<key>thinning</key>
+	<string>none</string>
+</dict>
+</plist>
