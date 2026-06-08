@@ -108,7 +108,10 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
 
   /// Intercepts navigation — external platform links open in system browser.
   /// Only URLs on the PriceBasket domain (prod or dev) are allowed in the WebView.
-  /// Any other http/https URL is opened in the system browser (Safari/Chrome).
+  /// Any other http/https URL is opened in the system browser (Safari/Chrome),
+  /// EXCEPT Vercel infrastructure URLs (vercel.live, vercel.com) which are
+  /// silently blocked — they are injected by the Vercel preview toolbar and
+  /// must never open Safari.
   NavigationDecision _handleNavigation(NavigationRequest request) {
     final String url = request.url;
 
@@ -123,16 +126,6 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
       return NavigationDecision.prevent;
     }
 
-    // ── Determine the allowed PriceBasket hosts ────────────────────────────
-    // Always allow both prod and dev hosts so switching baseUrl never breaks
-    // navigation. This also prevents any non-PriceBasket domain (including
-    // versal.live or any Vercel parking page) from loading inside the WebView.
-    const List<String> allowedHosts = [
-      'pricebasket.in',       // production
-      'dev.pricebasket.in',   // staging / dev
-      'www.pricebasket.in',   // www alias (redirects to prod, but allow in WebView)
-    ];
-
     final Uri? parsedUri = Uri.tryParse(url);
     if (parsedUri == null) {
       debugPrint('[Nav] Blocked unparseable URL: $url');
@@ -140,6 +133,30 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
     }
 
     final String host = parsedUri.host;
+
+    // ── Silently block Vercel infrastructure URLs ──────────────────────────
+    // The Vercel preview toolbar injects scripts/iframes pointing to
+    // vercel.live and vercel.com. These must be silently dropped — never
+    // opened in Safari — to prevent the toolbar from redirecting the user.
+    const List<String> blockedInfraHosts = [
+      'vercel.live',
+      'vercel.com',
+      'versal.live',
+    ];
+    if (blockedInfraHosts.any((h) => host == h || host.endsWith('.$h'))) {
+      debugPrint('[Nav] 🔇 Silently blocked Vercel infra URL: $url');
+      return NavigationDecision.prevent;
+    }
+
+    // ── Determine the allowed PriceBasket hosts ────────────────────────────
+    // Always allow both prod and dev hosts so switching baseUrl never breaks
+    // navigation.
+    const List<String> allowedHosts = [
+      'pricebasket.in',       // production
+      'dev.pricebasket.in',   // staging / dev
+      'www.pricebasket.in',   // www alias (redirects to prod, but allow in WebView)
+    ];
+
     final bool isPriceBasketHost = allowedHosts.any((h) => host == h || host.endsWith('.$h'));
 
     if (isPriceBasketHost) {
@@ -147,7 +164,7 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
       return NavigationDecision.navigate;
     }
 
-    // ── Block and open externally any non-PriceBasket http/https URL ───────
+    // ── Open all other external http/https URLs in system browser ──────────
     if (url.startsWith('http://') || url.startsWith('https://')) {
       debugPrint('[Nav] 🚫 External URL — opening in system browser: $url');
       launchUrl(parsedUri, mode: LaunchMode.externalApplication);
