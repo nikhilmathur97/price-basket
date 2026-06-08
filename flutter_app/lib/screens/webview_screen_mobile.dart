@@ -241,7 +241,41 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
           document.head.appendChild(inputStyle);
         }
 
-        // ── 3. Hide web bottom nav ─────────────────────────────────────────
+        // ── 3. Remove Vercel preview toolbar ──────────────────────────────
+        // dev.pricebasket.in is a Vercel preview deployment. Vercel injects a
+        // toolbar script that loads https://vercel.live/_next-live/feedback/...
+        // into the page. The WebView navigation guard correctly blocks that
+        // external URL — but the block opens Safari, which shows versal.live.
+        // We remove the toolbar elements from the DOM immediately so the
+        // navigation request is never triggered in the first place.
+        (function removeVercelToolbar() {
+          // Remove the injected <vercel-live-feedback> custom element
+          var toolbar = document.querySelector('vercel-live-feedback');
+          if (toolbar) toolbar.remove();
+          // Remove any <script> tags pointing to vercel.live or vercel.com
+          document.querySelectorAll('script[src*="vercel.live"], script[src*="vercel.com"]').forEach(function(s) { s.remove(); });
+          // Remove any <iframe> pointing to vercel.live
+          document.querySelectorAll('iframe[src*="vercel.live"]').forEach(function(f) { f.remove(); });
+          // Watch for the toolbar being re-injected by the script (it may load async)
+          if (!window.__pbVercelToolbarObserver) {
+            window.__pbVercelToolbarObserver = new MutationObserver(function(mutations) {
+              mutations.forEach(function(m) {
+                m.addedNodes.forEach(function(node) {
+                  if (node.nodeName && (
+                    node.nodeName.toLowerCase() === 'vercel-live-feedback' ||
+                    (node.nodeName === 'SCRIPT' && node.src && node.src.includes('vercel.live')) ||
+                    (node.nodeName === 'IFRAME' && node.src && node.src.includes('vercel.live'))
+                  )) {
+                    node.remove();
+                  }
+                });
+              });
+            });
+            window.__pbVercelToolbarObserver.observe(document.documentElement, { childList: true, subtree: true });
+          }
+        })();
+
+        // ── 4. Hide web bottom nav ─────────────────────────────────────────
         // Target the web BottomNav: a <nav> that is position:fixed and
         // bottom:0. This matches regardless of Tailwind class names.
         if (document.getElementById('pb-app-chrome')) return;
