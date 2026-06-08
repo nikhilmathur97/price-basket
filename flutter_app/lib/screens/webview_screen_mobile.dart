@@ -106,73 +106,79 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
       ..loadRequest(Uri.parse(widget.initialUrl));
   }
 
-  /// Intercepts navigation — external platform links open in system browser.
-  /// Only URLs on the PriceBasket domain (prod or dev) are allowed in the WebView.
-  /// Any other http/https URL is opened in the system browser (Safari/Chrome),
-  /// EXCEPT Vercel infrastructure URLs (vercel.live, vercel.com) which are
-  /// silently blocked — they are injected by the Vercel preview toolbar and
-  /// must never open Safari.
+  /// Intercepts navigation requests.
+  ///
+  /// Rules (in order):
+  ///   1. Internal schemes (about:, data:, blob:) → allow
+  ///   2. mailto:/tel: → open natively, prevent WebView navigation
+  ///   3. Sub-frame requests (isMainFrame == false) → silently block all
+  ///      non-PriceBasket sub-frames (covers Vercel toolbar iframes that
+  ///      poll vercel.live in a tight loop)
+  ///   4. Vercel infra hosts (vercel.live, vercel.com, versal.live) → silent block
+  ///   5. PriceBasket hosts (pricebasket.in, dev.*, www.*) → allow
+  ///   6. All other http/https → open in system browser (Safari/Chrome)
   NavigationDecision _handleNavigation(NavigationRequest request) {
     final String url = request.url;
 
-    // ── Always allow non-http schemes used internally ──────────────────────
+    // ── 1. Internal schemes ────────────────────────────────────────────────
     if (url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) {
       return NavigationDecision.navigate;
     }
 
-    // ── Handle mailto: and tel: natively ──────────────────────────────────
+    // ── 2. Native schemes ──────────────────────────────────────────────────
     if (url.startsWith('mailto:') || url.startsWith('tel:')) {
       launchUrl(Uri.parse(url));
       return NavigationDecision.prevent;
     }
 
     final Uri? parsedUri = Uri.tryParse(url);
-    if (parsedUri == null) {
-      debugPrint('[Nav] Blocked unparseable URL: $url');
-      return NavigationDecision.prevent;
-    }
+    if (parsedUri == null) return NavigationDecision.prevent;
 
     final String host = parsedUri.host;
 
-    // ── Silently block Vercel infrastructure URLs ──────────────────────────
-    // The Vercel preview toolbar injects scripts/iframes pointing to
-    // vercel.live and vercel.com. These must be silently dropped — never
-    // opened in Safari — to prevent the toolbar from redirecting the user.
+    // ── 3. Sub-frame requests: silently block non-PriceBasket iframes ──────
+    // The Vercel preview toolbar creates iframes that poll vercel.live
+    // hundreds of times per second. isMainFrame=false identifies these.
+    // We allow PriceBasket sub-frames (e.g. embedded content) but block all
+    // others silently — no launchUrl(), no Safari, no loop.
+    const List<String> allowedHosts = [
+      'pricebasket.in',
+      'dev.pricebasket.in',
+      'www.pricebasket.in',
+    ];
+    final bool isPriceBasketHost =
+        allowedHosts.any((h) => host == h || host.endsWith('.$h'));
+
+    if (!(request.isMainFrame)) {
+      // Sub-frame: only allow PriceBasket hosts, silently block everything else
+      return isPriceBasketHost
+          ? NavigationDecision.navigate
+          : NavigationDecision.prevent;
+    }
+
+    // ── 4. Silently block Vercel infra on main frame too ───────────────────
     const List<String> blockedInfraHosts = [
       'vercel.live',
       'vercel.com',
       'versal.live',
     ];
     if (blockedInfraHosts.any((h) => host == h || host.endsWith('.$h'))) {
-      debugPrint('[Nav] 🔇 Silently blocked Vercel infra URL: $url');
       return NavigationDecision.prevent;
     }
 
-    // ── Determine the allowed PriceBasket hosts ────────────────────────────
-    // Always allow both prod and dev hosts so switching baseUrl never breaks
-    // navigation.
-    const List<String> allowedHosts = [
-      'pricebasket.in',       // production
-      'dev.pricebasket.in',   // staging / dev
-      'www.pricebasket.in',   // www alias (redirects to prod, but allow in WebView)
-    ];
-
-    final bool isPriceBasketHost = allowedHosts.any((h) => host == h || host.endsWith('.$h'));
-
+    // ── 5. Allow PriceBasket main-frame navigation ─────────────────────────
     if (isPriceBasketHost) {
-      debugPrint('[Nav] ✅ Allow PriceBasket URL: $url');
+      debugPrint('[Nav] ✅ $url');
       return NavigationDecision.navigate;
     }
 
-    // ── Open all other external http/https URLs in system browser ──────────
+    // ── 6. Open all other external URLs in system browser ─────────────────
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      debugPrint('[Nav] 🚫 External URL — opening in system browser: $url');
+      debugPrint('[Nav] 🚫 External → browser: $url');
       launchUrl(parsedUri, mode: LaunchMode.externalApplication);
       return NavigationDecision.prevent;
     }
 
-    // ── Fallback: block anything else ─────────────────────────────────────
-    debugPrint('[Nav] ⚠️ Blocked unknown URL scheme: $url');
     return NavigationDecision.prevent;
   }
 
@@ -258,38 +264,20 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
           document.head.appendChild(inputStyle);
         }
 
-        // ── 3. Remove Vercel preview toolbar ──────────────────────────────
+        // ── 3. Remove Vercel preview toolbar (one-shot, no observer) ──────
         // dev.pricebasket.in is a Vercel preview deployment. Vercel injects a
-        // toolbar script that loads https://vercel.live/_next-live/feedback/...
-        // into the page. The WebView navigation guard correctly blocks that
-        // external URL — but the block opens Safari, which shows versal.live.
-        // We remove the toolbar elements from the DOM immediately so the
-        // navigation request is never triggered in the first place.
+        // toolbar that tries to load vercel.live URLs. The navigation guard
+        // silently blocks those requests. We also do a one-shot DOM cleanup
+        // here — NO MutationObserver, which would cause an infinite loop by
+        // re-triggering onPageFinished → _injectAppChrome → observer → remove
+        // → Vercel re-injects → observer fires again → infinite loop.
         (function removeVercelToolbar() {
-          // Remove the injected <vercel-live-feedback> custom element
+          if (window.__pbToolbarCleaned) return;
+          window.__pbToolbarCleaned = true;
           var toolbar = document.querySelector('vercel-live-feedback');
           if (toolbar) toolbar.remove();
-          // Remove any <script> tags pointing to vercel.live or vercel.com
           document.querySelectorAll('script[src*="vercel.live"], script[src*="vercel.com"]').forEach(function(s) { s.remove(); });
-          // Remove any <iframe> pointing to vercel.live
           document.querySelectorAll('iframe[src*="vercel.live"]').forEach(function(f) { f.remove(); });
-          // Watch for the toolbar being re-injected by the script (it may load async)
-          if (!window.__pbVercelToolbarObserver) {
-            window.__pbVercelToolbarObserver = new MutationObserver(function(mutations) {
-              mutations.forEach(function(m) {
-                m.addedNodes.forEach(function(node) {
-                  if (node.nodeName && (
-                    node.nodeName.toLowerCase() === 'vercel-live-feedback' ||
-                    (node.nodeName === 'SCRIPT' && node.src && node.src.includes('vercel.live')) ||
-                    (node.nodeName === 'IFRAME' && node.src && node.src.includes('vercel.live'))
-                  )) {
-                    node.remove();
-                  }
-                });
-              });
-            });
-            window.__pbVercelToolbarObserver.observe(document.documentElement, { childList: true, subtree: true });
-          }
         })();
 
         // ── 4. Hide web bottom nav ─────────────────────────────────────────
