@@ -160,19 +160,22 @@ export function HomeProductSections() {
     queryKey: ["featured-home"],
     queryFn: async ({ signal }) => {
       const { data } = await api.getFeatured(60, signal);
-      return data ?? [];
+      const result = data ?? [];
+      // Never treat an empty result as "fresh" — always refetch if we got nothing
+      if (result.length === 0) throw new Error("empty");
+      return result;
     },
     staleTime: 300_000,       // 5 min — don't refetch if data is fresh
     gcTime: 600_000,          // 10 min — keep in memory after unmount
-    refetchOnWindowFocus: false,
-    retry: 2,                 // reduced from 3 — fail faster on real errors
-    retryDelay: 3_000,        // flat 3 s retry — no exponential backoff that blocks UI
+    refetchOnWindowFocus: true, // refetch when user returns to tab (catches stale empty state)
+    retry: 3,                 // retry more aggressively on empty/error
+    retryDelay: 2_000,        // 2 s between retries
   });
 
-  // After 8 s of loading, show a friendly "waking up" hint
+  // After 12 s of loading, show a friendly slow-connection hint
   useEffect(() => {
     if (!isLoading) return;
-    const t = setTimeout(() => setSlowLoad(true), 8_000);
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
     return () => clearTimeout(t);
   }, [isLoading]);
 
@@ -233,7 +236,7 @@ export function HomeProductSections() {
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
             <span className="text-[12px] font-medium text-orange-600 ml-1">
-              Waking up servers, please wait a moment…
+              Loading products, please wait a moment…
             </span>
           </div>
         )}
