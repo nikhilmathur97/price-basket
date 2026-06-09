@@ -103,21 +103,44 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Configure Vercel project settings via API
+      - name: Configure Vercel project settings + env vars via API
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          # Clear rootDirectory (was set to "frontend" on vercel.com, causes double-path issue)
-          # Also set nodeVersion to 20.x (must be set via API, not vercel.json)
+          # 1. Clear rootDirectory + set nodeVersion 20.x
           curl -sf -X PATCH \
             "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"rootDirectory": null, "nodeVersion": "20.x"}' \
             | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory:', j.rootDirectory ?? 'null', '| nodeVersion:', j.nodeVersion ?? 'default');" \
-            || echo "⚠ API patch failed — continuing anyway"
+            || echo "⚠ project patch failed — continuing anyway"
+
+          # 2. Upsert API_URL env var for all environments (preview + production)
+          #    First delete existing, then create fresh to avoid duplicate errors
+          for ENV_TARGET in preview production; do
+            # Delete old value (ignore errors if not found)
+            EXISTING_ID=$(curl -sf \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const envs=JSON.parse(d).envs||[]; const e=envs.find(x=>x.key==='API_URL'&&x.target&&x.target.includes('${ENV_TARGET}')); console.log(e?e.id:'');" 2>/dev/null) || true
+            if [ -n "$EXISTING_ID" ]; then
+              curl -sf -X DELETE \
+                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${EXISTING_ID}?teamId=${VERCEL_ORG_ID}" \
+                -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
+              echo "Deleted old API_URL for $ENV_TARGET (id=$EXISTING_ID)"
+            fi
+            # Create new value
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"API_URL\",\"value\":\"http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
+              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('Set API_URL for ${ENV_TARGET}:', j.key||JSON.stringify(j));" \
+              || echo "⚠ API_URL set for ${ENV_TARGET} failed — continuing"
+          done
 
       - name: Pull Vercel project settings (preview)
         working-directory: frontend
