@@ -10,7 +10,6 @@
       "dev": false
     }
   },
-  "toolbarEnabled": false,
   "headers": [
     {
       "source": "/(.*)",
