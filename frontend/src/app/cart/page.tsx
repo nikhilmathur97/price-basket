@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";  // still used for cart-all-prices
 import Image from "next/image";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductWithPrices, CartItem, PlatformPrice } from "@/types";
-import { ShoppingBag, ExternalLink, Clock, ArrowRight, Minus, Plus } from "lucide-react";
+import { ShoppingBag, ExternalLink, Clock, ArrowRight, Minus, Plus, Zap, CalendarClock } from "lucide-react";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import toast from "react-hot-toast";
 
@@ -321,6 +321,7 @@ export default function CartPage() {
   const router = useRouter();
   const { hasHydrated, isAuthenticated, isValidatingSession } = useAuthStore();
   const { cart, isLoading, fetchCart, _hasHydrated: cartHydrated } = useCartStore();
+  const [deliverySlot, setDeliverySlot] = useState<"standard" | "urgent">("standard");
   const productIds = cart?.items.map((i) => i.product.id) ?? [];
 
   // Redirect if not authenticated — but WAIT until session validation completes.
@@ -514,13 +515,57 @@ export default function CartPage() {
 
       {/* Savings banner */}
       {savings > 0 && (
-        <div className="mb-6 flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 text-sm font-semibold px-4 py-2.5 rounded-xl">
+        <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 text-sm font-semibold px-4 py-2.5 rounded-xl">
           <span className="text-lg">💰</span>
           You can save up to{" "}
           <span className="font-black">₹{savings}</span> by choosing the
           cheapest platform!
         </div>
       )}
+
+      {/* Delivery slot selector */}
+      <div className="mb-6">
+        <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-2">
+          Delivery Slot
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setDeliverySlot("standard")}
+            className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+              deliverySlot === "standard"
+                ? "border-brand-500 bg-brand-50 text-brand-700"
+                : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+            }`}
+          >
+            <CalendarClock className="w-4 h-4 flex-shrink-0" />
+            <div className="text-left">
+              <div>Standard</div>
+              <div className="text-[11px] font-normal opacity-70">Scheduled delivery</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setDeliverySlot("urgent")}
+            className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+              deliverySlot === "urgent"
+                ? "border-green-500 bg-green-50 text-green-700"
+                : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+            }`}
+          >
+            <Zap className="w-4 h-4 flex-shrink-0" />
+            <div className="text-left">
+              <div>Urgent</div>
+              <div className="text-[11px] font-normal opacity-70">Same day delivery</div>
+            </div>
+          </button>
+        </div>
+        {/* Green surcharge notice — only shown when Urgent is selected */}
+        {deliverySlot === "urgent" && (
+          <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-3 py-2 rounded-lg">
+            <Zap className="w-3.5 h-3.5 flex-shrink-0 text-green-600" />
+            Slot surcharge applies for Urgent (same day) — an additional fee will be added to your total.
+          </div>
+        )}
+      </div>
 
       <div className="grid lg:grid-cols-5 gap-6">
         {/* Left: Cart items with per-item platform comparison */}
