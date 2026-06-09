@@ -1,11 +1,15 @@
 name: "1. Deploy → dev.pricebasket.in"
 
 # Runs automatically on every push to the dev branch.
-# Deploys backend to ECS Fargate + frontend to dev.pricebasket.in
+# Deploys backend to EC2 (SSH) + frontend to dev.pricebasket.in (Vercel)
 #
 # Required GitHub Secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  — Vercel deploy
-#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY         — ECS deploy
+#   EC2_HOST     — EC2 public IP or hostname
+#   EC2_USER     — EC2 SSH username ("ec2-user" for Amazon Linux)
+#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents of github-actions deploy key)
+#
+# Note: EC2 Security Group must allow port 22 inbound from 0.0.0.0/0 (or GitHub Actions IPs)
 
 on:
   push:
@@ -16,58 +20,71 @@ permissions:
   contents: read
 
 jobs:
-  # ── 1. Backend → ECS Fargate ─────────────────────────────────────────────────
+  # ── 1. Backend → EC2 ────────────────────────────────────────────────────────
   deploy-backend:
-    name: "Backend → ECS Fargate"
+    name: "Backend → EC2"
     runs-on: ubuntu-latest
+    # Never block the frontend deploy if EC2 SSH is unreachable
+    continue-on-error: true
     steps:
-      - name: Check AWS secrets
+      - name: Check EC2 secrets
         id: check
         run: |
-          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⚠ AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set — skipping backend deploy"
+            echo "⚠ EC2_HOST / EC2_SSH_KEY not set — skipping backend deploy"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Configure AWS credentials
-        if: steps.check.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
-
-      - name: Login to Amazon ECR
-        if: steps.check.outputs.skip != 'true'
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - uses: actions/checkout@v4
-        if: steps.check.outputs.skip != 'true'
-
-      - name: Build, tag & push Docker image to ECR
+      - name: SSH → pull latest dev + sync SMTP from SSM + restart
         if: steps.check.outputs.skip != 'true'
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: pricebasket-api
-          IMAGE_TAG: ${{ github.sha }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./backend
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
 
-      - name: Force ECS service redeploy (rolling update)
-        if: steps.check.outputs.skip != 'true'
-        run: |
-          aws ecs update-service \
-            --cluster pricebasket-dev \
-            --service pricebasket-api \
-            --force-new-deployment \
-            --region ap-south-1
-          echo "✅ ECS rolling deploy triggered"
+          # Default to ec2-user if secret is empty
+          RESOLVED_USER="${EC2_USER_SECRET:-ec2-user}"
+          if [ -z "$RESOLVED_USER" ]; then
+            RESOLVED_USER="ec2-user"
+          fi
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
+          set -e
+          cd /opt/pricebasket
+          git fetch origin
+          git checkout dev
+          git pull origin dev
+          pip3 install -r backend/requirements.txt -q
+
+          # Sync SMTP config from SSM (if available)
+          if command -v aws &>/dev/null; then
+            SMTP_HOST=$(aws ssm get-parameter --name /pricebasket/smtp/host     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
+            SMTP_PORT=$(aws ssm get-parameter --name /pricebasket/smtp/port     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
+            SMTP_USER=$(aws ssm get-parameter --name /pricebasket/smtp/user     --with-decryption --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
+            SMTP_PASS=$(aws ssm get-parameter --name /pricebasket/smtp/password --with-decryption --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
+            SMTP_FROM=$(aws ssm get-parameter --name /pricebasket/smtp/from     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
+            if [ -n "$SMTP_HOST" ]; then
+              grep -v "^SMTP_" backend/.env > /tmp/env_clean
+              { echo "SMTP_HOST=$SMTP_HOST"; echo "SMTP_PORT=$SMTP_PORT"; echo "SMTP_USER=$SMTP_USER"; echo "SMTP_PASSWORD=$SMTP_PASS"; echo "SMTP_FROM=$SMTP_FROM"; } >> /tmp/env_clean
+              mv /tmp/env_clean backend/.env
+              echo "✅ SMTP synced from SSM"
+            fi
+          fi
+
+          sudo systemctl restart pricebasket-api.service
+          echo "✅ Backend deployed and restarted"
+          ENDSSH
+          rm -f /tmp/deploy_key
 
   # ── 2. Frontend → dev.pricebasket.in ────────────────────────────────────────
   deploy-frontend:
@@ -86,21 +103,20 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Clear Vercel project rootDirectory via API
+      - name: Configure Vercel project settings via API
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          # The Vercel project has rootDirectory="frontend" set on vercel.com.
-          # Running vercel build/deploy from inside frontend/ doubles it to frontend/frontend/.
-          # Patch it to empty string via the Vercel API so CLI uses "." (current dir).
+          # Clear rootDirectory (was set to "frontend" on vercel.com, causes double-path issue)
+          # Also set nodeVersion to 20.x (must be set via API, not vercel.json)
           curl -sf -X PATCH \
             "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"rootDirectory": null}' \
-            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory now:', j.rootDirectory ?? 'null (cleared)');" \
+            -d '{"rootDirectory": null, "nodeVersion": "20.x"}' \
+            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory:', j.rootDirectory ?? 'null', '| nodeVersion:', j.nodeVersion ?? 'default');" \
             || echo "⚠ API patch failed — continuing anyway"
 
       - name: Pull Vercel project settings (preview)
@@ -131,7 +147,12 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           # --archive=tgz bundles all files into one tarball upload (avoids 5000-file free-tier limit)
-          URL=$(vercel deploy --prebuilt --archive=tgz --token=$VERCEL_TOKEN)
+          URL=$(vercel deploy --prebuilt --archive=tgz --token=$VERCEL_TOKEN 2>&1 | grep -E "^https://" | tail -1)
+          if [ -z "$URL" ]; then
+            echo "❌ vercel deploy did not return a URL — dumping output:"
+            vercel deploy --prebuilt --archive=tgz --token=$VERCEL_TOKEN
+            exit 1
+          fi
           echo "✅ Deployed preview: $URL"
           # Explicitly assign this deployment to dev.pricebasket.in
           # (Vercel CLI can't detect the dev branch in CI detached-HEAD mode)
