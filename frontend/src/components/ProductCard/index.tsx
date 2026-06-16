@@ -41,7 +41,8 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   const [showCompare, setShowCompare] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  // Track how many image sources have failed so we can cascade through fallbacks
+  const [imgFallbackLevel, setImgFallbackLevel] = useState(0);
 
   const cheapestPrice = product.platform_prices.length > 0
     ? Math.min(...product.platform_prices.map((p) => p.price))
@@ -100,9 +101,16 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
-  const imgSrc = !imgError
-    ? (product.thumbnail_url ?? product.image_url ?? SLUG_IMAGES[product.slug] ?? null)
-    : null;
+  // Cascade: thumbnail_url → image_url → platform_image_url → SLUG_IMAGES → emoji
+  const imgSources: (string | null | undefined)[] = [
+    product.thumbnail_url,
+    product.image_url,
+    // Use the first available platform_image_url as a last-resort CDN fallback
+    product.platform_prices.find((p) => p.platform_image_url)?.platform_image_url,
+    SLUG_IMAGES[product.slug],
+  ];
+  const validSources = imgSources.filter((s): s is string => !!s && s.trim() !== "");
+  const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
 
   // Format price compactly — never truncate with ellipsis
   const formatPrice = (p: number) => {
@@ -143,7 +151,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 fill
                 sizes="(max-width: 640px) 40vw, 150px"
                 className="object-contain p-2"
-                onError={() => setImgError(true)}
+                onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
               />
             ) : (

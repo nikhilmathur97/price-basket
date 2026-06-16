@@ -6,8 +6,13 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL
-  ? `${process.env.NEXT_PUBLIC_WS_URL}/ws/prices`
+// Only use the WS URL if it's a secure wss:// connection — browsers block ws:// from https:// pages.
+// If NEXT_PUBLIC_WS_URL is set to a plain ws:// URL on an https:// site, the WebSocket constructor
+// throws "Failed to construct 'WebSocket': An insecure WebSocket connection may not be initiated
+// from a page loaded over HTTPS." which crashes the React component tree.
+const RAW_WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? null;
+const WS_URL = RAW_WS_URL && RAW_WS_URL.startsWith("wss://")
+  ? `${RAW_WS_URL}/ws/prices`
   : null;
 
 export function useWebSocket(productIds: string[]) {

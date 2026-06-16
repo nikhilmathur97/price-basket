@@ -1,7 +1,7 @@
 name: "1. Deploy → dev.pricebasket.in"
 
 # Runs automatically on every push to the dev branch.
-# Deploys backend to EC2 + frontend to dev.pricebasket.in
+# Deploys backend to EC2 (SSH) + frontend to dev.pricebasket.in (Vercel)
 #
 # Required GitHub Secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  — Vercel deploy
@@ -24,6 +24,8 @@ jobs:
   deploy-backend:
     name: "Backend → EC2"
     runs-on: ubuntu-latest
+    # Never block the frontend deploy if EC2 SSH is unreachable
+    continue-on-error: true
     steps:
       - name: Check EC2 secrets
         id: check
@@ -53,8 +55,8 @@ jobs:
 
           ssh -i /tmp/deploy_key \
             -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=60 \
-            -o ServerAliveInterval=15 \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=10 \
             -o ServerAliveCountMax=3 \
             "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
           set -e
@@ -101,22 +103,44 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Clear Vercel project rootDirectory via API
+      - name: Configure Vercel project settings + env vars via API
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          # The Vercel project has rootDirectory="frontend" set on vercel.com.
-          # Running vercel build/deploy from inside frontend/ doubles it to frontend/frontend/.
-          # Patch it to empty string via the Vercel API so CLI uses "." (current dir).
+          # 1. Clear rootDirectory + set nodeVersion 20.x
           curl -sf -X PATCH \
             "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"rootDirectory": null}' \
-            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory now:', j.rootDirectory ?? 'null (cleared)');" \
-            || echo "⚠ API patch failed — continuing anyway"
+            -d '{"rootDirectory": null, "nodeVersion": "20.x"}' \
+            | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory:', j.rootDirectory ?? 'null', '| nodeVersion:', j.nodeVersion ?? 'default');" \
+            || echo "⚠ project patch failed — continuing anyway"
+
+          # 2. Upsert API_URL env var for all environments (preview + production)
+          #    First delete existing, then create fresh to avoid duplicate errors
+          for ENV_TARGET in preview production; do
+            # Delete old value (ignore errors if not found)
+            EXISTING_ID=$(curl -sf \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const envs=JSON.parse(d).envs||[]; const e=envs.find(x=>x.key==='API_URL'&&x.target&&x.target.includes('${ENV_TARGET}')); console.log(e?e.id:'');" 2>/dev/null) || true
+            if [ -n "$EXISTING_ID" ]; then
+              curl -sf -X DELETE \
+                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${EXISTING_ID}?teamId=${VERCEL_ORG_ID}" \
+                -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
+              echo "Deleted old API_URL for $ENV_TARGET (id=$EXISTING_ID)"
+            fi
+            # Create new value
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"API_URL\",\"value\":\"http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
+              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('Set API_URL for ${ENV_TARGET}:', j.key||JSON.stringify(j));" \
+              || echo "⚠ API_URL set for ${ENV_TARGET} failed — continuing"
+          done
 
       - name: Pull Vercel project settings (preview)
         working-directory: frontend
@@ -146,7 +170,14 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           # --archive=tgz bundles all files into one tarball upload (avoids 5000-file free-tier limit)
-          URL=$(vercel deploy --prebuilt --archive=tgz --token=$VERCEL_TOKEN)
+          # Capture full output, then extract the clean https://...vercel.app URL (strip any trailing text)
+          DEPLOY_OUT=$(vercel deploy --prebuilt --archive=tgz --token=$VERCEL_TOKEN 2>&1)
+          echo "$DEPLOY_OUT"
+          URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)
+          if [ -z "$URL" ]; then
+            echo "❌ Could not extract deployment URL from vercel output above"
+            exit 1
+          fi
           echo "✅ Deployed preview: $URL"
           # Explicitly assign this deployment to dev.pricebasket.in
           # (Vercel CLI can't detect the dev branch in CI detached-HEAD mode)

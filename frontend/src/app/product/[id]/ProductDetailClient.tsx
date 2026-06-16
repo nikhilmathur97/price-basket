@@ -290,6 +290,8 @@ export default function ProductDetailClient() {
 
   const [selectedPlatformId, setSelectedPlatformId] = useState<string | undefined>();
   const [qty, setQty] = useState(1);
+  // Cascade through image sources on error
+  const [imgFallbackLevel, setImgFallbackLevel] = useState(0);
   // Prevents hydration mismatch: Zustand reads localStorage synchronously before
   // React hydrates, so cart state differs between server HTML and client render.
   // Gate all cart-dependent values on mounted so both sides start identical.
@@ -327,9 +329,10 @@ export default function ProductDetailClient() {
   // Set mounted after first client render — unlocks cart-state rendering
   useEffect(() => { setMounted(true); }, []);
 
-  // FIX #5: Scroll to top whenever the product ID changes (navigating between products)
+  // Scroll to top + reset image fallback whenever the product ID changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
+    setImgFallbackLevel(0);
   }, [id]);
 
   // Auto-select cheapest platform on load
@@ -518,18 +521,30 @@ export default function ProductDetailClient() {
                         flex items-center justify-center relative overflow-hidden"
             style={{ minHeight: 270 }}
           >
-            {(product.image_url ?? SLUG_IMAGES[product.slug]) ? (
-              <Image
-                src={product.image_url ?? SLUG_IMAGES[product.slug]!}
-                alt={product.name}
-                width={280}
-                height={280}
-                className="object-contain max-h-56 w-auto mx-auto drop-shadow-lg"
-                priority
-              />
-            ) : (
-              <span className="text-8xl select-none">🛒</span>
-            )}
+            {(() => {
+              // Cascade: image_url → thumbnail_url → platform_image_url → SLUG_IMAGES → emoji
+              const sources: (string | null | undefined)[] = [
+                product.image_url,
+                product.thumbnail_url,
+                product.platform_prices.find((p) => p.platform_image_url)?.platform_image_url,
+                SLUG_IMAGES[product.slug],
+              ];
+              const validSources = sources.filter((s): s is string => !!s && s.trim() !== "");
+              const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
+              return imgSrc ? (
+                <Image
+                  src={imgSrc}
+                  alt={product.name}
+                  width={280}
+                  height={280}
+                  className="object-contain max-h-56 w-auto mx-auto drop-shadow-lg"
+                  priority
+                  onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
+                />
+              ) : (
+                <span className="text-8xl select-none">🛒</span>
+              );
+            })()}
 
             {/* Discount badge */}
             {savingsPercent > 0 && (

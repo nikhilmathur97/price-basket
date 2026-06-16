@@ -218,7 +218,9 @@ function makePrices(
         is_available: true as const,
         delivery_time_minutes: mins,
         platform_product_url: null,
+        platform_image_url: null,
         buy_url: null,
+        source: "estimated" as const,
         last_updated: new Date().toISOString(),
       };
     })
@@ -237,6 +239,51 @@ function makeProduct(
 ): ProductWithPrices {
   const cat = MOCK_CATEGORIES.find((c) => c.slug === categorySlug)!;
   const platformPrices = makePrices(Math.min(...prices.map((p) => p.price)), mrp, prices);
+
+  // Guard: if no platform has this product available, use a safe fallback
+  if (platformPrices.length === 0) {
+    const fallbackPlatform = MOCK_PLATFORMS[0];
+    return {
+      id,
+      slug: id,
+      name,
+      brand,
+      description: null,
+      image_url: foodImg(imageSeed),
+      thumbnail_url: foodImg(imageSeed),
+      unit,
+      category: cat,
+      tags: null,
+      is_featured: false,
+      platform_prices: [],
+      cheapest_platform: fallbackPlatform,
+      fastest_platform: fallbackPlatform,
+      best_value_platform: fallbackPlatform,
+      intelligence: {
+        normalized_name: name.toLowerCase(),
+        normalized_brand: brand ? brand.toLowerCase() : null,
+        quantity_value: null,
+        quantity_unit: null,
+        variant_signature: `${name}-${unit}`,
+        available_platform_count: 0,
+        total_platform_count: 0,
+        best_price: mrp,
+        highest_price: mrp,
+        savings_amount: 0,
+        price_spread_percent: 0,
+        recommendation_reason: "",
+      },
+      coverage_summary: {
+        available_platform_count: 0,
+        total_platform_count: 0,
+        best_eta_minutes: null,
+        average_eta_minutes: null,
+        live_offer_count: 0,
+      },
+      affiliate_enabled: false,
+    };
+  }
+
   const cheapest = platformPrices.reduce((a, b) => (a.price < b.price ? a : b));
   const fastest  = platformPrices.reduce((a, b) =>
     (a.delivery_time_minutes ?? 999) < (b.delivery_time_minutes ?? 999) ? a : b

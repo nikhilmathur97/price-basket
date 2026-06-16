@@ -26,37 +26,59 @@ const nextConfig = {
     minimumCacheTTL: 3600,
     remotePatterns: [
       // Blinkit / Grofers CDN (primary image source for scraped products)
-      { hostname: "cdn.blinkit.com" },
-      { hostname: "cdn.grofers.com" },
-      // Zepto
-      { hostname: "cdn.zeptonow.com" },
-      // BigBasket
-      { hostname: "www.bigbasket.com" },
-      { hostname: "bb-website-live.s3.amazonaws.com" },
-      // Swiggy Instamart
-      { hostname: "media-assets.swiggy.com" },
+      { protocol: "https", hostname: "cdn.blinkit.com" },
+      { protocol: "https", hostname: "assets.blinkit.com" },
+      { protocol: "https", hostname: "cdn.grofers.com" },
+      { protocol: "https", hostname: "grofers.com" },
+      // Zepto — multiple subdomains used in production
+      { protocol: "https", hostname: "cdn.zeptonow.com" },
+      { protocol: "https", hostname: "**.zeptonow.com" },
+      // BigBasket — S3 bucket + direct CDN
+      { protocol: "https", hostname: "www.bigbasket.com" },
+      { protocol: "https", hostname: "bb-website-live.s3.amazonaws.com" },
+      { protocol: "https", hostname: "bb-website-live.s3.ap-south-1.amazonaws.com" },
+      { protocol: "https", hostname: "*.bigbasket.com" },
+      // Swiggy Instamart — multiple CDN subdomains
+      { protocol: "https", hostname: "media-assets.swiggy.com" },
+      { protocol: "https", hostname: "**.swiggy.com" },
+      // Cloudinary (used by Swiggy/Instamart and others)
+      { protocol: "https", hostname: "res.cloudinary.com" },
       // JioMart
-      { hostname: "www.jiomart.com" },
-      // Amazon
-      { hostname: "m.media-amazon.com" },
-      // Flipkart
-      { hostname: "static-assets-web.flixcart.com" },
-      { hostname: "rukminim2.fliximg.com" },
-      // PriceBasket assets
-      { hostname: "pricebasket-assets.s3.ap-south-1.amazonaws.com" },
-      { hostname: "test.pricebasket.in" },
-      // Generic / fallback
-      { hostname: "logo.clearbit.com" },
-      { hostname: "images.pexels.com" },
-      { hostname: "picsum.photos" },
-      { hostname: "images.unsplash.com" },
-      { hostname: "upload.wikimedia.org" },
-      { hostname: "play-lh.googleusercontent.com" },
-      { hostname: "placehold.co" },
-      { hostname: "ui-avatars.com" },
+      { protocol: "https", hostname: "www.jiomart.com" },
+      { protocol: "https", hostname: "**.jiomart.com" },
+      // Amazon — multiple image CDN subdomains
+      { protocol: "https", hostname: "m.media-amazon.com" },
+      { protocol: "https", hostname: "images-na.ssl-images-amazon.com" },
+      { protocol: "https", hostname: "**.ssl-images-amazon.com" },
+      // Flipkart — both rukminim1 and rukminim2 are used
+      { protocol: "https", hostname: "static-assets-web.flixcart.com" },
+      { protocol: "https", hostname: "rukminim1.fliximg.com" },
+      { protocol: "https", hostname: "rukminim2.fliximg.com" },
+      { protocol: "https", hostname: "**.fliximg.com" },
+      { protocol: "https", hostname: "**.flixcart.com" },
       // Myntra / Nykaa
-      { hostname: "assets.myntassets.com" },
-      { hostname: "adn-static1.nykaa.com" },
+      { protocol: "https", hostname: "assets.myntassets.com" },
+      { protocol: "https", hostname: "**.myntassets.com" },
+      { protocol: "https", hostname: "adn-static1.nykaa.com" },
+      { protocol: "https", hostname: "**.nykaa.com" },
+      // PriceBasket assets
+      { protocol: "https", hostname: "pricebasket-assets.s3.ap-south-1.amazonaws.com" },
+      { protocol: "https", hostname: "pricebasket-assets.s3.amazonaws.com" },
+      { protocol: "https", hostname: "test.pricebasket.in" },
+      { protocol: "https", hostname: "pricebasket.in" },
+      // Generic AWS S3 (scraped product images often hosted on S3)
+      { protocol: "https", hostname: "**.s3.amazonaws.com" },
+      { protocol: "https", hostname: "**.s3.ap-south-1.amazonaws.com" },
+      // Generic / fallback
+      { protocol: "https", hostname: "logo.clearbit.com" },
+      { protocol: "https", hostname: "images.pexels.com" },
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "upload.wikimedia.org" },
+      { protocol: "https", hostname: "play-lh.googleusercontent.com" },
+      { protocol: "https", hostname: "**.googleusercontent.com" },
+      { protocol: "https", hostname: "placehold.co" },
+      { protocol: "https", hostname: "ui-avatars.com" },
     ],
   },
   async headers() {

@@ -232,8 +232,10 @@ async def featured_products(
     enriched = [_enrich(p, p.platform_prices) for p in products]
     out = [e.model_dump(mode="json") for e in enriched]
     serialised = json.dumps(out)
-    # Cache for 5 minutes
-    await cache_set(cache_key, serialised, 300)
+    # Only cache non-empty results — never cache [] so a transient empty DB
+    # state doesn't poison the cache for 5 minutes.
+    if out:
+        await cache_set(cache_key, serialised, 300)
     return FastAPIResponse(
         content=serialised,
         media_type="application/json",
