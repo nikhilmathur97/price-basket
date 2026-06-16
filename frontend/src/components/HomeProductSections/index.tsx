@@ -183,9 +183,14 @@ export function HomeProductSections() {
   // Violating Rules of Hooks (hooks after early return) causes a client-side
   // crash: "Application error: a client-side exception has occurred".
 
-  // Filter out products with no image_url — don't show imageless products on homepage
+  // Filter out products with no usable image — accept image_url OR thumbnail_url
   const products: ProductWithPrices[] = useMemo(
-    () => (apiProducts ?? []).filter((p) => p.image_url && p.image_url.trim() !== ""),
+    () =>
+      (apiProducts ?? []).filter(
+        (p) =>
+          (p.image_url && p.image_url.trim() !== "") ||
+          (p.thumbnail_url && p.thumbnail_url.trim() !== "")
+      ),
     [apiProducts]
   );
   const isFromAPI = products.length > 0;
