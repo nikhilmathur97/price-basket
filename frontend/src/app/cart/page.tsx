@@ -169,6 +169,7 @@ function CartItemRow({ item, platformPrices }: { item: CartItem; platformPrices:
               width={64}
               height={64}
               className="object-contain w-full h-full p-1"
+              unoptimized
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>

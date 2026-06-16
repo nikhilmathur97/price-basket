@@ -112,6 +112,13 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const validSources = imgSources.filter((s): s is string => !!s && s.trim() !== "");
   const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
 
+  // Skip Vercel image optimizer for external CDN URLs — the Hobby plan has a
+  // 1,000 optimizations/month quota; exhausting it causes 402 errors and blank images.
+  // External CDNs (Blinkit/Grofers/Zepto/Swiggy etc.) already serve Cloudflare-optimised
+  // images, so bypassing Next.js optimisation has zero quality impact.
+  const isExternalUrl = (url: string | null) =>
+    !!url && (url.startsWith("http://") || url.startsWith("https://"));
+
   // Format price compactly — never truncate with ellipsis
   const formatPrice = (p: number) => {
     if (p >= 1000) return `₹${(p / 1000).toFixed(p % 1000 === 0 ? 0 : 1)}k`;
@@ -153,6 +160,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 className="object-contain p-2"
                 onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
+                unoptimized={isExternalUrl(imgSrc)}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl select-none">🛒</div>

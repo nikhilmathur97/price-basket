@@ -141,6 +141,7 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
                     fill
                     sizes="80px"
                     className="object-contain p-2"
+                    unoptimized
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-3xl">🛒</div>

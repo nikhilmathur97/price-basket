@@ -206,6 +206,7 @@ export default function HomePage() {
                       fill
                       sizes="64px"
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      unoptimized
                     />
                   ) : (
                     <span className="text-2xl sm:text-3xl select-none">{cat.icon}</span>
