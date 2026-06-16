@@ -105,6 +105,7 @@ function ProductRow({ product }: { product: CatalogProduct }) {
               sizes="40px"
               className="object-contain p-1"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              unoptimized
             />
           </div>
         ) : (

@@ -127,13 +127,14 @@ export function CartDrawer() {
                       >
                         {/* Product image */}
                         <div className="w-16 h-16 bg-surface-50 rounded-xl overflow-hidden flex-shrink-0 border">
-                          {item.product.thumbnail_url ? (
+                          {(item.product.thumbnail_url ?? item.product.image_url) ? (
                             <Image
-                              src={item.product.thumbnail_url}
+                              src={(item.product.thumbnail_url ?? item.product.image_url)!}
                               alt={item.product.name}
                               width={64}
                               height={64}
                               className="object-contain w-full h-full p-1"
+                              unoptimized
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-2xl">

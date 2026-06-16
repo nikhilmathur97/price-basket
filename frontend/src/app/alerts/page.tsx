@@ -94,6 +94,7 @@ function AlertCard({ alert, onDelete, isDeleting }: AlertCardProps) {
               fill
               className="object-contain p-1"
               sizes="64px"
+              unoptimized
             />
           ) : (
             <span className="text-2xl select-none">🛒</span>

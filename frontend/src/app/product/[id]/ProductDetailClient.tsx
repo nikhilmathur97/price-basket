@@ -282,6 +282,11 @@ function PriceAlertSection({
 // Client half of the product page. The server wrapper (page.tsx) supplies SEO
 // metadata + JSON-LD; this component owns all interactivity. It still reads the
 // id from the URL via useParams, so it needs no props.
+// Skip Vercel image optimizer for external CDN URLs — the Hobby plan has a
+// 1,000 optimizations/month quota; exhausting it causes 402 errors and blank images.
+const isExternalUrl = (url: string | null | undefined) =>
+  !!url && (url.startsWith("http://") || url.startsWith("https://"));
+
 export default function ProductDetailClient() {
   const { id } = useParams<{ id: string }>();
   const router  = useRouter();
@@ -540,6 +545,7 @@ export default function ProductDetailClient() {
                   className="object-contain max-h-56 w-auto mx-auto drop-shadow-lg"
                   priority
                   onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
+                  unoptimized={isExternalUrl(imgSrc)}
                 />
               ) : (
                 <span className="text-8xl select-none">🛒</span>
