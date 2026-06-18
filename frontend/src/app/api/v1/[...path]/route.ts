@@ -18,12 +18,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// BACKEND_URL / API_URL must be set in the Vercel project env → AWS ALB.
-// Falls back to localhost for local development only.
+// BACKEND_URL / API_URL must be set in the Vercel project env → backend API.
+// Falls back to the production API URL so the proxy works even if the env var
+// is accidentally unset on Vercel (avoids silent localhost:8001 failures).
 const BACKEND = (
   process.env.BACKEND_URL ||
   process.env.API_URL ||
-  "http://localhost:8001"
+  "https://api.pricebasket.in"
 ).replace(/\/$/, "");
 
 // Paths whose GET responses should be cached at Vercel's CDN edge.
@@ -169,6 +170,7 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 }
 
 export const GET = proxy;
+export const HEAD = proxy;
 export const POST = proxy;
 export const PUT = proxy;
 export const PATCH = proxy;

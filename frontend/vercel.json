@@ -190,10 +190,5 @@
       "permanent": true
     }
   ],
-  "rewrites": [
-    {
-      "source": "/api/v1/:path*",
-      "destination": "/api/v1/:path*"
-    }
-  ]
+  "rewrites": []
 }

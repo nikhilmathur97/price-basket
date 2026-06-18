@@ -183,14 +183,13 @@ export function HomeProductSections() {
   // Violating Rules of Hooks (hooks after early return) causes a client-side
   // crash: "Application error: a client-side exception has occurred".
 
-  // Filter out products with no usable image — accept image_url OR thumbnail_url
+  // Accept ALL products from the API — the ProductCard component already handles
+  // missing images gracefully (cascades through thumbnail_url → image_url →
+  // platform_image_url → SLUG_IMAGES fallback → 🛒 emoji).
+  // Previously filtering out products with no image caused the entire home page
+  // to show EmptyState when the backend returned real products without images.
   const products: ProductWithPrices[] = useMemo(
-    () =>
-      (apiProducts ?? []).filter(
-        (p) =>
-          (p.image_url && p.image_url.trim() !== "") ||
-          (p.thumbnail_url && p.thumbnail_url.trim() !== "")
-      ),
+    () => apiProducts ?? [],
     [apiProducts]
   );
   const isFromAPI = products.length > 0;
