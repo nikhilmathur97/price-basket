@@ -5,6 +5,7 @@ import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
+import { LivePriceStats } from "@/components/LivePriceStats";
 
 // Code-split HeroCarousel — Framer Motion is heavy; deferring its JS chunk
 // reduces initial parse time and improves mobile LCP.
@@ -143,6 +144,17 @@ const COMPARE_PAIRS = [
   { a: "bigbasket", b: "jiomart", label: "BigBasket vs JioMart" },
 ];
 
+// ── Platform delivery badges ─────────────────────────────────────────────────
+const PLATFORM_HIGHLIGHTS = [
+  { slug: "blinkit",   label: "10 min",  color: "#0C831F" },
+  { slug: "zepto",     label: "8 min",   color: "#8025FB" },
+  { slug: "instamart", label: "15 min",  color: "#FC8019" },
+  { slug: "bigbasket", label: "30 min",  color: "#84C225" },
+  { slug: "flipkart",  label: "10 min",  color: "#2874F0" },
+  { slug: "amazon",    label: "2 hrs",   color: "#FF9900" },
+  { slug: "jiomart",   label: "30 min",  color: "#0046D5" },
+];
+
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   return (
@@ -163,20 +175,38 @@ export default function HomePage() {
 
       <div className="max-w-screen-xl mx-auto px-4">
 
-        {/* ── Platform logos strip ── */}
+        {/* ── Live price stats strip ── */}
+        <LivePriceStats />
+
+        {/* ── Platform logos strip with delivery times ── */}
         <div className="flex items-center gap-2 py-3 overflow-x-auto scrollbar-hide">
-          {MOCK_PLATFORMS.map((p) => (
-            <div key={p.slug}
-              className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
-                         px-3 py-2 border border-surface-100 shadow-sm
-                         hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
-              <div className="h-8 min-w-[2rem] max-w-[5rem] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center px-1"
-                style={{ backgroundColor: (p.color_hex ?? "#e5e7eb") + "18", border: `1.5px solid ${p.color_hex ?? "#e5e7eb"}35` }}>
-                <PlatformLogo slug={p.slug} name={p.name} colorHex={p.color_hex} size={22} />
-              </div>
-              <span className="text-[12px] font-semibold text-surface-700 whitespace-nowrap">{p.name}</span>
-            </div>
-          ))}
+          {MOCK_PLATFORMS.map((p) => {
+            const highlight = PLATFORM_HIGHLIGHTS.find((h) => h.slug === p.slug);
+            return (
+              <Link
+                key={p.slug}
+                href={`/deals/${p.slug}`}
+                className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
+                           px-3 py-2 border border-surface-100 shadow-sm
+                           hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+              >
+                <div
+                  className="h-8 min-w-[2rem] max-w-[5rem] rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center px-1"
+                  style={{ backgroundColor: (p.color_hex ?? "#e5e7eb") + "18", border: `1.5px solid ${p.color_hex ?? "#e5e7eb"}35` }}
+                >
+                  <PlatformLogo slug={p.slug} name={p.name} colorHex={p.color_hex} size={22} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[12px] font-semibold text-surface-700 whitespace-nowrap leading-tight">{p.name}</span>
+                  {highlight && (
+                    <span className="text-[10px] font-bold whitespace-nowrap leading-tight" style={{ color: p.color_hex ?? "#666" }}>
+                      ⚡ {highlight.label}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {/* ── Category grid ── */}
@@ -227,6 +257,47 @@ export default function HomePage() {
         {/* ── Product sections (fetches from API, falls back to mock) ── */}
         <HomeProductSections />
 
+        {/* ── Platform Deal Cards ── */}
+        <div className="mb-6">
+          <h2 className="text-sm font-extrabold text-surface-800 mb-3 flex items-center gap-2">
+            <span className="text-base">🏪</span>
+            Shop by Platform
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {MOCK_PLATFORMS.slice(0, 4).map((p) => {
+              const highlight = PLATFORM_HIGHLIGHTS.find((h) => h.slug === p.slug);
+              return (
+                <Link
+                  key={p.slug}
+                  href={`/deals/${p.slug}`}
+                  className="flex flex-col items-center gap-2 bg-white rounded-2xl
+                             border border-surface-100 px-4 py-4
+                             hover:border-brand-300 hover:shadow-md
+                             transition-all duration-150 group"
+                >
+                  <div
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style={{ backgroundColor: (p.color_hex ?? "#e5e7eb") + "20" }}
+                  >
+                    <PlatformLogo slug={p.slug} name={p.name} colorHex={p.color_hex} size={28} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[13px] font-bold text-surface-800">{p.name}</p>
+                    {highlight && (
+                      <p className="text-[11px] font-semibold mt-0.5" style={{ color: p.color_hex ?? "#666" }}>
+                        ⚡ {highlight.label} delivery
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
+                    See deals →
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── WhatsApp Community Join Banner ── */}
         <div className="my-6 rounded-3xl overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg">
           <div className="px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -276,6 +347,37 @@ export default function HomePage() {
                   {pair.label}
                 </span>
                 <span className="text-brand-500 text-xs font-bold">Compare →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── City price pages ── */}
+        <div className="mb-6">
+          <h2 className="text-sm font-extrabold text-surface-800 mb-3 flex items-center gap-2">
+            <span className="text-base">📍</span>
+            Grocery Prices by City
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { city: "mumbai",    label: "Mumbai" },
+              { city: "delhi",     label: "Delhi" },
+              { city: "bangalore", label: "Bangalore" },
+              { city: "hyderabad", label: "Hyderabad" },
+              { city: "chennai",   label: "Chennai" },
+              { city: "pune",      label: "Pune" },
+              { city: "kolkata",   label: "Kolkata" },
+              { city: "ahmedabad", label: "Ahmedabad" },
+            ].map(({ city, label }) => (
+              <Link
+                key={city}
+                href={`/grocery-prices-${city}`}
+                className="text-[12px] font-semibold text-surface-600 bg-white
+                           border border-surface-100 px-3 py-1.5 rounded-full
+                           hover:border-brand-300 hover:text-brand-600
+                           transition-all duration-150"
+              >
+                {label}
               </Link>
             ))}
           </div>
@@ -346,9 +448,7 @@ export default function HomePage() {
           </p>
         </section>
 
-
       </div>
     </div>
   );
 }
-
