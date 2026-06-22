@@ -179,6 +179,13 @@ export const api = {
   getGrowthGoogle: (days = 7) => apiClient.get(`/growth/google?days=${days}`),
   getGrowthSocial: () => apiClient.get("/growth/social"),
   getGrowthAds: () => apiClient.get("/growth/ads"),
+
+  // Scrape (admin)
+  getScrapeStatus: () => apiClient.get("/scrape/status"),
+  triggerBulkScrape: (data: { queries: string[]; platforms?: string[]; save_to_db?: boolean }) =>
+    apiClient.post("/scrape/bulk", data),
+  seedFromJson: (data: { file_path?: string; dry_run?: boolean; limit?: number }) =>
+    apiClient.post("/scrape/seed-from-json", data),
 };
 
 // ── Analytics / event tracking ────────────────────────────────────────────────

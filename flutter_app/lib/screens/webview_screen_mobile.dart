@@ -46,9 +46,12 @@ class WebViewScreenState extends ConsumerState<WebViewScreen> {
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..clearCache()
-      // NOTE: do NOT call clearLocalStorage() — it wipes pb_auth (Zustand
-      // persisted session) and pb_session_id (guest cart), breaking login.
+      // NOTE: do NOT call clearCache() or clearLocalStorage() here.
+      // clearCache() forces a full re-download of the Next.js app bundle on
+      // every app start, causing slow initial data load and breaking HTTP
+      // cache revalidation (ETags/304s) that the CDN relies on for fast loads.
+      // clearLocalStorage() wipes pb_auth (Zustand persisted session) and
+      // pb_session_id (guest cart), breaking login state across restarts.
       ..setUserAgent(_userAgent())
       ..setBackgroundColor(AppTheme.background)
       ..addJavaScriptChannel(

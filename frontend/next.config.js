@@ -106,22 +106,15 @@ const nextConfig = {
       },
     ];
   },
-  async rewrites() {
-    // API_URL is set in Vercel env vars → AWS ALB DNS.
-    // Falls back to localhost:8001 for local dev.
-    const backendUrl =
-      process.env.API_URL ??
-      process.env.BACKEND_URL ??
-      "http://localhost:8001";
-    return [
-      {
-        // Proxy all /api/* calls server-side through Next.js → AWS ALB.
-        // The browser never sees the ALB URL — all calls go via Vercel edge.
-        source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
-  },
+  // NOTE: rewrites() for /api/* have been intentionally removed.
+  // The catch-all route handler at src/app/api/v1/[...path]/route.ts
+  // already proxies all /api/v1/* requests to the backend with:
+  //   - Retry logic (auth endpoints get 2 attempts)
+  //   - Structured 503 JSON fallback (never raw network errors)
+  //   - Proper Cache-Control passthrough for Vercel CDN edge caching
+  // Adding a rewrites() entry for /api/* would bypass that handler,
+  // losing all retry/fallback/cache logic and causing data to silently
+  // fail to load in the app.
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
