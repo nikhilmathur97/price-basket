@@ -2,24 +2,12 @@
 """
 save_scraped_to_db.py — Push scraped product data to the PriceBasket database.
 
-This script reads backend/app/data/scraped_prices.json (produced by the scrapers)
-and upserts products + platform prices into the PostgreSQL database.
+Uses raw SQL (no ORM model imports) to avoid SQLAlchemy metadata conflicts.
+Works with any Python environment that has sqlalchemy + asyncpg installed.
 
-Improvements over v1:
-  - Extracts unit from product name (e.g. "500 ml", "1 kg", "250 g")
-  - Better category detection using keyword matching
-  - Extracts brand from product name
-  - Marks products as featured for homepage display
-  - Handles duplicate products by merging platform prices
-  - Progress reporting with per-category stats
-
-Usage (local with DATABASE_URL env var):
+Usage:
     DATABASE_URL=postgresql+asyncpg://... python3 scripts/save_scraped_to_db.py
-
-Usage (with local .env):
     python3 scripts/save_scraped_to_db.py --env backend/.env
-
-Usage (seed from scraped_prices.json directly):
     python3 scripts/save_scraped_to_db.py --file backend/app/data/scraped_prices.json
 """
 import argparse
@@ -36,10 +24,10 @@ from typing import Optional
 parser = argparse.ArgumentParser()
 parser.add_argument("--env",  default="backend/.env", help="Path to .env file")
 parser.add_argument("--file", default="backend/app/data/scraped_prices.json",
-                    help="Scraped JSON file (default: backend/app/data/scraped_prices.json)")
+                    help="Scraped JSON file")
 parser.add_argument("--dry-run", action="store_true", help="Parse only, don't write to DB")
-parser.add_argument("--limit", type=int, default=None, help="Limit number of items to process")
-parser.add_argument("--platform", default=None, help="Only process items from this platform")
+parser.add_argument("--limit", type=int, default=None, help="Limit number of items")
+parser.add_argument("--platform", default=None, help="Only process this platform")
 args = parser.parse_args()
 
 # ── Load .env ─────────────────────────────────────────────────────────────────
@@ -57,78 +45,61 @@ for env_path in [args.env, "backend/.env", ".env"]:
 # ── Validate DB URL ───────────────────────────────────────────────────────────
 db_url = os.environ.get("DATABASE_URL", "")
 if not db_url:
-    print("❌  DATABASE_URL not set. Export it or pass --env path/to/.env")
+    print("❌  DATABASE_URL not set.")
     sys.exit(1)
 
-# Normalise scheme for asyncpg
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
 elif db_url.startswith("postgresql://") and "+asyncpg" not in db_url:
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-print(f"  DB: {db_url[:60]}...")
+print(f"  DB: {db_url[:70]}...")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def slugify(text: str) -> str:
-    """Convert text to URL-safe slug."""
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return slug[:100]
 
 
 def extract_unit(name: str, existing_unit: str = "") -> str:
-    """Extract unit/quantity from product name (e.g. '500 ml', '1 kg', '250 g')."""
     if existing_unit and existing_unit.strip():
         return existing_unit.strip()
-
-    # Common unit patterns
     patterns = [
         r'\b(\d+(?:\.\d+)?)\s*(kg|g|gm|gms|gram|grams|litre|liter|l|ml|ltr|ltrs|pcs|pc|pack|pk|pieces|piece|nos|no)\b',
-        r'\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(g|ml|kg|l)\b',  # e.g. "6 x 100g"
+        r'\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(g|ml|kg|l)\b',
         r'\b(\d+)\s*(tabs?|capsules?|sachets?|pouches?)\b',
     ]
-
     name_lower = name.lower()
     for pattern in patterns:
         m = re.search(pattern, name_lower)
         if m:
             return m.group(0).strip()
-
     return ""
 
 
 def extract_brand(name: str) -> Optional[str]:
-    """Extract brand name from product name using known brand list."""
     known_brands = [
         "Amul", "Mother Dairy", "Nestle", "Britannia", "Parle", "Tata",
-        "ITC", "HUL", "Hindustan Unilever", "Dabur", "Marico", "Godrej",
-        "Patanjali", "Haldiram", "Haldiram's", "Bikaji", "Bingo",
-        "Lay's", "Lays", "Kurkure", "Maggi", "Sunfeast", "Yippee",
-        "Cadbury", "Mondelez", "Ferrero", "Kinder",
+        "ITC", "HUL", "Dabur", "Marico", "Godrej", "Patanjali",
+        "Haldiram", "Haldiram's", "Bikaji", "Bingo", "Lay's", "Lays",
+        "Kurkure", "Maggi", "Sunfeast", "Yippee", "Cadbury", "Mondelez",
         "Coca-Cola", "Pepsi", "Sprite", "Fanta", "Limca", "Thums Up",
-        "Tropicana", "Real", "Paper Boat", "Appy", "Frooti",
-        "Red Bull", "Monster", "Sting",
-        "Aashirvaad", "Pillsbury", "Nature Fresh", "Annapurna",
-        "India Gate", "Daawat", "Kohinoor", "Fortune", "Saffola",
-        "Tata Sampann", "Tata Salt", "Catch", "Everest", "MDH", "MTR",
-        "Surf Excel", "Ariel", "Tide", "Rin", "Wheel",
-        "Vim", "Harpic", "Lizol", "Colin", "Domex", "Pril",
-        "Dettol", "Savlon", "Lifebuoy",
-        "Dove", "Lux", "Pears", "Santoor", "Hamam",
-        "Head & Shoulders", "Pantene", "Sunsilk", "Clinic Plus",
-        "Colgate", "Pepsodent", "Sensodyne", "Oral-B",
-        "Vaseline", "Nivea", "Pond's", "Fair & Lovely", "Lakme",
-        "Gillette", "Whisper", "Stayfree", "Carefree",
-        "Himalaya", "Biotique", "Mamaearth", "WOW",
-        "Johnson", "Johnson's", "Pampers", "Huggies",
-        "Licious", "Country Delight", "Suguna", "Venky's",
-        "Fresho", "Farm Fresh", "Epigamia",
-        "Kellogg's", "Quaker", "Horlicks", "Boost", "Complan",
-        "Nescafe", "Bru", "Tata Tea", "Red Label", "Lipton",
-        "Kissan", "Maggi", "Knorr",
+        "Tropicana", "Real", "Paper Boat", "Frooti", "Red Bull", "Monster",
+        "Aashirvaad", "Pillsbury", "Nature Fresh", "India Gate", "Daawat",
+        "Kohinoor", "Fortune", "Saffola", "Tata Sampann", "Tata Salt",
+        "Catch", "Everest", "MDH", "MTR", "Surf Excel", "Ariel", "Tide",
+        "Rin", "Vim", "Harpic", "Lizol", "Colin", "Domex", "Pril",
+        "Dettol", "Savlon", "Lifebuoy", "Dove", "Lux", "Pears", "Santoor",
+        "Head & Shoulders", "Pantene", "Sunsilk", "Clinic Plus", "Colgate",
+        "Pepsodent", "Sensodyne", "Oral-B", "Vaseline", "Nivea", "Pond's",
+        "Gillette", "Whisper", "Stayfree", "Himalaya", "Biotique",
+        "Mamaearth", "WOW", "Johnson", "Johnson's", "Pampers", "Huggies",
+        "Licious", "Country Delight", "Suguna", "Venky's", "Epigamia",
+        "Kellogg's", "Quaker", "Horlicks", "Boost", "Complan", "Nescafe",
+        "Bru", "Tata Tea", "Red Label", "Lipton", "Kissan", "Knorr",
     ]
-
     name_lower = name.lower()
     for brand in known_brands:
         if brand.lower() in name_lower:
@@ -137,152 +108,62 @@ def extract_brand(name: str) -> Optional[str]:
 
 
 def guess_category(name: str, query: str) -> str:
-    """Guess category slug from product name or query."""
     text = (name + " " + query).lower()
-
-    # Ordered from most specific to least specific
     rules = [
-        # Baby Care
-        (["pampers", "huggies", "diaper", "nappy", "cerelac", "nestum", "baby food",
-          "johnson baby", "baby shampoo", "baby lotion", "baby powder"], "baby-care"),
-        # Chicken & Meat
+        (["pampers", "huggies", "diaper", "nappy", "cerelac", "nestum",
+          "baby food", "johnson baby", "baby shampoo", "baby lotion"], "baby-care"),
         (["chicken", "mutton", "fish", "prawn", "shrimp", "licious", "meat",
           "seafood", "egg", "eggs"], "chicken-meat"),
-        # Dairy & Breakfast
         (["milk", "butter", "paneer", "curd", "dahi", "yogurt", "ghee", "cream",
           "cheese", "lassi", "buttermilk", "dairy", "horlicks", "boost", "complan",
           "nescafe", "coffee", "tea", "oats", "cornflakes", "muesli", "honey",
-          "jam", "poha", "upma", "idli", "dosa", "breakfast"], "dairy-breakfast"),
-        # Fruits & Vegetables
+          "jam", "poha", "breakfast"], "dairy-breakfast"),
         (["onion", "tomato", "potato", "banana", "apple", "mango", "orange",
           "lemon", "lime", "spinach", "palak", "capsicum", "carrot", "cucumber",
           "cauliflower", "broccoli", "cabbage", "peas", "beans", "okra", "bhindi",
           "grapes", "watermelon", "papaya", "guava", "pineapple", "strawberry",
           "vegetable", "fruit", "fresh", "sabzi"], "fruits-vegetables"),
-        # Oils & Spices
         (["oil", "ghee", "vanaspati", "turmeric", "haldi", "chilli", "chili",
           "masala", "pepper", "cumin", "jeera", "coriander", "dhania", "mustard",
-          "cardamom", "clove", "cinnamon", "bay leaf", "spice", "seasoning",
-          "vinegar", "soy sauce"], "oils-spices"),
-        # Staples
+          "cardamom", "clove", "cinnamon", "spice", "seasoning"], "oils-spices"),
         (["atta", "flour", "maida", "suji", "semolina", "besan", "rice", "dal",
           "lentil", "rajma", "chana", "moong", "urad", "salt", "sugar", "jaggery",
-          "ketchup", "sauce", "pickle", "papad", "popcorn", "staple"], "staples"),
-        # Snacks & Drinks
+          "ketchup", "sauce", "pickle", "papad", "staple"], "staples"),
         (["lays", "chips", "kurkure", "bhujia", "namkeen", "biscuit", "cookie",
-          "cracker", "wafer", "chocolate", "candy", "toffee", "noodles", "pasta",
-          "maggi", "cola", "pepsi", "sprite", "juice", "drink", "water", "soda",
-          "energy drink", "redbull", "monster", "snack", "munch", "oreo",
-          "bourbon", "marie", "parle-g", "parle g"], "snacks-drinks"),
-        # Bakery
-        (["bread", "bun", "pav", "cake", "muffin", "rusk", "toast", "croissant",
+          "cracker", "wafer", "chocolate", "candy", "noodles", "pasta", "maggi",
+          "cola", "pepsi", "sprite", "juice", "drink", "water", "soda",
+          "energy drink", "redbull", "snack", "munch", "oreo"], "snacks-drinks"),
+        (["bread", "bun", "pav", "cake", "muffin", "rusk", "toast",
           "bakery", "pastry"], "bakery"),
-        # Personal Care
         (["soap", "shampoo", "conditioner", "face wash", "moisturizer", "lotion",
-          "cream", "sunscreen", "deodorant", "perfume", "cologne", "toothpaste",
-          "toothbrush", "mouthwash", "razor", "shaving", "sanitary", "pad",
-          "tampon", "hair oil", "hair gel", "hair color", "nail", "lipstick",
-          "foundation", "mascara", "kajal", "eyeliner", "personal care",
-          "skincare", "haircare", "oral care", "feminine"], "personal-care"),
-        # Household
+          "cream", "sunscreen", "deodorant", "toothpaste", "toothbrush",
+          "mouthwash", "razor", "shaving", "sanitary", "pad", "tampon",
+          "hair oil", "hair gel", "nail", "lipstick", "kajal", "eyeliner",
+          "personal care", "skincare", "haircare", "oral care"], "personal-care"),
         (["detergent", "washing powder", "fabric", "dishwash", "dish wash",
           "toilet cleaner", "floor cleaner", "glass cleaner", "surface cleaner",
-          "scrubber", "mop", "broom", "dustbin", "garbage bag", "tissue",
-          "napkin", "toilet paper", "household", "cleaning", "sanitizer",
-          "disinfectant", "phenyl", "bleach", "harpic", "lizol", "vim",
-          "surf", "ariel", "tide"], "household"),
+          "scrubber", "mop", "broom", "tissue", "napkin", "toilet paper",
+          "household", "cleaning", "sanitizer", "disinfectant", "harpic",
+          "lizol", "vim", "surf", "ariel", "tide"], "household"),
     ]
-
     for keywords, category in rules:
         for kw in keywords:
             if kw in text:
                 return category
-
-    return "snacks-drinks"  # default
+    return "snacks-drinks"
 
 
 # ── Platform metadata ─────────────────────────────────────────────────────────
 PLATFORM_META = {
-    "blinkit": {
-        "name": "Blinkit",
-        "slug": "blinkit",
-        "logo_url": "/logos/blinkit.svg",
-        "base_url": "https://blinkit.com",
-        "color_hex": "#0C831F",
-        "avg_delivery_minutes": 10,
-        "min_order_amount": 0,
-        "delivery_fee": 25,
-        "free_delivery_threshold": 199,
-    },
-    "zepto": {
-        "name": "Zepto",
-        "slug": "zepto",
-        "logo_url": "/logos/zepto.svg",
-        "base_url": "https://www.zeptonow.com",
-        "color_hex": "#8B2FC9",
-        "avg_delivery_minutes": 8,
-        "min_order_amount": 0,
-        "delivery_fee": 20,
-        "free_delivery_threshold": 149,
-    },
-    "instamart": {
-        "name": "Swiggy Instamart",
-        "slug": "instamart",
-        "logo_url": "/logos/instamart.svg",
-        "base_url": "https://www.swiggy.com/instamart",
-        "color_hex": "#FC8019",
-        "avg_delivery_minutes": 15,
-        "min_order_amount": 0,
-        "delivery_fee": 30,
-        "free_delivery_threshold": 299,
-    },
-    "bigbasket": {
-        "name": "BigBasket",
-        "slug": "bigbasket",
-        "logo_url": "/logos/bigbasket.svg",
-        "base_url": "https://www.bigbasket.com",
-        "color_hex": "#84C225",
-        "avg_delivery_minutes": 30,
-        "min_order_amount": 200,
-        "delivery_fee": 40,
-        "free_delivery_threshold": 500,
-    },
-    "jiomart": {
-        "name": "JioMart Express",
-        "slug": "jiomart",
-        "logo_url": "/logos/jiomart.svg",
-        "base_url": "https://www.jiomart.com",
-        "color_hex": "#0B3D91",
-        "avg_delivery_minutes": 30,
-        "min_order_amount": 0,
-        "delivery_fee": 35,
-        "free_delivery_threshold": 399,
-    },
-    "amazon": {
-        "name": "Amazon Fresh",
-        "slug": "amazon",
-        "logo_url": "/logos/amazon.svg",
-        "base_url": "https://www.amazon.in",
-        "color_hex": "#FF9900",
-        "avg_delivery_minutes": 120,
-        "min_order_amount": 0,
-        "delivery_fee": 40,
-        "free_delivery_threshold": 499,
-    },
-    "flipkart": {
-        "name": "Flipkart Minutes",
-        "slug": "flipkart",
-        "logo_url": "/logos/flipkart.svg",
-        "base_url": "https://www.flipkart.com",
-        "color_hex": "#2874F0",
-        "avg_delivery_minutes": 10,
-        "min_order_amount": 0,
-        "delivery_fee": 20,
-        "free_delivery_threshold": 199,
-    },
+    "blinkit":   {"name": "Blinkit",          "color_hex": "#0C831F", "avg_delivery_minutes": 10,  "delivery_fee": 25,  "free_delivery_threshold": 199},
+    "zepto":     {"name": "Zepto",             "color_hex": "#8B2FC9", "avg_delivery_minutes": 8,   "delivery_fee": 20,  "free_delivery_threshold": 149},
+    "instamart": {"name": "Swiggy Instamart",  "color_hex": "#FC8019", "avg_delivery_minutes": 15,  "delivery_fee": 30,  "free_delivery_threshold": 299},
+    "bigbasket": {"name": "BigBasket",         "color_hex": "#84C225", "avg_delivery_minutes": 30,  "delivery_fee": 40,  "free_delivery_threshold": 500},
+    "jiomart":   {"name": "JioMart Express",   "color_hex": "#0B3D91", "avg_delivery_minutes": 30,  "delivery_fee": 35,  "free_delivery_threshold": 399},
+    "amazon":    {"name": "Amazon Fresh",      "color_hex": "#FF9900", "avg_delivery_minutes": 120, "delivery_fee": 40,  "free_delivery_threshold": 499},
+    "flipkart":  {"name": "Flipkart Minutes",  "color_hex": "#2874F0", "avg_delivery_minutes": 10,  "delivery_fee": 20,  "free_delivery_threshold": 199},
 }
 
-# ── Category definitions ──────────────────────────────────────────────────────
 CATEGORIES = {
     "dairy-breakfast":   {"name": "Dairy & Breakfast",   "icon": "🥛", "display_order": 1},
     "fruits-vegetables": {"name": "Fruits & Vegetables",  "icon": "🥦", "display_order": 2},
@@ -303,31 +184,24 @@ CATEGORIES = {
 async def main():
     # Load scraped data
     file_path = args.file
-    # Try multiple locations
     for candidate in [file_path, "/tmp/scraped_bulk.json", "/tmp/scraped_data.json"]:
         if os.path.exists(candidate):
             file_path = candidate
             break
     else:
         print(f"❌  File not found: {args.file}")
-        print("    Run scripts/scrape_all_platforms_bulk.py first.")
         sys.exit(1)
 
     with open(file_path) as f:
         all_items = json.load(f)
 
-    # Filter by platform if specified
     if args.platform:
         all_items = [i for i in all_items if i.get("platform") == args.platform]
-        print(f"  Filtered to platform: {args.platform}")
-
-    # Apply limit
     if args.limit:
         all_items = all_items[:args.limit]
 
     print(f"\n📦 Loaded {len(all_items)} scraped items from {file_path}")
 
-    # Stats
     by_platform: dict = {}
     by_category: dict = {}
     for item in all_items:
@@ -347,163 +221,161 @@ async def main():
         print("\n✅ Dry run — not writing to DB")
         return
 
-    # Connect to DB
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy import select, text
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-    try:
-        from backend.app.models.product import Product, Category
-        from backend.app.models.platform import Platform
-        from backend.app.models.price import PlatformPrice
-    except ImportError:
-        from app.models.product import Product, Category
-        from app.models.platform import Platform
-        from app.models.price import PlatformPrice
+    # ── Connect to DB using raw asyncpg ──────────────────────────────────────
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import text
 
     engine = create_async_engine(db_url, echo=False, pool_pre_ping=True)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    async with AsyncSessionLocal() as db:
+    async with engine.begin() as conn:
         # ── Upsert platforms ──────────────────────────────────────────────────
         print("\n🔧 Upserting platforms...")
-        platform_objs: dict[str, Platform] = {}
         for slug, meta in PLATFORM_META.items():
-            res = await db.execute(select(Platform).where(Platform.slug == slug))
-            plat = res.scalar_one_or_none()
-            if not plat:
-                plat = Platform(
-                    id=uuid.uuid4(),
-                    name=meta["name"],
-                    slug=meta["slug"],
-                    logo_url=meta.get("logo_url"),
-                    base_url=meta.get("base_url"),
-                    color_hex=meta.get("color_hex"),
-                    avg_delivery_minutes=meta.get("avg_delivery_minutes", 15),
-                    min_order_amount=meta.get("min_order_amount", 0),
-                    delivery_fee=meta.get("delivery_fee", 0),
-                    free_delivery_threshold=meta.get("free_delivery_threshold"),
-                    is_active=True,
-                    scraping_enabled=True,
-                )
-                db.add(plat)
-                print(f"   ➕ Created platform: {slug}")
-            else:
-                # Update metadata
-                plat.avg_delivery_minutes = meta.get("avg_delivery_minutes", plat.avg_delivery_minutes)
-                plat.color_hex = meta.get("color_hex", plat.color_hex)
-                print(f"   ✓  Platform exists: {slug}")
-            platform_objs[slug] = plat
-        await db.flush()
+            await conn.execute(text("""
+                INSERT INTO platforms (id, name, slug, color_hex, avg_delivery_minutes,
+                    delivery_fee, free_delivery_threshold, is_active, scraping_enabled,
+                    min_order_amount, created_at, updated_at)
+                VALUES (:id, :name, :slug, :color_hex, :avg_delivery_minutes,
+                    :delivery_fee, :free_delivery_threshold, true, true, 0,
+                    NOW(), NOW())
+                ON CONFLICT (slug) DO UPDATE SET
+                    avg_delivery_minutes = EXCLUDED.avg_delivery_minutes,
+                    color_hex = EXCLUDED.color_hex,
+                    updated_at = NOW()
+            """), {
+                "id": str(uuid.uuid4()),
+                "name": meta["name"],
+                "slug": slug,
+                "color_hex": meta["color_hex"],
+                "avg_delivery_minutes": meta["avg_delivery_minutes"],
+                "delivery_fee": meta["delivery_fee"],
+                "free_delivery_threshold": meta["free_delivery_threshold"],
+            })
+            print(f"   ✓ {slug}")
 
         # ── Upsert categories ─────────────────────────────────────────────────
         print("\n🔧 Upserting categories...")
-        category_objs: dict[str, Category] = {}
         for cat_slug, cat_meta in CATEGORIES.items():
-            res = await db.execute(select(Category).where(Category.slug == cat_slug))
-            cat = res.scalar_one_or_none()
-            if not cat:
-                cat = Category(
-                    id=uuid.uuid4(),
-                    name=cat_meta["name"],
-                    slug=cat_slug,
-                    icon=cat_meta["icon"],
-                    display_order=cat_meta.get("display_order", 99),
-                    is_active=True,
-                )
-                db.add(cat)
-                print(f"   ➕ Created category: {cat_slug}")
-            category_objs[cat_slug] = cat
-        await db.flush()
+            await conn.execute(text("""
+                INSERT INTO categories (id, name, slug, icon, display_order, is_active, created_at, updated_at)
+                VALUES (:id, :name, :slug, :icon, :display_order, true, NOW(), NOW())
+                ON CONFLICT (slug) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    icon = EXCLUDED.icon,
+                    display_order = EXCLUDED.display_order,
+                    updated_at = NOW()
+            """), {
+                "id": str(uuid.uuid4()),
+                "name": cat_meta["name"],
+                "slug": cat_slug,
+                "icon": cat_meta["icon"],
+                "display_order": cat_meta["display_order"],
+            })
+            print(f"   ✓ {cat_slug}")
 
-        # ── Save products + prices ────────────────────────────────────────────
-        print(f"\n💾 Saving {len(all_items)} products to DB...")
-        saved = 0
-        updated = 0
-        skipped = 0
-        now = datetime.now(timezone.utc)
+        # ── Load platform and category ID maps ────────────────────────────────
+        plat_rows = await conn.execute(text("SELECT id, slug FROM platforms WHERE is_active = true"))
+        platform_ids = {row[1]: row[0] for row in plat_rows.fetchall()}
 
-        # Track product slugs we've seen to avoid duplicate processing
-        seen_products: dict[str, Product] = {}
+        cat_rows = await conn.execute(text("SELECT id, slug FROM categories WHERE is_active = true"))
+        category_ids = {row[1]: row[0] for row in cat_rows.fetchall()}
 
+        print(f"\n   Platforms loaded: {list(platform_ids.keys())}")
+        print(f"   Categories loaded: {list(category_ids.keys())}")
+
+    # ── Save products + prices in batches ─────────────────────────────────────
+    print(f"\n💾 Saving {len(all_items)} products to DB...")
+    saved = 0
+    updated = 0
+    skipped = 0
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Cache: slug -> product_id
+    seen_products: dict[str, str] = {}
+
+    BATCH_SIZE = 100
+
+    async with engine.begin() as conn:
         for idx, item in enumerate(all_items):
             platform_slug = item.get("platform", "")
-            platform = platform_objs.get(platform_slug)
-            if not platform:
+            platform_id = platform_ids.get(platform_slug)
+            if not platform_id:
                 skipped += 1
                 continue
 
-            name = (item.get("name") or "").strip()
-            # Clean up name: remove extra whitespace, truncate
-            name = re.sub(r"\s+", " ", name)[:200]
+            name = re.sub(r"\s+", " ", (item.get("name") or "").strip())[:200]
             price = item.get("price")
-            if not name or not price or float(price) <= 0:
+            if not name or not price or float(price) <= 0 or float(price) > 50000:
                 skipped += 1
                 continue
 
-            # Skip obviously bad data
-            if float(price) > 50000:  # ₹50,000 max sanity check
-                skipped += 1
-                continue
-
-            # Determine category
             query = item.get("query", "")
             cat_slug = guess_category(name, query)
-            category = category_objs.get(cat_slug) or category_objs.get("snacks-drinks")
+            category_id = category_ids.get(cat_slug) or category_ids.get("snacks-drinks")
 
-            # Extract unit and brand
             unit = extract_unit(name, item.get("unit", ""))
             brand = extract_brand(name)
-
-            # Upsert product
             prod_slug = slugify(name)
+            image_url = item.get("image_url") or None
 
-            # Check cache first
-            product = seen_products.get(prod_slug)
-            if not product:
-                res = await db.execute(select(Product).where(Product.slug == prod_slug))
-                product = res.scalar_one_or_none()
-
-            if not product:
-                product = Product(
-                    id=uuid.uuid4(),
-                    name=name,
-                    slug=prod_slug,
-                    brand=brand,
-                    unit=unit or None,
-                    description=f"{name} — Compare prices across Blinkit, Zepto, BigBasket, Instamart and more.",
-                    category_id=category.id if category else None,
-                    image_url=item.get("image_url") or None,
-                    thumbnail_url=item.get("image_url") or None,
-                    is_active=True,
-                    is_featured=True,  # All scraped products are featured
+            # Check product cache
+            product_id = seen_products.get(prod_slug)
+            if not product_id:
+                # Check DB
+                row = await conn.execute(
+                    text("SELECT id FROM products WHERE slug = :slug"),
+                    {"slug": prod_slug}
                 )
-                db.add(product)
-                await db.flush()
-                saved += 1
-            else:
-                # Update missing fields
-                changed = False
-                if not product.image_url and item.get("image_url"):
-                    product.image_url = item["image_url"]
-                    product.thumbnail_url = item["image_url"]
-                    changed = True
-                if not product.unit and unit:
-                    product.unit = unit
-                    changed = True
-                if not product.brand and brand:
-                    product.brand = brand
-                    changed = True
-                if not product.is_featured:
-                    product.is_featured = True
-                    changed = True
-                if changed:
+                existing = row.fetchone()
+                if existing:
+                    product_id = str(existing[0])
+                    # Update missing fields
+                    await conn.execute(text("""
+                        UPDATE products SET
+                            is_featured = true,
+                            image_url = COALESCE(NULLIF(image_url, ''), :image_url),
+                            thumbnail_url = COALESCE(NULLIF(thumbnail_url, ''), :image_url),
+                            unit = COALESCE(NULLIF(unit, ''), :unit),
+                            brand = COALESCE(NULLIF(brand, ''), :brand),
+                            updated_at = NOW()
+                        WHERE id = :id
+                    """), {
+                        "id": product_id,
+                        "image_url": image_url,
+                        "unit": unit or None,
+                        "brand": brand,
+                    })
                     updated += 1
+                else:
+                    # Insert new product
+                    product_id = str(uuid.uuid4())
+                    desc = f"{name} — Compare prices across Blinkit, Zepto, BigBasket, Instamart and more."
+                    await conn.execute(text("""
+                        INSERT INTO products (id, name, slug, brand, unit, description,
+                            category_id, image_url, thumbnail_url, is_active, is_featured,
+                            created_at, updated_at)
+                        VALUES (:id, :name, :slug, :brand, :unit, :description,
+                            :category_id, :image_url, :thumbnail_url, true, true,
+                            NOW(), NOW())
+                        ON CONFLICT (slug) DO UPDATE SET
+                            is_featured = true,
+                            image_url = COALESCE(NULLIF(products.image_url, ''), EXCLUDED.image_url),
+                            updated_at = NOW()
+                        RETURNING id
+                    """), {
+                        "id": product_id,
+                        "name": name,
+                        "slug": prod_slug,
+                        "brand": brand,
+                        "unit": unit or None,
+                        "description": desc,
+                        "category_id": category_id,
+                        "image_url": image_url,
+                        "thumbnail_url": image_url,
+                    })
+                    saved += 1
 
-            seen_products[prod_slug] = product
+                seen_products[prod_slug] = product_id
 
             # Upsert platform price
             price_val = float(price)
@@ -511,81 +383,79 @@ async def main():
             if mrp_val < price_val:
                 mrp_val = price_val
             discount = round((mrp_val - price_val) / mrp_val * 100, 1) if mrp_val > price_val else 0.0
+            discount_label = f"{int(discount)}% OFF" if discount > 0 else None
 
-            await db.execute(
-                pg_insert(PlatformPrice)
-                .values(
-                    id=uuid.uuid4(),
-                    product_id=product.id,
-                    platform_id=platform.id,
-                    price=price_val,
-                    original_price=mrp_val if mrp_val > price_val else None,
-                    discount_percent=discount,
-                    discount_label=f"{int(discount)}% OFF" if discount > 0 else None,
-                    is_available=item.get("in_stock", True),
-                    delivery_time_minutes=platform.avg_delivery_minutes,
-                    platform_product_id=item.get("pid") or None,
-                    platform_product_url=item.get("url") or None,
-                    platform_image_url=item.get("image_url") or None,
-                    last_updated=now,
-                    source=item.get("source", "scrape"),
-                )
-                .on_conflict_do_update(
-                    constraint="uq_platform_prices_product_platform",
-                    set_=dict(
-                        price=price_val,
-                        original_price=mrp_val if mrp_val > price_val else None,
-                        discount_percent=discount,
-                        discount_label=f"{int(discount)}% OFF" if discount > 0 else None,
-                        is_available=item.get("in_stock", True),
-                        platform_product_id=item.get("pid") or None,
-                        platform_product_url=item.get("url") or None,
-                        platform_image_url=item.get("image_url") or None,
-                        last_updated=now,
-                        source=item.get("source", "scrape"),
-                    ),
-                )
-            )
+            await conn.execute(text("""
+                INSERT INTO platform_prices (id, product_id, platform_id, price,
+                    original_price, discount_percent, discount_label, is_available,
+                    delivery_time_minutes, platform_product_id, platform_product_url,
+                    platform_image_url, last_updated, source, created_at, updated_at)
+                VALUES (:id, :product_id, :platform_id, :price,
+                    :original_price, :discount_percent, :discount_label, :is_available,
+                    :delivery_time_minutes, :platform_product_id, :platform_product_url,
+                    :platform_image_url, :last_updated, :source, NOW(), NOW())
+                ON CONFLICT ON CONSTRAINT uq_platform_prices_product_platform DO UPDATE SET
+                    price = EXCLUDED.price,
+                    original_price = EXCLUDED.original_price,
+                    discount_percent = EXCLUDED.discount_percent,
+                    discount_label = EXCLUDED.discount_label,
+                    is_available = EXCLUDED.is_available,
+                    platform_product_id = COALESCE(EXCLUDED.platform_product_id, platform_prices.platform_product_id),
+                    platform_product_url = COALESCE(EXCLUDED.platform_product_url, platform_prices.platform_product_url),
+                    platform_image_url = COALESCE(EXCLUDED.platform_image_url, platform_prices.platform_image_url),
+                    last_updated = EXCLUDED.last_updated,
+                    source = EXCLUDED.source,
+                    updated_at = NOW()
+            """), {
+                "id": str(uuid.uuid4()),
+                "product_id": product_id,
+                "platform_id": platform_id,
+                "price": price_val,
+                "original_price": mrp_val if mrp_val > price_val else None,
+                "discount_percent": discount,
+                "discount_label": discount_label,
+                "is_available": item.get("in_stock", True),
+                "delivery_time_minutes": PLATFORM_META.get(platform_slug, {}).get("avg_delivery_minutes"),
+                "platform_product_id": item.get("pid") or None,
+                "platform_product_url": item.get("url") or None,
+                "platform_image_url": image_url,
+                "last_updated": now,
+                "source": item.get("source", "scrape"),
+            })
 
-            # Commit in batches of 100
-            if (idx + 1) % 100 == 0:
-                await db.commit()
-                print(f"   ... {idx + 1}/{len(all_items)} processed (saved: {saved}, updated: {updated}, skipped: {skipped})")
+            if (idx + 1) % BATCH_SIZE == 0:
+                print(f"   ... {idx + 1}/{len(all_items)} processed (new: {saved}, updated: {updated}, skipped: {skipped})")
 
-        await db.commit()
-        print(f"\n✅ Done!")
-        print(f"   New products : {saved}")
-        print(f"   Updated      : {updated}")
-        print(f"   Skipped      : {skipped}")
-        print(f"   Total items  : {len(all_items)}")
+    print(f"\n✅ Done!")
+    print(f"   New products : {saved}")
+    print(f"   Updated      : {updated}")
+    print(f"   Skipped      : {skipped}")
+    print(f"   Total items  : {len(all_items)}")
 
-        # ── Mark all products with prices as featured ─────────────────────────
-        print("\n🌟 Ensuring all products with prices are featured...")
-        result = await db.execute(
-            text("""
-                UPDATE products SET is_featured = true
-                WHERE is_active = true
-                  AND id IN (
-                      SELECT DISTINCT product_id FROM platform_prices
-                      WHERE is_available = true
-                  )
-                  AND is_featured = false
-            """)
-        )
-        await db.commit()
-        featured_updated = result.rowcount if hasattr(result, 'rowcount') else 0
-        print(f"   ✅ Marked {featured_updated} additional products as featured")
+    # ── Mark all products with prices as featured ─────────────────────────────
+    print("\n🌟 Marking all products with prices as featured...")
+    async with engine.begin() as conn:
+        result = await conn.execute(text("""
+            UPDATE products SET is_featured = true
+            WHERE is_active = true
+              AND id IN (
+                  SELECT DISTINCT product_id FROM platform_prices
+                  WHERE is_available = true
+              )
+              AND is_featured = false
+        """))
+        print(f"   ✅ Marked {result.rowcount} additional products as featured")
 
-        # ── Final stats ───────────────────────────────────────────────────────
-        total_products = (await db.execute(
+        # Final stats
+        total_products = (await conn.execute(
             text("SELECT COUNT(*) FROM products WHERE is_active = true")
-        )).scalar_one()
-        total_featured = (await db.execute(
+        )).scalar()
+        total_featured = (await conn.execute(
             text("SELECT COUNT(*) FROM products WHERE is_active = true AND is_featured = true")
-        )).scalar_one()
-        total_prices = (await db.execute(
+        )).scalar()
+        total_prices = (await conn.execute(
             text("SELECT COUNT(*) FROM platform_prices WHERE is_available = true")
-        )).scalar_one()
+        )).scalar()
 
         print(f"\n📊 Database summary:")
         print(f"   Total active products : {total_products}")
