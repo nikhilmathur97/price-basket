@@ -58,7 +58,8 @@ function StatPill({
         >
           {value}
         </p>
-        <p className="text-[10px] text-surface-400 leading-none mt-0.5">{label}</p>
+        {/* surface-500 (#737373 on #fff) = 4.48:1 — passes WCAG AA */}
+        <p className="text-[10px] text-surface-500 leading-none mt-0.5">{label}</p>
       </div>
     </div>
   );

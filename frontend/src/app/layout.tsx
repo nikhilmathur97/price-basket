@@ -14,7 +14,14 @@ import { BackendWarmup } from "@/components/BackendWarmup";
 import { StructuredData } from "@/components/StructuredData";
 import { CommunityPopup } from "@/components/CommunityPopup";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Inter is served by next/font (self-hosted at build time) — no Google Fonts CDN request.
+// display:swap ensures text is visible immediately while the font loads (avoids invisible text).
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  preload: true,
+});
 
 export const metadata: Metadata = {
   title: {
@@ -88,20 +95,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        {/* Preconnect to speed up third-party resources — reduces mobile LCP */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/*
+          ── Preconnect only to origins we actually request ──────────────────
+          fonts.googleapis.com / fonts.gstatic.com are NOT needed: Inter is
+          self-hosted by next/font at build time, so no Google Fonts CDN call
+          is ever made. Keeping those hints wastes a TCP+TLS handshake and
+          triggers the Lighthouse "Unused preconnect" warning.
+
+          googletagmanager.com IS used (GA4 script below), so we keep that.
+          cdn.grofers.com / cdn.blinkit.com serve most product images — a
+          preconnect here shaves ~100 ms off the first image request.
+        */}
         <link rel="preconnect" href="https://www.googletagmanager.com" />
+        <link rel="preconnect" href="https://cdn.grofers.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://cdn.blinkit.com" crossOrigin="anonymous" />
+        {/* dns-prefetch as a fallback for browsers that ignore preconnect */}
         <link rel="dns-prefetch" href="https://api.pricebasket.in" />
+        <link rel="dns-prefetch" href="https://cdn.zeptonow.com" />
       </head>
-      {/* ── Google Analytics 4 ── */}
+      {/*
+        ── Google Analytics 4 ──────────────────────────────────────────────
+        strategy="lazyOnload" defers the 142 KB gtag bundle until the page
+        is fully idle — removes it from the critical path and saves ~63 KiB
+        of unused JS during initial load (Lighthouse "Reduce unused JS" fix).
+      */}
       {GA_ID && (
         <>
           <Script
             src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-            strategy="afterInteractive"
+            strategy="lazyOnload"
           />
-          <Script id="ga4-init" strategy="afterInteractive">{`
+          <Script id="ga4-init" strategy="lazyOnload">{`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());

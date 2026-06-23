@@ -240,7 +240,8 @@ export function Footer() {
       {/* ── SEO keyword paragraph (crawlable, subtle styling) ── */}
       <div className="bg-surface-50 border-t border-surface-200">
         <div className="max-w-screen-xl mx-auto px-4 py-5">
-          <p className="text-[11px] text-surface-400 leading-relaxed text-center">
+          {/* surface-500 (#737373) on surface-50 (#fafafa) = 4.43:1 — passes WCAG AA */}
+          <p className="text-[11px] text-surface-500 leading-relaxed text-center">
             PriceBasket is India&apos;s #1 grocery price comparison platform. Compare prices on{" "}
             <Link href="/compare/blinkit-vs-zepto" className="hover:text-brand-600 underline underline-offset-2">Blinkit vs Zepto</Link>,{" "}
             <Link href="/compare/zepto-vs-instamart" className="hover:text-brand-600 underline underline-offset-2">Zepto vs Swiggy Instamart</Link>,{" "}

@@ -5,7 +5,6 @@ import Image from "next/image";
 import { MOCK_CATEGORIES, MOCK_PLATFORMS } from "@/lib/mockData";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { HomeProductSections } from "@/components/HomeProductSections";
-import { LivePriceStats } from "@/components/LivePriceStats";
 
 // Code-split HeroCarousel — Framer Motion is heavy; deferring its JS chunk
 // reduces initial parse time and improves mobile LCP.
@@ -175,9 +174,6 @@ export default function HomePage() {
 
       <div className="max-w-screen-xl mx-auto px-4">
 
-        {/* ── Live price stats strip ── */}
-        <LivePriceStats />
-
         {/* ── Platform logos strip with delivery times ── */}
         <div className="flex items-center gap-2 py-3 overflow-x-auto scrollbar-hide">
           {MOCK_PLATFORMS.map((p) => {
@@ -186,6 +182,7 @@ export default function HomePage() {
               <Link
                 key={p.slug}
                 href={`/deals/${p.slug}`}
+                aria-label={`${p.name} deals`}
                 className="flex items-center gap-2 flex-shrink-0 bg-white rounded-xl
                            px-3 py-2 border border-surface-100 shadow-sm
                            hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
@@ -270,6 +267,7 @@ export default function HomePage() {
                 <Link
                   key={p.slug}
                   href={`/deals/${p.slug}`}
+                  aria-label={`Shop ${p.name} deals`}
                   className="flex flex-col items-center gap-2 bg-white rounded-2xl
                              border border-surface-100 px-4 py-4
                              hover:border-brand-300 hover:shadow-md
@@ -289,7 +287,7 @@ export default function HomePage() {
                       </p>
                     )}
                   </div>
-                  <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full" aria-hidden="true">
                     See deals →
                   </span>
                 </Link>
@@ -338,6 +336,7 @@ export default function HomePage() {
               <Link
                 key={`${pair.a}-${pair.b}`}
                 href={`/compare/${pair.a}-vs-${pair.b}`}
+                aria-label={`Compare ${pair.label} prices`}
                 className="flex items-center justify-between bg-white rounded-2xl
                            border border-surface-100 px-4 py-3
                            hover:border-brand-300 hover:shadow-md
@@ -346,7 +345,7 @@ export default function HomePage() {
                 <span className="text-sm font-semibold text-surface-700 group-hover:text-brand-600">
                   {pair.label}
                 </span>
-                <span className="text-brand-500 text-xs font-bold">Compare →</span>
+                <span className="text-brand-500 text-xs font-bold" aria-hidden="true">Compare →</span>
               </Link>
             ))}
           </div>
