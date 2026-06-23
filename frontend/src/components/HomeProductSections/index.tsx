@@ -195,20 +195,20 @@ function SavingsBadge({ amount, platform }: { amount: number; platform?: string 
 export function HomeProductSections() {
   const [slowLoad, setSlowLoad] = useState(false);
 
-  const { data: apiProducts, isLoading, isFetching } = useQuery<ProductWithPrices[]>({
+  const { data: apiProducts, isLoading, isFetching, isError } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async ({ signal }) => {
       // Fetch up to 100 products for richer home page coverage
       const { data } = await api.getFeatured(100, signal);
-      const result = data ?? [];
-      if (result.length === 0) throw new Error("empty");
-      return result;
+      // Return empty array instead of throwing — throwing causes React Query to
+      // retry 3× and then permanently show EmptyState even when the API is healthy.
+      return data ?? [];
     },
     staleTime: 300_000,       // 5 min
     gcTime: 600_000,          // 10 min
     refetchOnWindowFocus: true,
-    retry: 3,
-    retryDelay: 2_000,
+    retry: 2,
+    retryDelay: 1_500,
   });
 
   // After 12 s of loading, show a friendly slow-connection hint
