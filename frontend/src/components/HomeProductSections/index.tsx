@@ -25,7 +25,6 @@ import {
   Star,
   TrendingUp,
   ArrowRight,
-  RefreshCw,
   PackageSearch,
   Tag,
   Clock,
@@ -85,7 +84,8 @@ function SectionHeader({
             </span>
           )}
         </h2>
-        {subtitle && <p className="text-[11px] text-surface-400 mt-0.5">{subtitle}</p>}
+        {/* surface-500 (#737373) on white = 4.48:1 — passes WCAG AA for UI text */}
+        {subtitle && <p className="text-[11px] text-surface-500 mt-0.5">{subtitle}</p>}
       </div>
       {href && (
         <Link
@@ -335,24 +335,6 @@ export function HomeProductSections() {
   return (
     <div className="space-y-6">
 
-      {/* Live price indicator strip */}
-      {isFromAPI && (
-        <div className="flex items-center justify-between py-1.5 px-3 bg-green-50 rounded-xl border border-green-100">
-          <div className="flex items-center gap-2">
-            <RefreshCw className={`w-3 h-3 text-green-600 ${isFetching ? "animate-spin" : ""}`} />
-            <span className="text-[11px] font-semibold text-green-700">
-              {isFetching ? "Refreshing live prices…" : `${products.length} products with live prices`}
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          </div>
-          <Link
-            href="/search"
-            className="text-[11px] font-bold text-green-700 hover:underline"
-          >
-            View all →
-          </Link>
-        </div>
-      )}
 
       {/* ── Trending Now ── */}
       {trendingNow.length > 0 && (

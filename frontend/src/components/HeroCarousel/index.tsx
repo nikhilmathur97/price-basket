@@ -19,9 +19,21 @@ type Slide = {
   chips: Chip[];
   image?: string;
   bigEmoji?: string;
+  posterImage?: string;
 };
 
 const SLIDES: Slide[] = [
+  {
+    id: "poster-1",
+    bg: "#ffffff",
+    ctaColor: "#FC5A01",
+    tag: "",
+    title: "",
+    subtitle: "",
+    cta: { label: "", href: "/search" },
+    chips: [],
+    posterImage: "/poster-slide-1.jpg",
+  },
   {
     id: "hero",
     bg: "#FC5A01",
@@ -153,12 +165,14 @@ export function HeroCarousel() {
     <div className="px-3 pt-2 pb-2">
       <div className="max-w-screen-xl mx-auto">
         <div
-          className="relative overflow-hidden rounded-3xl shadow-lg
-                     h-[210px] sm:h-[235px] md:h-[260px] lg:h-[280px]"
+          className="relative overflow-hidden rounded-3xl shadow-lg h-[185px] sm:h-[230px] md:h-[265px] lg:h-[305px] xl:h-[345px]"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
+          // contain:layout prevents this carousel from triggering reflows in
+          // surrounding elements when Framer Motion animates slide positions.
+          style={{ contain: "layout" }}
         >
           <AnimatePresence custom={direction} initial={false}>
             <motion.div
@@ -169,98 +183,114 @@ export function HeroCarousel() {
               animate="center"
               exit="exit"
               transition={{ type: "tween", ease: "easeInOut", duration: 0.38 }}
-              className="absolute inset-0 px-5 py-4 md:px-8 md:py-5 flex items-center gap-3"
-              style={{ background: slide.bg }}
+              className={`absolute inset-0 flex items-center gap-3 ${slide.posterImage ? "" : "px-5 py-4 md:px-8 md:py-5"}`}
+              // Use will-change:transform so the browser promotes this layer to GPU
+              // and avoids forced reflows when reading offsetWidth during animation.
+              style={
+                slide.posterImage
+                  ? { backgroundColor: slide.bg, willChange: "transform" }
+                  : { background: slide.bg, willChange: "transform" }
+              }
             >
-              {/* Decorative background blobs */}
-              <div className="absolute -top-12 -right-12 w-44 h-44 bg-white/5 rounded-full pointer-events-none" />
-              <div className="absolute -bottom-10 -left-8 w-36 h-36 bg-white/5 rounded-full pointer-events-none" />
-              <div className="absolute top-0 right-1/3 w-24 h-24 bg-white/[0.03] rounded-full pointer-events-none" />
-
-              {/* ── Left content ── */}
-              <div className={`flex-1 min-w-0 z-10 ${
-                slide.image
-                  ? "pr-[130px] sm:pr-[158px] md:pr-[175px] lg:pr-[200px]"
-                  : ""
-              }`}>
-                {/* Tag badge */}
-                <div className="inline-flex items-center gap-1 bg-white/20 text-white
-                                text-[10px] font-bold px-2.5 py-1 rounded-full mb-2
-                                border border-white/25 backdrop-blur-sm">
-                  {slide.tag}
-                </div>
-
-                {/* Title */}
-                <h2 className="text-[19px] sm:text-[26px] md:text-[30px] lg:text-[34px]
-                               font-black text-white leading-tight tracking-tight whitespace-pre-line">
-                  {slide.title}
-                </h2>
-
-                {/* Subtitle */}
-                <p className="text-white/75 text-[11px] sm:text-[12px] md:text-[13px]
-                              font-medium mt-1 mb-3 leading-snug line-clamp-2">
-                  {slide.subtitle}
-                </p>
-
-                {/* CTA button */}
-                <Link
-                  href={slide.cta.href}
-                  className="inline-flex items-center gap-1 bg-white text-[11px] sm:text-[12px]
-                             font-bold rounded-xl px-3.5 py-2 shadow-md mb-3
-                             hover:scale-105 active:scale-95 transition-transform duration-150"
-                  style={{ color: slide.ctaColor }}
-                >
-                  {slide.cta.label}
-                </Link>
-
-                {/* Trust chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                  {slide.chips.map((chip) => (
-                    <div
-                      key={chip.text}
-                      className="flex items-center gap-1 flex-shrink-0 bg-white/15 backdrop-blur-sm
-                                 text-white text-[10px] font-semibold px-2.5 py-1.5
-                                 rounded-full border border-white/20"
-                    >
-                      <span>{chip.icon}</span>
-                      <span>{chip.text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Right: emoji (in flex) ── */}
-              {!slide.image && (
-                <div className="flex-shrink-0 self-center z-10">
-                  <div className="w-[80px] h-[80px] sm:w-[108px] sm:h-[108px]
-                                  md:w-[130px] md:h-[130px] lg:w-[150px] lg:h-[150px]
-                                  rounded-full bg-white/15 backdrop-blur-sm border border-white/25
-                                  flex items-center justify-center shadow-inner">
-                    <span className="text-[42px] sm:text-[58px] md:text-[68px] lg:text-[78px] select-none leading-none">
-                      {slide.bigEmoji}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {/* ── Right: image (absolute, bleeds into edges so no box boundary) ── */}
-              {slide.image && (
-                <div className="absolute right-0 inset-y-0
-                                w-[130px] sm:w-[158px] md:w-[175px] lg:w-[200px]
-                                z-10 pointer-events-none">
+              {/* Poster slide — image rendered via Next.js <Image> (not CSS background-image)
+                  so it participates in the image optimisation pipeline and avoids the
+                  forced-reflow pattern of reading offsetWidth after a background change. */}
+              {slide.posterImage && (
+                <>
                   <Image
-                    src={slide.image}
-                    alt="Grocery basket"
+                    src={slide.posterImage}
+                    alt="Promotional offer"
                     fill
-                    sizes="(max-width: 640px) 130px, (max-width: 768px) 158px, (max-width: 1024px) 175px, 200px"
-                    className="object-contain object-center"
-                    priority
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 90vw, 1280px"
+                    className="object-cover object-[center_30%]"
+                    priority={current === 0}
+                    loading={current === 0 ? "eager" : "lazy"}
                   />
-                  {/* Gradient fade on left edge — hides any colour boundary */}
-                  <div
-                    className="absolute inset-y-0 left-0 w-10 pointer-events-none"
-                    style={{ background: `linear-gradient(to right, ${slide.bg}, transparent)` }}
-                  />
-                </div>
+                  <Link href={slide.cta.href} className="absolute inset-0 z-10" aria-label="View deals" />
+                </>
+              )}
+
+              {/* Text slides only */}
+              {!slide.posterImage && (
+                <>
+                  <div className="absolute -top-12 -right-12 w-44 h-44 bg-white/5 rounded-full pointer-events-none" />
+                  <div className="absolute -bottom-10 -left-8 w-36 h-36 bg-white/5 rounded-full pointer-events-none" />
+                  <div className="absolute top-0 right-1/3 w-24 h-24 bg-white/[0.03] rounded-full pointer-events-none" />
+
+                  <div className={`flex-1 min-w-0 z-10 ${
+                    slide.image
+                      ? "pr-[130px] sm:pr-[158px] md:pr-[175px] lg:pr-[200px]"
+                      : ""
+                  }`}>
+                    <div className="inline-flex items-center gap-1 bg-white/20 text-white
+                                    text-[10px] font-bold px-2.5 py-1 rounded-full mb-2
+                                    border border-white/25 backdrop-blur-sm">
+                      {slide.tag}
+                    </div>
+                    <h2 className="text-[19px] sm:text-[26px] md:text-[30px] lg:text-[34px]
+                                   font-black text-white leading-tight tracking-tight whitespace-pre-line">
+                      {slide.title}
+                    </h2>
+                    <p className="text-white/75 text-[11px] sm:text-[12px] md:text-[13px]
+                                  font-medium mt-1 mb-3 leading-snug line-clamp-2">
+                      {slide.subtitle}
+                    </p>
+                    <Link
+                      href={slide.cta.href}
+                      className="inline-flex items-center gap-1 bg-white text-[11px] sm:text-[12px]
+                                 font-bold rounded-xl px-3.5 py-2 shadow-md mb-3
+                                 hover:scale-105 active:scale-95 transition-transform duration-150"
+                      style={{ color: slide.ctaColor }}
+                    >
+                      {slide.cta.label}
+                    </Link>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                      {slide.chips.map((chip) => (
+                        <div
+                          key={chip.text}
+                          className="flex items-center gap-1 flex-shrink-0 bg-white/15 backdrop-blur-sm
+                                     text-white text-[10px] font-semibold px-2.5 py-1.5
+                                     rounded-full border border-white/20"
+                        >
+                          <span>{chip.icon}</span>
+                          <span>{chip.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!slide.image && (
+                    <div className="flex-shrink-0 self-center z-10">
+                      <div className="w-[80px] h-[80px] sm:w-[108px] sm:h-[108px]
+                                      md:w-[130px] md:h-[130px] lg:w-[150px] lg:h-[150px]
+                                      rounded-full bg-white/15 backdrop-blur-sm border border-white/25
+                                      flex items-center justify-center shadow-inner">
+                        <span className="text-[42px] sm:text-[58px] md:text-[68px] lg:text-[78px] select-none leading-none">
+                          {slide.bigEmoji}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {slide.image && (
+                    <div className="absolute right-0 inset-y-0
+                                    w-[130px] sm:w-[158px] md:w-[175px] lg:w-[200px]
+                                    z-10 pointer-events-none">
+                      <Image
+                        src={slide.image}
+                        alt="Grocery basket"
+                        fill
+                        sizes="(max-width: 640px) 130px, (max-width: 768px) 158px, (max-width: 1024px) 175px, 200px"
+                        className="object-contain object-center"
+                        priority
+                      />
+                      <div
+                        className="absolute inset-y-0 left-0 w-10 pointer-events-none"
+                        style={{ background: `linear-gradient(to right, ${slide.bg}, transparent)` }}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           </AnimatePresence>
