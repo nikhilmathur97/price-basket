@@ -59,7 +59,7 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            cd /opt/price-basket
+            cd /opt/pricebasket
 
             echo "🔑 Updating SEED_SECRET in backend/.env..."
             # Remove old SEED_SECRET line and add new one
@@ -67,8 +67,11 @@ jobs:
             echo "SEED_SECRET=${{ secrets.SEED_SECRET }}" >> backend/.env
             echo "✅ SEED_SECRET updated"
 
+            echo "📥 Pulling latest code..."
+            git pull origin main || true
+
             echo "🔄 Restarting API to pick up new SEED_SECRET..."
-            pm2 restart pricebasket-api
+            sudo systemctl restart pricebasket-api
             sleep 5
             echo "✅ API restarted"
 
