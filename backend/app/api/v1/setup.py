@@ -751,41 +751,421 @@ class ScrapedItem(BaseModel):
     unit: str = ""
     in_stock: bool = True
     query: str = ""
+    category: str = ""  # scraped category hint (e.g. "dairy-breakfast")
 
 
 class BulkImportRequest(BaseModel):
     items: List[ScrapedItem]
 
 
-QUERY_TO_CATEGORY = {
-    "milk":             "dairy-breakfast",
-    "bread":            "bakery",
-    "eggs":             "dairy-breakfast",
-    "butter":           "dairy-breakfast",
-    "rice":             "staples",
-    "atta wheat flour": "staples",
-    "sugar":            "staples",
-    "salt":             "staples",
-    "cooking oil":      "oils-spices",
-    "dal lentils":      "staples",
-    "tomato":           "fruits-vegetables",
-    "onion":            "fruits-vegetables",
-    "potato":           "fruits-vegetables",
-    "banana":           "fruits-vegetables",
-    "apple":            "fruits-vegetables",
-    "yogurt curd":      "dairy-breakfast",
-    "cheese":           "dairy-breakfast",
-    "paneer":           "dairy-breakfast",
-    "tea":              "snacks-drinks",
-    "coffee":           "snacks-drinks",
-    "biscuits":         "snacks-drinks",
-    "chips":            "snacks-drinks",
-    "noodles":          "snacks-drinks",
-    "soap":             "personal-care",
-    "shampoo":          "personal-care",
-    "toothpaste":       "personal-care",
-    "detergent":        "household",
-}
+# ── Comprehensive keyword → category mapping ─────────────────────────────────
+# Ordered from most-specific to least-specific to avoid false matches.
+# Each entry: (keyword_substring, category_slug)
+_CATEGORY_KEYWORDS: list[tuple[str, str]] = [
+    # ── Baby care (check before personal-care) ───────────────────────────────
+    ("pampers", "baby-care"),
+    ("huggies", "baby-care"),
+    ("mamy poko", "baby-care"),
+    ("cerelac", "baby-care"),
+    ("nestum", "baby-care"),
+    ("baby shampoo", "baby-care"),
+    ("baby lotion", "baby-care"),
+    ("baby powder", "baby-care"),
+    ("baby cream", "baby-care"),
+    ("baby", "baby-care"),
+    ("diaper", "baby-care"),
+    ("nappy", "baby-care"),
+    # ── Meat & Seafood ───────────────────────────────────────────────────────
+    ("licious", "chicken-meat"),
+    ("chicken", "chicken-meat"),
+    ("mutton", "chicken-meat"),
+    ("prawn", "chicken-meat"),
+    ("fish rohu", "chicken-meat"),
+    ("fish fillet", "chicken-meat"),
+    ("seafood", "chicken-meat"),
+    # ── Frozen & Ready-to-eat ────────────────────────────────────────────────
+    ("mccain", "frozen-ready"),
+    ("frozen", "frozen-ready"),
+    ("ice cream", "frozen-ready"),
+    ("cornetto", "frozen-ready"),
+    ("baskin", "frozen-ready"),
+    ("ready to eat", "frozen-ready"),
+    ("ready-to-eat", "frozen-ready"),
+    ("pizza base", "frozen-ready"),
+    # ── Pharma & Wellness ────────────────────────────────────────────────────
+    ("sanitizer", "pharma-wellness"),
+    ("disprin", "pharma-wellness"),
+    ("crocin", "pharma-wellness"),
+    ("volini", "pharma-wellness"),
+    ("moov", "pharma-wellness"),
+    ("eno fruit", "pharma-wellness"),
+    ("hajmola", "pharma-wellness"),
+    ("pudin hara", "pharma-wellness"),
+    ("glucon", "pharma-wellness"),
+    ("revital", "pharma-wellness"),
+    ("centrum", "pharma-wellness"),
+    ("multivitamin", "pharma-wellness"),
+    ("tablet", "pharma-wellness"),
+    ("capsule", "pharma-wellness"),
+    # ── Electronics & Accessories ────────────────────────────────────────────
+    ("battery", "electronics-accessories"),
+    ("batteries", "electronics-accessories"),
+    ("duracell", "electronics-accessories"),
+    ("energizer", "electronics-accessories"),
+    ("led bulb", "electronics-accessories"),
+    ("syska", "electronics-accessories"),
+    ("philips led", "electronics-accessories"),
+    ("havells led", "electronics-accessories"),
+    ("usb cable", "electronics-accessories"),
+    ("portronics", "electronics-accessories"),
+    ("boat usb", "electronics-accessories"),
+    # ── Personal Care (check before household) ───────────────────────────────
+    ("colgate", "personal-care"),
+    ("pepsodent", "personal-care"),
+    ("sensodyne", "personal-care"),
+    ("toothpaste", "personal-care"),
+    ("toothbrush", "personal-care"),
+    ("oral b", "personal-care"),
+    ("dove soap", "personal-care"),
+    ("dove shampoo", "personal-care"),
+    ("dove deodorant", "personal-care"),
+    ("dove body", "personal-care"),
+    ("dove beauty", "personal-care"),
+    ("head shoulders", "personal-care"),
+    ("head & shoulders", "personal-care"),
+    ("pantene", "personal-care"),
+    ("clinic plus", "personal-care"),
+    ("sunsilk", "personal-care"),
+    ("tresemme", "personal-care"),
+    ("loreal shampoo", "personal-care"),
+    ("loreal hair", "personal-care"),
+    ("mamaearth", "personal-care"),
+    ("wow shampoo", "personal-care"),
+    ("wow apple", "personal-care"),
+    ("shampoo", "personal-care"),
+    ("conditioner", "personal-care"),
+    ("lux soap", "personal-care"),
+    ("lux soft", "personal-care"),
+    ("dettol soap", "personal-care"),
+    ("dettol original", "personal-care"),
+    ("soap", "personal-care"),
+    ("vaseline", "personal-care"),
+    ("nivea", "personal-care"),
+    ("body lotion", "personal-care"),
+    ("face wash", "personal-care"),
+    ("face cream", "personal-care"),
+    ("micellar", "personal-care"),
+    ("gillette", "personal-care"),
+    ("venus razor", "personal-care"),
+    ("razor", "personal-care"),
+    ("whisper", "personal-care"),
+    ("stayfree", "personal-care"),
+    ("sanitary", "personal-care"),
+    ("himalaya neem", "personal-care"),
+    ("himalaya purifying", "personal-care"),
+    ("himalaya face", "personal-care"),
+    ("biotique", "personal-care"),
+    ("garnier", "personal-care"),
+    ("pond's", "personal-care"),
+    ("ponds face", "personal-care"),
+    ("parachute coconut", "personal-care"),
+    ("bajaj almond", "personal-care"),
+    ("axe deodorant", "personal-care"),
+    ("fogg deodorant", "personal-care"),
+    ("park avenue", "personal-care"),
+    ("deodorant", "personal-care"),
+    ("lakme", "personal-care"),
+    ("maybelline", "personal-care"),
+    # ── Household ────────────────────────────────────────────────────────────
+    ("surf excel", "household"),
+    ("ariel matic", "household"),
+    ("ariel", "household"),
+    ("tide detergent", "household"),
+    ("henko", "household"),
+    ("rin detergent", "household"),
+    ("wheel detergent", "household"),
+    ("detergent", "household"),
+    ("vim dishwash", "household"),
+    ("pril dishwash", "household"),
+    ("dishwash", "household"),
+    ("harpic", "household"),
+    ("lizol", "household"),
+    ("colin glass", "household"),
+    ("domex", "household"),
+    ("toilet duck", "household"),
+    ("toilet cleaner", "household"),
+    ("scotch brite", "household"),
+    ("scrub pad", "household"),
+    ("dettol antiseptic", "household"),
+    ("savlon antiseptic", "household"),
+    ("antiseptic liquid", "household"),
+    ("rin bar", "household"),
+    ("vim bar", "household"),
+    ("comfort fabric", "household"),
+    ("ezee liquid", "household"),
+    ("mortein", "household"),
+    ("good knight", "household"),
+    ("odonil", "household"),
+    ("air wick", "household"),
+    ("garbage bag", "household"),
+    ("cling film", "household"),
+    ("floor cleaner", "household"),
+    ("surface cleaner", "household"),
+    ("glass cleaner", "household"),
+    ("bathroom cleaner", "household"),
+    # ── Oils & Spices ────────────────────────────────────────────────────────
+    ("sunflower oil", "oils-spices"),
+    ("mustard oil", "oils-spices"),
+    ("olive oil", "oils-spices"),
+    ("refined oil", "oils-spices"),
+    ("saffola gold", "oils-spices"),
+    ("fortune sunflower", "oils-spices"),
+    ("dhara refined", "oils-spices"),
+    ("gemini sunflower", "oils-spices"),
+    ("amul pure ghee", "oils-spices"),
+    ("patanjali cow ghee", "oils-spices"),
+    ("aashirvaad svasti", "oils-spices"),
+    ("turmeric powder", "oils-spices"),
+    ("red chilli powder", "oils-spices"),
+    ("garam masala", "oils-spices"),
+    ("chole masala", "oils-spices"),
+    ("kitchen king", "oils-spices"),
+    ("rajma masala", "oils-spices"),
+    ("biryani masala", "oils-spices"),
+    ("pav bhaji masala", "oils-spices"),
+    ("black pepper powder", "oils-spices"),
+    ("cumin seeds", "oils-spices"),
+    ("coriander powder", "oils-spices"),
+    ("masala", "oils-spices"),
+    ("spice", "oils-spices"),
+    ("turmeric", "oils-spices"),
+    ("chilli powder", "oils-spices"),
+    ("pepper powder", "oils-spices"),
+    # ── Staples ──────────────────────────────────────────────────────────────
+    ("aashirvaad atta", "staples"),
+    ("pillsbury atta", "staples"),
+    ("pillsbury chakki", "staples"),
+    ("fortune chakki", "staples"),
+    ("patanjali atta", "staples"),
+    ("aashirvaad multigrain", "staples"),
+    ("whole wheat atta", "staples"),
+    ("chakki fresh atta", "staples"),
+    ("wheat atta", "staples"),
+    ("india gate basmati", "staples"),
+    ("daawat basmati", "staples"),
+    ("daawat super", "staples"),
+    ("kohinoor basmati", "staples"),
+    ("lal qilla basmati", "staples"),
+    ("sona masoori", "staples"),
+    ("basmati rice", "staples"),
+    ("tata sampann toor", "staples"),
+    ("tata sampann chana", "staples"),
+    ("tata sampann moong", "staples"),
+    ("tata sampann masoor", "staples"),
+    ("tata sampann rajma", "staples"),
+    ("tata sampann kabuli", "staples"),
+    ("toor dal", "staples"),
+    ("chana dal", "staples"),
+    ("moong dal", "staples"),
+    ("masoor dal", "staples"),
+    ("rajma", "staples"),
+    ("kabuli chana", "staples"),
+    ("rajdhani besan", "staples"),
+    ("mdh besan", "staples"),
+    ("besan", "staples"),
+    ("tata salt", "staples"),
+    ("catch salt", "staples"),
+    ("refined sugar", "staples"),
+    ("patanjali sugar", "staples"),
+    ("maggi ketchup", "staples"),
+    ("kissan ketchup", "staples"),
+    ("tomato ketchup", "staples"),
+    ("nature fresh maida", "staples"),
+    ("maida", "staples"),
+    ("saffola masala oats", "staples"),
+    ("quaker oats masala", "staples"),
+    ("atta", "staples"),
+    ("flour", "staples"),
+    ("rice", "staples"),
+    ("dal", "staples"),
+    ("lentil", "staples"),
+    ("salt", "staples"),
+    ("sugar", "staples"),
+    # ── Dairy & Breakfast ────────────────────────────────────────────────────
+    ("amul taaza", "dairy-breakfast"),
+    ("amul gold", "dairy-breakfast"),
+    ("mother dairy toned", "dairy-breakfast"),
+    ("mother dairy full cream", "dairy-breakfast"),
+    ("mother dairy curd", "dairy-breakfast"),
+    ("nandini milk", "dairy-breakfast"),
+    ("amul butter", "dairy-breakfast"),
+    ("amul paneer", "dairy-breakfast"),
+    ("amul cheese", "dairy-breakfast"),
+    ("amul mozzarella", "dairy-breakfast"),
+    ("amul cream", "dairy-breakfast"),
+    ("amul pure ghee", "dairy-breakfast"),
+    ("epigamia", "dairy-breakfast"),
+    ("country delight eggs", "dairy-breakfast"),
+    ("farm fresh eggs", "dairy-breakfast"),
+    ("nestle a+", "dairy-breakfast"),
+    ("kelloggs", "dairy-breakfast"),
+    ("quaker oats", "dairy-breakfast"),
+    ("saffola oats", "dairy-breakfast"),
+    ("horlicks", "dairy-breakfast"),
+    ("bournvita", "dairy-breakfast"),
+    ("nescafe", "dairy-breakfast"),
+    ("bru instant", "dairy-breakfast"),
+    ("tata tea", "dairy-breakfast"),
+    ("red label tea", "dairy-breakfast"),
+    ("dabur honey", "dairy-breakfast"),
+    ("patanjali honey", "dairy-breakfast"),
+    ("kissan jam", "dairy-breakfast"),
+    ("kissan mixed fruit", "dairy-breakfast"),
+    ("britannia bread", "dairy-breakfast"),
+    ("harvest gold bread", "dairy-breakfast"),
+    ("modern bread", "dairy-breakfast"),
+    ("milkmaid", "dairy-breakfast"),
+    ("condensed milk", "dairy-breakfast"),
+    ("toned milk", "dairy-breakfast"),
+    ("full cream milk", "dairy-breakfast"),
+    ("greek yogurt", "dairy-breakfast"),
+    ("greek yoghurt", "dairy-breakfast"),
+    ("milk", "dairy-breakfast"),
+    ("butter", "dairy-breakfast"),
+    ("paneer", "dairy-breakfast"),
+    ("curd", "dairy-breakfast"),
+    ("yogurt", "dairy-breakfast"),
+    ("yoghurt", "dairy-breakfast"),
+    ("cheese", "dairy-breakfast"),
+    ("ghee", "dairy-breakfast"),
+    ("cream", "dairy-breakfast"),
+    ("eggs", "dairy-breakfast"),
+    ("egg", "dairy-breakfast"),
+    ("honey", "dairy-breakfast"),
+    ("jam", "dairy-breakfast"),
+    ("bread", "dairy-breakfast"),
+    ("coffee", "dairy-breakfast"),
+    ("tea", "dairy-breakfast"),
+    ("oats", "dairy-breakfast"),
+    ("cornflakes", "dairy-breakfast"),
+    ("corn flakes", "dairy-breakfast"),
+    # ── Fruits & Vegetables ──────────────────────────────────────────────────
+    ("fresh onion", "fruits-vegetables"),
+    ("red tomato", "fruits-vegetables"),
+    ("banana robusta", "fruits-vegetables"),
+    ("baby spinach", "fruits-vegetables"),
+    ("shimla apple", "fruits-vegetables"),
+    ("fresh potato", "fruits-vegetables"),
+    ("fresh lemon", "fruits-vegetables"),
+    ("green capsicum", "fruits-vegetables"),
+    ("pomegranate", "fruits-vegetables"),
+    ("pineapple", "fruits-vegetables"),
+    ("sweet corn", "fruits-vegetables"),
+    ("green peas", "fruits-vegetables"),
+    ("bitter gourd", "fruits-vegetables"),
+    ("bottle gourd", "fruits-vegetables"),
+    ("coriander leaves", "fruits-vegetables"),
+    ("mint leaves", "fruits-vegetables"),
+    ("curry leaves", "fruits-vegetables"),
+    ("green chilli", "fruits-vegetables"),
+    ("onion", "fruits-vegetables"),
+    ("tomato", "fruits-vegetables"),
+    ("banana", "fruits-vegetables"),
+    ("spinach", "fruits-vegetables"),
+    ("apple", "fruits-vegetables"),
+    ("potato", "fruits-vegetables"),
+    ("lemon", "fruits-vegetables"),
+    ("capsicum", "fruits-vegetables"),
+    ("carrot", "fruits-vegetables"),
+    ("cucumber", "fruits-vegetables"),
+    ("cauliflower", "fruits-vegetables"),
+    ("broccoli", "fruits-vegetables"),
+    ("mango", "fruits-vegetables"),
+    ("watermelon", "fruits-vegetables"),
+    ("grapes", "fruits-vegetables"),
+    ("papaya", "fruits-vegetables"),
+    ("ginger", "fruits-vegetables"),
+    ("garlic", "fruits-vegetables"),
+    ("vegetable", "fruits-vegetables"),
+    ("fruit", "fruits-vegetables"),
+    # ── Snacks & Drinks (last resort for food items) ─────────────────────────
+    ("lays", "snacks-drinks"),
+    ("kurkure", "snacks-drinks"),
+    ("haldirams", "snacks-drinks"),
+    ("haldiram", "snacks-drinks"),
+    ("maggi noodles", "snacks-drinks"),
+    ("yippee noodles", "snacks-drinks"),
+    ("sunfeast yippee", "snacks-drinks"),
+    ("noodles", "snacks-drinks"),
+    ("coca cola", "snacks-drinks"),
+    ("pepsi", "snacks-drinks"),
+    ("sprite", "snacks-drinks"),
+    ("thums up", "snacks-drinks"),
+    ("tropicana", "snacks-drinks"),
+    ("real orange juice", "snacks-drinks"),
+    ("real activ", "snacks-drinks"),
+    ("red bull", "snacks-drinks"),
+    ("monster energy", "snacks-drinks"),
+    ("cadbury dairy milk", "snacks-drinks"),
+    ("cadbury", "snacks-drinks"),
+    ("oreo", "snacks-drinks"),
+    ("parle g", "snacks-drinks"),
+    ("parle", "snacks-drinks"),
+    ("britannia good day", "snacks-drinks"),
+    ("britannia marie", "snacks-drinks"),
+    ("paper boat", "snacks-drinks"),
+    ("maaza", "snacks-drinks"),
+    ("frooti", "snacks-drinks"),
+    ("minute maid", "snacks-drinks"),
+    ("bisleri", "snacks-drinks"),
+    ("kinley water", "snacks-drinks"),
+    ("doritos", "snacks-drinks"),
+    ("pringles", "snacks-drinks"),
+    ("kitkat", "snacks-drinks"),
+    ("kit kat", "snacks-drinks"),
+    ("5 star chocolate", "snacks-drinks"),
+    ("munch chocolate", "snacks-drinks"),
+    ("chocolate", "snacks-drinks"),
+    ("biscuit", "snacks-drinks"),
+    ("cookie", "snacks-drinks"),
+    ("chips", "snacks-drinks"),
+    ("juice", "snacks-drinks"),
+    ("cola", "snacks-drinks"),
+    ("energy drink", "snacks-drinks"),
+    ("snack", "snacks-drinks"),
+    ("drink", "snacks-drinks"),
+]
+
+
+def _detect_category(name: str, query: str = "", scraped_category: str = "") -> str:
+    """
+    Detect category slug from product name, query, and scraped category hint.
+    Priority: scraped_category (if valid) → keyword matching on name+query.
+    Falls back to 'staples' (not snacks-drinks) to avoid miscategorization.
+    """
+    # Valid category slugs in our DB
+    _VALID_CATS = {
+        "dairy-breakfast", "fruits-vegetables", "snacks-drinks", "staples",
+        "oils-spices", "household", "personal-care", "baby-care",
+        "chicken-meat", "frozen-ready", "pharma-wellness", "electronics-accessories",
+    }
+
+    # 1. Trust the scraped category if it's a valid slug
+    if scraped_category and scraped_category in _VALID_CATS:
+        return scraped_category
+
+    # 2. Keyword matching on combined name + query text
+    text = (name + " " + query).lower()
+    for keyword, cat in _CATEGORY_KEYWORDS:
+        if keyword in text:
+            return cat
+
+    # 3. Fallback — use staples instead of snacks-drinks to avoid miscategorization
+    return "staples"
+
+
+# Keep old name for backward compat
+QUERY_TO_CATEGORY = {}  # deprecated — use _detect_category() instead
 
 
 @router.post("/import-prices", status_code=200)
@@ -831,7 +1211,11 @@ async def import_prices(
             skipped += 1
             continue
 
-        cat_slug = QUERY_TO_CATEGORY.get(item.query, "")
+        cat_slug = _detect_category(
+            name=item.name,
+            query=item.query or "",
+            scraped_category=item.category or "",
+        )
         category = categories.get(cat_slug) or fallback_cat
 
         prod_slug = _slugify(name)[:255]
@@ -1004,7 +1388,11 @@ async def _do_load_scraped(db: AsyncSession):
         unit = (item.get("unit") or "")[:100]
         query = item.get("query", "")
 
-        cat_slug = QUERY_TO_CATEGORY.get(query, "")
+        cat_slug = _detect_category(
+            name=name,
+            query=query,
+            scraped_category=item.get("category", ""),
+        )
         category = categories.get(cat_slug) or fallback_cat
 
         prod_slug = _slugify(name)[:255]
@@ -1098,9 +1486,11 @@ async def mark_featured_products(
         update(Product).where(Product.is_featured == True).values(is_featured=False)
     )
 
-    # Pick top `limit` products that have the most platform prices
+    # Pick top `limit` products WITH images that have the most platform prices
     subq = (
         select(PlatformPrice.product_id, func.count(PlatformPrice.id).label("cnt"))
+        .join(Product, Product.id == PlatformPrice.product_id)
+        .where(Product.image_url.isnot(None), Product.image_url != "")
         .group_by(PlatformPrice.product_id)
         .order_by(func.count(PlatformPrice.id).desc())
         .limit(limit)
@@ -1121,6 +1511,86 @@ async def mark_featured_products(
     await cache_delete_pattern("products:*")
 
     return {"status": "ok", "featured": len(top_ids), "limit": limit}
+
+
+@router.post("/fix-all-categories", status_code=200)
+async def fix_all_categories(
+    db: AsyncSession = Depends(get_db),
+    _key=Depends(_require_seed_key),
+):
+    """
+    Re-categorize ALL products in the DB using the comprehensive _detect_category() logic.
+    Also:
+    - Removes products without images from is_featured
+    - Marks products with images + prices as is_featured (top 60)
+    - Clears Redis cache
+    Run this once after importing scraped data to fix wrong categories.
+    """
+    from sqlalchemy import func
+
+    # Load all categories
+    cat_res = await db.execute(select(Category))
+    categories = {c.slug: c for c in cat_res.scalars().all()}
+
+    # Load all products
+    prod_res = await db.execute(select(Product))
+    products = prod_res.scalars().all()
+
+    fixed = 0
+    no_image_unfeatured = 0
+
+    for product in products:
+        # Re-detect category from product name
+        new_cat_slug = _detect_category(name=product.name, query="", scraped_category="")
+        new_cat = categories.get(new_cat_slug)
+
+        changed = False
+        if new_cat and product.category_id != new_cat.id:
+            product.category_id = new_cat.id
+            changed = True
+
+        # Unfeature products without images
+        if not product.image_url and product.is_featured:
+            product.is_featured = False
+            no_image_unfeatured += 1
+            changed = True
+
+        if changed:
+            fixed += 1
+
+    await db.flush()
+
+    # Re-mark featured: top 60 products WITH images that have the most platform prices
+    await db.execute(
+        update(Product).where(Product.is_featured == True).values(is_featured=False)
+    )
+    subq = (
+        select(PlatformPrice.product_id, func.count(PlatformPrice.id).label("cnt"))
+        .join(Product, Product.id == PlatformPrice.product_id)
+        .where(Product.image_url.isnot(None), Product.image_url != "")
+        .group_by(PlatformPrice.product_id)
+        .order_by(func.count(PlatformPrice.id).desc())
+        .limit(60)
+        .subquery()
+    )
+    result = await db.execute(select(subq.c.product_id))
+    top_ids = [row[0] for row in result.fetchall()]
+    if top_ids:
+        await db.execute(
+            update(Product).where(Product.id.in_(top_ids)).values(is_featured=True)
+        )
+
+    await db.commit()
+    await cache_delete_pattern("featured:*")
+    await cache_delete_pattern("products:*")
+
+    return {
+        "status": "ok",
+        "products_recategorized": fixed,
+        "no_image_unfeatured": no_image_unfeatured,
+        "featured_marked": len(top_ids),
+        "total_products": len(products),
+    }
 
 
 @router.post("/fix-electronics", status_code=200)
