@@ -1540,12 +1540,13 @@ async def fix_all_categories(
     no_image_unfeatured = 0
 
     for product in products:
-        # Re-detect category from product name
+        # Re-detect category from product name — always update (force=True)
         new_cat_slug = _detect_category(name=product.name, query="", scraped_category="")
         new_cat = categories.get(new_cat_slug)
 
         changed = False
-        if new_cat and product.category_id != new_cat.id:
+        if new_cat:
+            # Always reassign — don't skip even if same, to fix stale assignments
             product.category_id = new_cat.id
             changed = True
 
@@ -1553,7 +1554,6 @@ async def fix_all_categories(
         if not product.image_url and product.is_featured:
             product.is_featured = False
             no_image_unfeatured += 1
-            changed = True
 
         if changed:
             fixed += 1
