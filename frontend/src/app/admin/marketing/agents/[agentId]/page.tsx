@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -126,8 +126,8 @@ const AGENTS: Record<string, {
 
 // ── Page component ─────────────────────────────────────────────────────────
 
-export default function AgentRunnerPage({ params }: { params: Promise<{ agentId: string }> }) {
-  const { agentId } = use(params);
+export default function AgentRunnerPage({ params }: { params: { agentId: string } }) {
+  const { agentId } = params;
   const router = useRouter();
   const agent = AGENTS[agentId];
 
