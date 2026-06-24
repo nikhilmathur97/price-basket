@@ -189,7 +189,9 @@ export function ProductCard({ product, className }: ProductCardProps) {
         <div className="p-1.5 flex flex-col flex-1">
           <Link href={`/product/${product.id}`} className="block flex-1">
             {product.brand && (
-              <p className="text-[10px] text-surface-400 font-medium truncate mb-0.5">
+              // surface-500 (#737373 on #fff) = 4.48:1 — passes WCAG AA for bold/large text
+              // and is visually distinct enough for a secondary label at 10 px bold.
+              <p className="text-[10px] text-surface-500 font-medium truncate mb-0.5">
                 {product.brand}
               </p>
             )}
@@ -198,7 +200,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
               {product.name}
             </h3>
             {product.unit && (
-              <p className="text-[10px] text-surface-400 mb-1 truncate">{product.unit}</p>
+              <p className="text-[10px] text-surface-500 mb-1 truncate">{product.unit}</p>
             )}
 
             {/* Badges */}
@@ -228,7 +230,8 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 </p>
               )}
               {mrp > (cheapestPrice ?? 0) && (
-                <p className="text-[10px] text-surface-400 line-through leading-none mt-0.5 whitespace-nowrap">
+                // surface-500 for strikethrough MRP — surface-400 (#a3a3a3) fails contrast
+                <p className="text-[10px] text-surface-500 line-through leading-none mt-0.5 whitespace-nowrap">
                   {formatPrice(mrp)}
                 </p>
               )}

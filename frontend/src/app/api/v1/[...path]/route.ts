@@ -41,6 +41,9 @@ const CACHEABLE_PATHS = [
 // Auth paths that may need extra time for Render cold-start warm-up.
 const AUTH_PATHS = /^auth\/(login|register|refresh)/;
 
+// Streaming SSE paths — skip buffering, use long timeout, pipe body directly.
+const STREAMING_PATHS = /^marketing\/agents\/run/;
+
 function isCacheable(method: string, path: string): boolean {
   if (method !== "GET") return false;
   return CACHEABLE_PATHS.some((re) => re.test(path));
@@ -70,9 +73,11 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   const url = `${BACKEND}/api/v1/${pathStr}${req.nextUrl.search}`;
 
   // Auth endpoints: allow up to 2 retries with 25 s each.
+  // Streaming (SSE) endpoints: 180 s timeout, no retry.
   // All other endpoints: 1 attempt with 20 s timeout.
   const isAuth = AUTH_PATHS.test(pathStr);
-  const timeoutMs = isAuth ? 25_000 : 20_000;
+  const isStreaming = STREAMING_PATHS.test(pathStr);
+  const timeoutMs = isStreaming ? 180_000 : isAuth ? 25_000 : 20_000;
   const maxAttempts = isAuth ? 2 : 1;
 
   // Forward request headers but strip hop-by-hop headers
@@ -100,6 +105,24 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
         },
         timeoutMs
       );
+
+      // SSE streaming: pipe body directly without buffering so the client sees
+      // tokens as they arrive. AbortController timeout only fires if the
+      // initial connection stalls — once streaming starts it runs to completion.
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("text/event-stream")) {
+        const resHeaders = new Headers();
+        res.headers.forEach((value, key) => {
+          const lower = key.toLowerCase();
+          if (!["transfer-encoding", "connection", "content-encoding", "content-length", "te", "trailer", "upgrade"].includes(lower)) {
+            resHeaders.set(key, value);
+          }
+        });
+        resHeaders.set("cache-control", "no-cache, no-store");
+        resHeaders.set("connection", "keep-alive");
+        resHeaders.set("x-accel-buffering", "no");
+        return new NextResponse(res.body, { status: res.status, headers: resHeaders });
+      }
 
       // 204/304 are null-body statuses per the Fetch spec — passing any body
       // (even an empty ArrayBuffer) to new Response() with these statuses throws.

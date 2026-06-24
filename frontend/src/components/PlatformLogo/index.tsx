@@ -50,10 +50,13 @@ export function PlatformLogo({
     if (WIDE_LOGOS.has(slug)) {
       // Wide wordmark logos: render at full height, let width be natural
       // Parent container must have overflow:hidden or min-width to fit
+      // alt="" because the platform name is always rendered as adjacent visible
+      // text — a non-empty alt would be redundant and flagged by Lighthouse.
       return (
         <Image
           src={src}
-          alt={name}
+          alt=""
+          role="presentation"
           width={size * 4}
           height={size}
           className={className}
@@ -64,10 +67,12 @@ export function PlatformLogo({
     }
 
     // Square logos: render at size × size
+    // Same reasoning — alt="" when name is shown in adjacent text.
     return (
       <Image
         src={src}
-        alt={name}
+        alt=""
+        role="presentation"
         width={size}
         height={size}
         className={className}

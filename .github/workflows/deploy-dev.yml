@@ -118,28 +118,29 @@ jobs:
             | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('rootDirectory:', j.rootDirectory ?? 'null', '| nodeVersion:', j.nodeVersion ?? 'default');" \
             || echo "⚠ project patch failed — continuing anyway"
 
-          # 2. Upsert API_URL env var for all environments (preview + production)
-          #    First delete existing, then create fresh to avoid duplicate errors
-          for ENV_TARGET in preview production; do
-            # Delete old value (ignore errors if not found)
-            EXISTING_ID=$(curl -sf \
-              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const envs=JSON.parse(d).envs||[]; const e=envs.find(x=>x.key==='API_URL'&&x.target&&x.target.includes('${ENV_TARGET}')); console.log(e?e.id:'');" 2>/dev/null) || true
-            if [ -n "$EXISTING_ID" ]; then
-              curl -sf -X DELETE \
-                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${EXISTING_ID}?teamId=${VERCEL_ORG_ID}" \
-                -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
-              echo "Deleted old API_URL for $ENV_TARGET (id=$EXISTING_ID)"
-            fi
-            # Create new value
-            curl -sf -X POST \
-              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"key\":\"API_URL\",\"value\":\"http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
-              | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('Set API_URL for ${ENV_TARGET}:', j.key||JSON.stringify(j));" \
-              || echo "⚠ API_URL set for ${ENV_TARGET} failed — continuing"
+          # 2. Upsert API_URL + NEXT_PUBLIC_API_URL for all environments
+          #    NEXT_PUBLIC_API_URL is baked into the client bundle at build time
+          #    and used by useAgentStream to call the backend directly for SSE.
+          for ENV_KEY in API_URL NEXT_PUBLIC_API_URL; do
+            for ENV_TARGET in preview production; do
+              EXISTING_ID=$(curl -sf \
+                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+                -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+                | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const envs=JSON.parse(d).envs||[]; const e=envs.find(x=>x.key==='${ENV_KEY}'&&x.target&&x.target.includes('${ENV_TARGET}')); console.log(e?e.id:'');" 2>/dev/null) || true
+              if [ -n "$EXISTING_ID" ]; then
+                curl -sf -X DELETE \
+                  "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${EXISTING_ID}?teamId=${VERCEL_ORG_ID}" \
+                  -H "Authorization: Bearer ${VERCEL_TOKEN}" > /dev/null || true
+                echo "Deleted old ${ENV_KEY} for $ENV_TARGET (id=$EXISTING_ID)"
+              fi
+              curl -sf -X POST \
+                "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
+                -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"key\":\"${ENV_KEY}\",\"value\":\"https://api.pricebasket.in\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
+                | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('Set ${ENV_KEY} for ${ENV_TARGET}:', j.key||JSON.stringify(j));" \
+                || echo "⚠ ${ENV_KEY} set for ${ENV_TARGET} failed — continuing"
+            done
           done
 
       - name: Pull Vercel project settings (preview)

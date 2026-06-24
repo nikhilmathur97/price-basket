@@ -5,6 +5,13 @@ from app.models.product import Category, Product
 from app.models.price import PlatformPrice, PriceHistory, PriceAlert
 from app.models.cart import Cart, CartItem, Wishlist, WishlistItem, RefreshToken
 from app.models.analytics import UserEvent
+from app.models.marketing import (
+    MarketingContent,
+    MarketingCampaign,
+    MarketingAnalytics,
+    MarketingGoal,
+    MarketingSchedule,
+)
 
 __all__ = [
     "User",
@@ -20,4 +27,9 @@ __all__ = [
     "WishlistItem",
     "RefreshToken",
     "UserEvent",
+    "MarketingContent",
+    "MarketingCampaign",
+    "MarketingAnalytics",
+    "MarketingGoal",
+    "MarketingSchedule",
 ]

@@ -180,6 +180,25 @@ export const api = {
   getGrowthSocial: () => apiClient.get("/growth/social"),
   getGrowthAds: () => apiClient.get("/growth/ads"),
 
+  // Marketing agents system
+  getMarketingDashboard: () => apiClient.get("/marketing/dashboard/stats"),
+  getMarketingContent: (params?: Record<string, string | number>) => apiClient.get("/marketing/content", { params }),
+  getMarketingContentById: (id: string) => apiClient.get(`/marketing/content/${id}`),
+  updateMarketingContent: (id: string, data: Record<string, unknown>) => apiClient.put(`/marketing/content/${id}`, data),
+  deleteMarketingContent: (id: string) => apiClient.delete(`/marketing/content/${id}`),
+  getMarketingCampaigns: () => apiClient.get("/marketing/campaigns"),
+  createMarketingCampaign: (data: Record<string, unknown>) => apiClient.post("/marketing/campaigns", data),
+  logMarketingAnalytics: (data: Record<string, unknown>) => apiClient.post("/marketing/analytics", data),
+  getMarketingAnalyticsSummary: (days = 30) => apiClient.get(`/marketing/analytics/summary?days=${days}`),
+  getMarketingGoals: (month?: string) => apiClient.get(`/marketing/goals${month ? `?month=${month}` : ""}`),
+  setMarketingGoal: (data: Record<string, unknown>) => apiClient.post("/marketing/goals", data),
+  updateMarketingGoal: (id: string, currentValue: number) => apiClient.put(`/marketing/goals/${id}`, { current_value: currentValue }),
+  getScheduleToday: () => apiClient.get("/marketing/schedule/today"),
+  getScheduleWeek: () => apiClient.get("/marketing/schedule/week"),
+  createScheduleEntry: (data: Record<string, unknown>) => apiClient.post("/marketing/schedule", data),
+  updateScheduleEntry: (id: string, data: Record<string, unknown>) => apiClient.put(`/marketing/schedule/${id}`, data),
+  generateUTM: (data: Record<string, unknown>) => apiClient.post("/marketing/utm", data),
+
   // Scrape (admin)
   getScrapeStatus: () => apiClient.get("/scrape/status"),
   triggerBulkScrape: (data: { queries: string[]; platforms?: string[]; save_to_db?: boolean }) =>

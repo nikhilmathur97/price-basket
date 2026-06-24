@@ -120,6 +120,21 @@
       "Effect": "Allow",
       "Action": ["sts:GetCallerIdentity"],
       "Resource": "*"
+    },
+    {
+      "Sid": "SES",
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:GetEmailIdentity",
+        "ses:CreateEmailIdentity",
+        "ses:DeleteEmailIdentity",
+        "ses:ListEmailIdentities",
+        "ses:GetAccount",
+        "ses:PutAccountDetails"
+      ],
+      "Resource": "*"
     }
   ]
 }

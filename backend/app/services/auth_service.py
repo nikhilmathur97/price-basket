@@ -88,60 +88,153 @@ def decode_reset_token(token: str, user: "User") -> bool:
     return payload.get("ph") == ph
 
 
+def _build_reset_email_html(reset_url: str) -> str:
+    return f"""
+    <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:480px">
+      <h2 style="color:#0C831F">Reset your password</h2>
+      <p>We received a request to reset your PriceBasket password.</p>
+      <p>Click the button below. This link expires in <strong>1 hour</strong>.</p>
+      <p style="margin:24px 0">
+        <a href="{reset_url}"
+           style="background:#0C831F;color:white;padding:12px 24px;
+                  text-decoration:none;border-radius:8px;font-weight:bold">
+          Reset Password
+        </a>
+      </p>
+      <p style="color:#666;font-size:13px">
+        If you didn't request this, ignore this email — your password won't change.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+      <p style="color:#999;font-size:12px">PriceBasket · pricebasket.in</p>
+    </body></html>
+    """
+
+
 async def send_reset_email(to_email: str, reset_token: str) -> None:
-    import smtplib
+    """
+    Send a password-reset email.
+
+    Priority:
+      1. Resend HTTP API — if RESEND_API_KEY is set (no IP restrictions, recommended).
+      2. SMTP  — if SMTP_USER + SMTP_PASSWORD are set.
+      3. AWS SES (boto3) — if AWS_SES_FROM_EMAIL is set (IAM role auth on EC2/ECS).
+      4. Dev fallback — logs the reset URL so local development still works.
+    """
     import asyncio
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
     import structlog
 
     log = structlog.get_logger(__name__)
     reset_url = f"{settings.SITE_URL}/auth/reset-password?token={reset_token}"
+    subject = "Reset your PriceBasket password"
+    html_body = _build_reset_email_html(reset_url)
+    from_addr = settings.SMTP_FROM or f"PriceBasket <noreply@{settings.SITE_URL.split('//')[-1]}>"
 
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        log.warning("smtp_not_configured_reset_link", url=reset_url)
-        return
+    # ── 1. Resend HTTP API ────────────────────────────────────────────────────
+    # No IP restrictions, no sandbox, works from any server immediately.
+    # Set RESEND_API_KEY=re_xxxx in .env to activate.
+    if settings.RESEND_API_KEY:
+        import httpx
 
-    def _send() -> None:
+        async def _send_resend() -> None:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": from_addr,
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_body,
+                    },
+                )
+                if resp.status_code not in (200, 201):
+                    raise RuntimeError(f"Resend API error {resp.status_code}: {resp.text}")
+
+        try:
+            await _send_resend()
+            log.info("reset_email_sent_resend", to=to_email)
+            return
+        except Exception as exc:
+            log.error("reset_email_resend_failed", to=to_email, error=str(exc))
+            # Fall through to SMTP
+
+    # ── 2. SMTP ───────────────────────────────────────────────────────────────
+    if settings.SMTP_USER and settings.SMTP_PASSWORD:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
         from email.utils import parseaddr
-        smtp_from = settings.SMTP_FROM or settings.SMTP_USER
-        # Extract bare address for envelope sender (DMARC SPF alignment)
-        envelope_from = parseaddr(smtp_from)[1] or settings.SMTP_USER
 
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Reset your PriceBasket password"
-        msg["From"] = smtp_from
-        msg["To"] = to_email
-        body = f"""
-        <html><body style="font-family:Arial,sans-serif;padding:20px;max-width:480px">
-          <h2 style="color:#0C831F">Reset your password</h2>
-          <p>We received a request to reset your PriceBasket password.</p>
-          <p>Click the button below. This link expires in <strong>1 hour</strong>.</p>
-          <p style="margin:24px 0">
-            <a href="{reset_url}"
-               style="background:#0C831F;color:white;padding:12px 24px;
-                      text-decoration:none;border-radius:8px;font-weight:bold">
-              Reset Password
-            </a>
-          </p>
-          <p style="color:#666;font-size:13px">
-            If you didn't request this, ignore this email — your password won't change.
-          </p>
-          <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
-          <p style="color:#999;font-size:12px">PriceBasket · pricebasket.in</p>
-        </body></html>
-        """
-        msg.attach(MIMEText(body, "html"))
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(envelope_from, to_email, msg.as_string())
+        def _send_smtp() -> None:
+            smtp_from = settings.SMTP_FROM or settings.SMTP_USER
+            envelope_from = parseaddr(smtp_from)[1] or settings.SMTP_USER
 
-    try:
-        await asyncio.to_thread(_send)
-        log.info("reset_email_sent", to=to_email)
-    except Exception as exc:
-        log.error("reset_email_failed", to=to_email, error=str(exc))
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = smtp_from
+            msg["To"] = to_email
+            msg.attach(MIMEText(html_body, "html"))
+
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.starttls()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.sendmail(envelope_from, to_email, msg.as_string())
+
+        try:
+            await asyncio.to_thread(_send_smtp)
+            log.info("reset_email_sent_smtp", to=to_email)
+            return
+        except Exception as exc:
+            log.error("reset_email_smtp_failed", to=to_email, error=str(exc))
+            # Fall through to SES
+
+    # ── 3. AWS SES ────────────────────────────────────────────────────────────
+    # boto3 picks up IAM instance-profile credentials automatically on EC2/ECS.
+    ses_from = settings.AWS_SES_FROM_EMAIL or settings.SMTP_FROM
+    if ses_from:
+        import boto3
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        def _send_ses() -> None:
+            kwargs: dict = {"region_name": settings.AWS_REGION}
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+
+            client = boto3.client("ses", **kwargs)
+            client.send_email(
+                Source=ses_from,
+                Destination={"ToAddresses": [to_email]},
+                Message={
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                    },
+                },
+            )
+
+        try:
+            await asyncio.to_thread(_send_ses)
+            log.info("reset_email_sent_ses", to=to_email)
+            return
+        except (BotoCoreError, ClientError) as exc:
+            log.error("reset_email_ses_failed", to=to_email, error=str(exc))
+        except Exception as exc:
+            log.error("reset_email_ses_unexpected", to=to_email, error=str(exc))
+
+    # ── 4. Dev fallback ───────────────────────────────────────────────────────
+    log.warning(
+        "reset_email_no_transport_configured__dev_fallback",
+        to=to_email,
+        reset_url=reset_url,
+        hint=(
+            "Set RESEND_API_KEY for Resend, SMTP_USER+SMTP_PASSWORD for SMTP, or "
+            "AWS_SES_FROM_EMAIL+AWS credentials for SES."
+        ),
+    )
 
 
 # ── Database operations ───────────────────────────────────────────────────────

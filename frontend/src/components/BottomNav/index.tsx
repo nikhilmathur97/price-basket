@@ -55,6 +55,9 @@ export function BottomNav() {
                  shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
+      {/* h-[58px] gives each tab a 58 × (screen-width/4) tap target.
+          On a 360 px screen that is 90 × 58 px — well above the 44 × 44 px
+          WCAG minimum. The inner content is centred so the full cell is tappable. */}
       <div className="flex h-[58px]">
         {NAV_ITEMS.map(({ href, icon: Icon, label, isCart, isProfile }) => {
           const isActive =
@@ -85,10 +88,13 @@ export function BottomNav() {
             <Wrapper
               key={href}
               {...(wrapperProps as any)}
+              aria-label={label}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-[3px]",
+                // min-w-[44px] ensures the touch target is never narrower than 44 px
+                // even on very small screens (WCAG 2.5.5 / Lighthouse touch-target audit).
+                "flex-1 min-w-[44px] flex flex-col items-center justify-center gap-[3px]",
                 "relative transition-colors active:bg-surface-50 select-none",
-                isActive ? "text-brand-600" : "text-surface-400"
+                isActive ? "text-brand-600" : "text-surface-500"
               )}
             >
               {/* Active indicator dot */}
