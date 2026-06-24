@@ -449,15 +449,16 @@ async def run_agent(
         accumulated = []
         try:
             client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            async for chunk in client.models.generate_content_stream(
-                model="gemini-2.0-flash",
+            stream = await client.aio.models.generate_content_stream(
+                model="gemini-flash-lite-latest",
                 contents=user_prompt,
                 config=genai_types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     max_output_tokens=4000,
                     temperature=0.9,
                 ),
-            ):
+            )
+            async for chunk in stream:
                 if chunk.text:
                     accumulated.append(chunk.text)
                     yield f"data: {json.dumps({'text': chunk.text})}\n\n"
