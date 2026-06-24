@@ -137,7 +137,7 @@ jobs:
               "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"key\":\"API_URL\",\"value\":\"http://pricebasket-alb-72968209.ap-south-1.elb.amazonaws.com\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
+              -d "{\"key\":\"API_URL\",\"value\":\"https://api.pricebasket.in\",\"type\":\"plain\",\"target\":[\"${ENV_TARGET}\"]}" \
               | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8'); const j=JSON.parse(d); console.log('Set API_URL for ${ENV_TARGET}:', j.key||JSON.stringify(j));" \
               || echo "⚠ API_URL set for ${ENV_TARGET} failed — continuing"
           done
