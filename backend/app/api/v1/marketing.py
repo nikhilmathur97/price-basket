@@ -426,17 +426,17 @@ async def run_agent(
     body: AgentRunRequest,
     admin=Depends(require_admin),
 ):
-    """Stream a Claude marketing agent response via SSE. Auto-saves to DB on completion."""
+    """Stream a Gemini marketing agent response via SSE. Auto-saves to DB on completion."""
     if body.agent_id not in VALID_AGENT_IDS:
         raise HTTPException(status_code=400, detail=f"Unknown agent_id '{body.agent_id}'. Valid: {sorted(VALID_AGENT_IDS)}")
 
-    if not settings.ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not configured. Add it in Settings → API Configuration.")
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the backend.")
 
     try:
-        from anthropic import AsyncAnthropic
+        import google.generativeai as genai
     except ImportError:
-        raise HTTPException(status_code=503, detail="Anthropic SDK not installed. Run: pip install anthropic")
+        raise HTTPException(status_code=503, detail="google-generativeai SDK not installed. Run: pip install google-generativeai")
 
     system_prompt = _build_system_prompt(body.agent_id)
     if body.custom_context:
@@ -446,17 +446,24 @@ async def run_agent(
 
     async def event_stream():
         accumulated = []
-        client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         try:
-            async with client.messages.stream(
-                model="claude-sonnet-4-6",
-                max_tokens=4000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            ) as stream:
-                async for text in stream.text_stream:
-                    accumulated.append(text)
-                    yield f"data: {json.dumps({'text': text})}\n\n"
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel(
+                model_name="gemini-2.0-flash",
+                system_instruction=system_prompt,
+            )
+            response = await model.generate_content_async(
+                user_prompt,
+                stream=True,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=4000,
+                    temperature=0.9,
+                ),
+            )
+            async for chunk in response:
+                if chunk.text:
+                    accumulated.append(chunk.text)
+                    yield f"data: {json.dumps({'text': chunk.text})}\n\n"
 
             # Auto-save to DB after stream completes
             full_content = "".join(accumulated)

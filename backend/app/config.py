@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS_JSON: str = ""
 
     # ── AI / Marketing agents ─────────────────────────────────────────────────
-    ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
 
     # ── Marketing / SEO automation ────────────────────────────────────────────
     # Public site URL (used to build canonical links for content + social posts).
