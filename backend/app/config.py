@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     S3_BUCKET_NAME: str = "pricebasket-assets"
+    # AWS SES — used as fallback email sender when SMTP is not configured.
+    # Set AWS_SES_FROM_EMAIL to a verified SES identity (e.g. noreply@pricebasket.in).
+    # Leave empty to disable SES (emails will only log the reset URL in dev mode).
+    AWS_SES_FROM_EMAIL: str = ""
 
     # ── Scraping ──────────────────────────────────────────────────────────────
     SCRAPER_CONCURRENCY: int = 5
@@ -101,12 +105,18 @@ class Settings(BaseSettings):
     # For Gmail leave empty — SMTP_USER doubles as the From address.
     # For AWS SES set this because SMTP_USER is an IAM key ID, not an email.
     SMTP_FROM: str = ""
+    # Resend.com HTTP API key (re_xxxx). No IP restrictions — preferred over SMTP.
+    # Get one free at https://resend.com/api-keys (100 emails/day free tier).
+    RESEND_API_KEY: str = ""
     FCM_SERVER_KEY: str = ""  # legacy HTTP API — deprecated by Google (June 2024)
     # Firebase Admin SDK credentials for FCM HTTP v1. Either an absolute path to
     # a service-account JSON file OR the raw JSON string. Generate in Firebase
     # Console → Project Settings → Service Accounts → "Generate new private key".
     # Empty = push notifications disabled (service runs in stub mode).
     FIREBASE_CREDENTIALS_JSON: str = ""
+
+    # ── AI / Marketing agents ─────────────────────────────────────────────────
+    ANTHROPIC_API_KEY: str = ""
 
     # ── Marketing / SEO automation ────────────────────────────────────────────
     # Public site URL (used to build canonical links for content + social posts).
