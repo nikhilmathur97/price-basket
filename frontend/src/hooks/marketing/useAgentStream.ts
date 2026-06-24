@@ -30,7 +30,10 @@ export function useAgentStream() {
       abortRef.current = new AbortController();
 
       try {
-        const response = await fetch("/api/v1/marketing/agents/run", {
+        // Call backend directly for SSE streaming — bypasses Vercel proxy
+        // which can't reliably hold open long-lived SSE connections.
+        const streamBase = process.env.NEXT_PUBLIC_API_URL || "https://api.pricebasket.in";
+        const response = await fetch(`${streamBase}/api/v1/marketing/agents/run`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
