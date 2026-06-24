@@ -203,6 +203,8 @@ async def featured_products(
             headers={"X-Cache": "HIT", "Cache-Control": "public, max-age=60, s-maxage=60"},
         )
 
+    # Fetch more than needed so we can interleave categories for balanced home page
+    fetch_limit = min(limit * 6, 600)
     result = await db.execute(
         select(Product)
         .where(Product.is_active == True, Product.is_featured == True)  # noqa: E712
@@ -210,10 +212,30 @@ async def featured_products(
             selectinload(Product.category),
             selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
         )
-        .order_by(Product.created_at.desc())
-        .limit(limit)
+        .order_by(func.random())
+        .limit(fetch_limit)
     )
-    products = result.scalars().all()
+    all_featured = result.scalars().all()
+
+    # Interleave by category so every category gets representation
+    if all_featured:
+        from collections import defaultdict
+        by_cat: dict = defaultdict(list)
+        for p in all_featured:
+            cat_slug = p.category.slug if p.category else "other"
+            by_cat[cat_slug].append(p)
+        # Round-robin across categories
+        interleaved: list = []
+        cat_lists = list(by_cat.values())
+        i = 0
+        while len(interleaved) < limit and any(cat_lists):
+            idx = i % len(cat_lists)
+            if cat_lists[idx]:
+                interleaved.append(cat_lists[idx].pop(0))
+            i += 1
+        products = interleaved[:limit]
+    else:
+        products = []
 
     # Fall back to any active products when none are marked featured
     if not products:
@@ -224,7 +246,7 @@ async def featured_products(
                 selectinload(Product.category),
                 selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
             )
-            .order_by(Product.created_at.desc())
+            .order_by(func.random())
             .limit(limit)
         )
         products = result.scalars().all()
