@@ -434,9 +434,10 @@ async def run_agent(
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the backend.")
 
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types as genai_types
     except ImportError:
-        raise HTTPException(status_code=503, detail="google-generativeai SDK not installed. Run: pip install google-generativeai")
+        raise HTTPException(status_code=503, detail="google-genai SDK not installed. Run: pip install google-genai")
 
     system_prompt = _build_system_prompt(body.agent_id)
     if body.custom_context:
@@ -447,20 +448,16 @@ async def run_agent(
     async def event_stream():
         accumulated = []
         try:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=system_prompt,
-            )
-            response = await model.generate_content_async(
-                user_prompt,
-                stream=True,
-                generation_config=genai.types.GenerationConfig(
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            async for chunk in client.models.generate_content_stream(
+                model="gemini-2.0-flash",
+                contents=user_prompt,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system_prompt,
                     max_output_tokens=4000,
                     temperature=0.9,
                 ),
-            )
-            async for chunk in response:
+            ):
                 if chunk.text:
                     accumulated.append(chunk.text)
                     yield f"data: {json.dumps({'text': chunk.text})}\n\n"
