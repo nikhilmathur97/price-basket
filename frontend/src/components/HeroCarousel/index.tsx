@@ -19,21 +19,9 @@ type Slide = {
   chips: Chip[];
   image?: string;
   bigEmoji?: string;
-  posterImage?: string;
 };
 
 const SLIDES: Slide[] = [
-  {
-    id: "poster-1",
-    bg: "#ffffff",
-    ctaColor: "#FC5A01",
-    tag: "",
-    title: "",
-    subtitle: "",
-    cta: { label: "", href: "/search" },
-    chips: [],
-    posterImage: "/poster-slide-1.jpg",
-  },
   {
     id: "hero",
     bg: "#FC5A01",
@@ -165,7 +153,7 @@ export function HeroCarousel() {
     <div className="px-3 pt-2 pb-2">
       <div className="max-w-screen-xl mx-auto">
         <div
-          className="relative overflow-hidden rounded-3xl shadow-lg h-[185px] sm:h-[230px] md:h-[265px] lg:h-[305px] xl:h-[345px]"
+          className="relative overflow-hidden rounded-3xl shadow-lg h-[210px] sm:h-[235px] md:h-[260px] lg:h-[280px]"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           onTouchStart={onTouchStart}
@@ -183,36 +171,11 @@ export function HeroCarousel() {
               animate="center"
               exit="exit"
               transition={{ type: "tween", ease: "easeInOut", duration: 0.38 }}
-              className={`absolute inset-0 flex items-center gap-3 ${slide.posterImage ? "" : "px-5 py-4 md:px-8 md:py-5"}`}
-              // Use will-change:transform so the browser promotes this layer to GPU
-              // and avoids forced reflows when reading offsetWidth during animation.
-              style={
-                slide.posterImage
-                  ? { backgroundColor: slide.bg, willChange: "transform" }
-                  : { background: slide.bg, willChange: "transform" }
-              }
+              className="absolute inset-0 flex items-center gap-3 px-5 py-4 md:px-8 md:py-5"
+              style={{ background: slide.bg, willChange: "transform" }}
             >
-              {/* Poster slide — image rendered via Next.js <Image> (not CSS background-image)
-                  so it participates in the image optimisation pipeline and avoids the
-                  forced-reflow pattern of reading offsetWidth after a background change. */}
-              {slide.posterImage && (
-                <>
-                  <Image
-                    src={slide.posterImage}
-                    alt="Promotional offer"
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 90vw, 1280px"
-                    className="object-cover object-[center_30%]"
-                    priority={current === 0}
-                    loading={current === 0 ? "eager" : "lazy"}
-                  />
-                  <Link href={slide.cta.href} className="absolute inset-0 z-10" aria-label="View deals" />
-                </>
-              )}
+              <>
 
-              {/* Text slides only */}
-              {!slide.posterImage && (
-                <>
                   <div className="absolute -top-12 -right-12 w-44 h-44 bg-white/5 rounded-full pointer-events-none" />
                   <div className="absolute -bottom-10 -left-8 w-36 h-36 bg-white/5 rounded-full pointer-events-none" />
                   <div className="absolute top-0 right-1/3 w-24 h-24 bg-white/[0.03] rounded-full pointer-events-none" />
@@ -290,8 +253,7 @@ export function HeroCarousel() {
                       />
                     </div>
                   )}
-                </>
-              )}
+              </>
             </motion.div>
           </AnimatePresence>
 
