@@ -11,7 +11,7 @@ import json
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
 from fastapi.responses import RedirectResponse, Response as FastAPIResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -276,7 +276,16 @@ async def search_products(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    # X-Session-ID header for guest tracking — optional, never blocks the request
+    x_session_id: Optional[str] = Header(default=None, alias="X-Session-ID"),
 ):
+    # Reject explicitly empty query strings (e.g. ?q=) — callers must omit the
+    # param entirely or provide at least one character.
+    if q is not None and q.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Search query cannot be empty. Provide at least one character or omit the 'q' parameter.",
+        )
     # ── Cache key: hash all query params so identical searches are instant ────
     cache_key = "search:v1:" + hashlib.md5(
         f"{q}|{category_slug}|{platform_slug}|{min_price}|{max_price}|{sort}|{page}|{page_size}".encode()

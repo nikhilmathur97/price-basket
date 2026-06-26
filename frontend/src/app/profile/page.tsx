@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import toast from "react-hot-toast";
 import { Camera, Mail, Phone, MapPin, ShieldCheck, Calendar, Save } from "lucide-react";
 
@@ -14,9 +15,13 @@ export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { isAuthenticated, hasHydrated, isValidatingSession, user: authUser, setUser } = useAuthStore();
 
+  // useRequireAuth handles the redirect to /auth/login?next=/profile when the
+  // user is not authenticated. The inline useEffect below is kept as a fallback.
+  const { isReady } = useRequireAuth();
+
   useEffect(() => {
     if (hasHydrated && !isValidatingSession && !isAuthenticated) {
-      router.replace("/auth/login");
+      router.replace("/auth/login?next=/profile");
     }
   }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
@@ -59,7 +64,7 @@ export default function ProfilePage() {
   }, [user]);
 
   // Wait for hydration + session validation before deciding to redirect.
-  if (!hasHydrated || isValidatingSession || !isAuthenticated || !authUser) {
+  if (!isReady || !hasHydrated || isValidatingSession || !isAuthenticated || !authUser) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <div className="skeleton h-32 rounded-2xl" />

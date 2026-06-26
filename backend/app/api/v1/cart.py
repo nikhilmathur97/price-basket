@@ -6,13 +6,15 @@ Cart API
 - PATCH  /cart/items/{id} — update quantity / platform
 - DELETE /cart/items/{id} — remove item
 - DELETE /cart/           — clear cart
-- GET    /cart/optimize   — optimization strategies
+- GET    /cart/optimize   — optimization strategies (session-based)
+- POST   /cart/optimize   — optimization strategies (stateless, guest-friendly)
 - POST   /cart/checkout   — generate checkout deep-links per platform
 """
 import uuid
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -32,6 +34,62 @@ from app.services.cart_optimizer import (
 )
 
 router = APIRouter()
+
+
+# ── Request / Response models for stateless POST /optimize ───────────────────
+
+class OptimizeCartItemIn(BaseModel):
+    product_id: uuid.UUID
+    quantity: int = 1
+
+
+class OptimizeCartRequest(BaseModel):
+    items: List[OptimizeCartItemIn]
+
+
+class OptimizePlatformItem(BaseModel):
+    product_id: str
+    product_name: str
+    quantity: int
+    unit_price: float
+    line_total: float
+    platform_product_url: Optional[str] = None
+
+
+class OptimizePlatformOut(BaseModel):
+    platform_slug: str
+    platform_name: str
+    platform_color: str
+    items: List[OptimizePlatformItem]
+    subtotal: float
+    delivery_fee: float
+    total: float
+    platform_url: str
+    item_count: int
+
+
+class OptimizeCartResponse(BaseModel):
+    original_total: float
+    optimized_total: float
+    savings: float
+    savings_percent: float
+    recommendation: str          # "split" | "single"
+    platforms: List[OptimizePlatformOut]
+    message: str
+
+
+# ── Platform home URLs ────────────────────────────────────────────────────────
+_PLATFORM_HOME: dict[str, str] = {
+    "blinkit":   "https://blinkit.com",
+    "zepto":     "https://www.zeptonow.com",
+    "instamart": "https://www.swiggy.com/instamart",
+    "bigbasket": "https://www.bigbasket.com",
+    "flipkart":  "https://www.flipkart.com",
+    "amazon":    "https://www.amazon.in",
+    "jiomart":   "https://www.jiomart.com",
+    "nykaa":     "https://www.nykaa.com",
+    "myntra":    "https://www.myntra.com",
+}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -247,7 +305,7 @@ async def optimize_cart(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Return platform cost breakdown and optimization suggestions."""
+    """Return platform cost breakdown and optimization suggestions (session-based)."""
     session_id = request.headers.get("X-Session-ID")
     cart = await _get_or_create_cart(db, current_user, session_id)
     cart = await _load_cart(db, cart.id)
@@ -294,3 +352,150 @@ async def optimize_cart(
     optimizer = CartOptimizer()
     result = optimizer.optimize(item_info_list)
     return result
+
+
+@router.post("/optimize", response_model=OptimizeCartResponse)
+async def optimize_cart_stateless(
+    body: OptimizeCartRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Stateless cart optimization — no auth required, works for guests.
+    Accepts a list of {product_id, quantity} and returns the cheapest split
+    recommendation with per-platform totals and deep-link URLs.
+    """
+    if not body.items:
+        raise HTTPException(status_code=400, detail="items must not be empty")
+
+    product_ids = [item.product_id for item in body.items]
+    qty_map: dict[uuid.UUID, int] = {item.product_id: item.quantity for item in body.items}
+
+    # Load products
+    product_result = await db.execute(
+        select(Product).where(Product.id.in_(product_ids))
+    )
+    products = {p.id: p for p in product_result.scalars().all()}
+
+    # Load all platform prices for these products
+    price_result = await db.execute(
+        select(PlatformPrice)
+        .where(
+            PlatformPrice.product_id.in_(product_ids),
+            PlatformPrice.is_available == True,  # noqa: E712
+        )
+        .options(selectinload(PlatformPrice.platform))
+    )
+    all_prices = price_result.scalars().all()
+
+    if not all_prices:
+        raise HTTPException(status_code=404, detail="No prices found for the given products")
+
+    # Build CartItemPriceInfo list
+    item_info_list: list[CartItemPriceInfo] = []
+    for pid in product_ids:
+        product = products.get(pid)
+        if not product:
+            continue
+        platform_map: dict[str, PlatformPriceInfo] = {}
+        for pp in all_prices:
+            if pp.product_id == pid:
+                platform_map[pp.platform.slug] = PlatformPriceInfo(
+                    platform_id=str(pp.platform.id),
+                    platform_slug=pp.platform.slug,
+                    platform_name=pp.platform.name,
+                    platform_color=pp.platform.color_hex or "#333",
+                    price=float(pp.price),
+                    is_available=pp.is_available,
+                    delivery_time_minutes=pp.delivery_time_minutes or pp.platform.avg_delivery_minutes,
+                    delivery_fee=float(pp.platform.delivery_fee or 0),
+                    free_delivery_threshold=float(pp.platform.free_delivery_threshold or 0),
+                    platform_product_url=pp.platform_product_url,
+                )
+        item_info_list.append(
+            CartItemPriceInfo(
+                product_id=str(pid),
+                product_name=product.name,
+                quantity=qty_map[pid],
+                platform_prices=platform_map,
+            )
+        )
+
+    optimizer = CartOptimizer()
+    opt = optimizer.optimize(item_info_list)
+
+    # ── Compute original_total: cheapest single-platform total ────────────────
+    cheapest = opt.cheapest_single
+    original_total = round(
+        sum(
+            min(
+                (info.price for info in item.platform_prices.values() if info.is_available),
+                default=0.0,
+            ) * item.quantity
+            for item in item_info_list
+        ),
+        2,
+    )
+
+    # ── Decide recommendation: split vs single ────────────────────────────────
+    split_total = round(sum(b.total for b in opt.cheapest_split), 2)
+    single_total = round(cheapest.total if cheapest else original_total, 2)
+
+    if opt.cheapest_split and split_total < single_total:
+        recommendation = "split"
+        optimized_total = split_total
+        bundles = opt.cheapest_split
+    else:
+        recommendation = "single"
+        optimized_total = single_total
+        bundles = [cheapest] if cheapest else []
+
+    savings = round(original_total - optimized_total, 2)
+    savings_percent = round((savings / original_total * 100) if original_total > 0 else 0.0, 1)
+
+    # ── Build platform output list ────────────────────────────────────────────
+    platforms_out: list[OptimizePlatformOut] = []
+    for bundle in bundles:
+        if not bundle:
+            continue
+        platforms_out.append(OptimizePlatformOut(
+            platform_slug=bundle.platform_slug,
+            platform_name=bundle.platform_name,
+            platform_color=bundle.platform_color,
+            items=[
+                OptimizePlatformItem(
+                    product_id=it["product_id"],
+                    product_name=it["product_name"],
+                    quantity=it["quantity"],
+                    unit_price=it["unit_price"],
+                    line_total=it["line_total"],
+                    platform_product_url=it.get("platform_product_url"),
+                )
+                for it in bundle.items
+            ],
+            subtotal=round(bundle.subtotal, 2),
+            delivery_fee=round(bundle.delivery_fee, 2),
+            total=round(bundle.total, 2),
+            platform_url=_PLATFORM_HOME.get(bundle.platform_slug, "https://google.com"),
+            item_count=len(bundle.items),
+        ))
+
+    # ── Build human-readable message ──────────────────────────────────────────
+    if recommendation == "split" and len(platforms_out) > 1:
+        parts = [f"{p.item_count} item{'s' if p.item_count != 1 else ''} from {p.platform_name}" for p in platforms_out]
+        message = "Buy " + " and ".join(parts) + f" to save ₹{savings:.0f}"
+    elif platforms_out:
+        message = f"Best to buy all from {platforms_out[0].platform_name}" + (
+            f" and save ₹{savings:.0f}" if savings > 0 else ""
+        )
+    else:
+        message = "No optimization available"
+
+    return OptimizeCartResponse(
+        original_total=original_total,
+        optimized_total=optimized_total,
+        savings=savings,
+        savings_percent=savings_percent,
+        recommendation=recommendation,
+        platforms=platforms_out,
+        message=message,
+    )

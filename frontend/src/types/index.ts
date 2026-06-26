@@ -150,6 +150,39 @@ export interface OptimizationResult {
   split_savings_vs_cheapest_single: number;
 }
 
+// ── Flat Optimization Result (POST /cart/optimize — stateless, guest-friendly) ─
+
+export interface FlatPlatformItem {
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  platform_product_url: string | null;
+}
+
+export interface FlatPlatformOut {
+  platform_slug: string;
+  platform_name: string;
+  platform_color: string;
+  items: FlatPlatformItem[];
+  subtotal: number;
+  delivery_fee: number;
+  total: number;
+  platform_url: string;
+  item_count: number;
+}
+
+export interface FlatOptimizationResult {
+  original_total: number;
+  optimized_total: number;
+  savings: number;
+  savings_percent: number;
+  recommendation: "split" | "single";
+  platforms: FlatPlatformOut[];
+  message: string;
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export interface User {

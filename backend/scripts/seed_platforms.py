@@ -114,20 +114,6 @@ PLATFORMS = [
         "scraping_enabled": True,
     },
     {
-        "slug": "dunzo",
-        "name": "Dunzo Daily",
-        "logo_url": "https://www.dunzo.com/favicon.ico",
-        "base_url": "https://www.dunzo.com",
-        "color_hex": "#00D290",
-        "avg_delivery_minutes": 15,
-        "min_order_amount": 0,
-        "delivery_fee": 19,
-        "free_delivery_threshold": 249,
-        # Dunzo is shut down — mark inactive so it's skipped during scraping
-        "is_active": False,
-        "scraping_enabled": False,
-    },
-    {
         "slug": "myntra",
         "name": "Myntra M-Now",
         "logo_url": "https://assets.myntassets.com/assets/images/2022/9/8/88d0e99d-9b73-4e0a-97e7-7e36db990c991662616849539-myntra-logo.png",

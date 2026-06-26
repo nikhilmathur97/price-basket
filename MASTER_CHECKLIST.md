@@ -120,6 +120,12 @@
 - [ ] Set up uptime alert (UptimeRobot free tier on `/health`)
 - [ ] Log scraper success/failure rate in admin analytics page
 
+### UptimeRobot
+- [ ] Create a monitor at https://uptimerobot.com
+- Ping URL: `https://api.pricebasket.in/health` (GET, every 5 minutes)
+- Alert contacts: add your email
+- The `/health` endpoint returns `{"status": "ok"}` when the backend is running
+
 ### 4.3 SEO & Discoverability
 - [ ] Add `<title>` and `<meta description>` per page in Next.js `layout.tsx`
 - [ ] Add OG image for sharing (`/og.png`)

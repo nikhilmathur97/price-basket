@@ -14,7 +14,6 @@ def _build_registry() -> dict[str, BaseScraper]:
     from app.scrapers.flipkart_scraper import FlipkartScraper
     from app.scrapers.amazon_scraper import AmazonScraper
     from app.scrapers.jiomart_scraper import JioMartScraper
-    from app.scrapers.dunzo_scraper import DunzoScraper
     from app.scrapers.myntra_scraper import MyntraScraper
     from app.scrapers.nykaa_scraper import NykaaScraper
 
@@ -26,7 +25,6 @@ def _build_registry() -> dict[str, BaseScraper]:
         "flipkart": FlipkartScraper(),
         "amazon": AmazonScraper(),
         "jiomart": JioMartScraper(),
-        "dunzo": DunzoScraper(),
         "myntra": MyntraScraper(),
         "nykaa": NykaaScraper(),
     }

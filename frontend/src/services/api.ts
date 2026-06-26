@@ -3,11 +3,13 @@
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
-import type { ProductWithPrices } from "@/types";
+import type { ProductSearchResult, ProductWithPrices, FlatOptimizationResult } from "@/types";
 
 // Browser API calls go through the Vercel proxy (/api/v1/*) by default.
 // Set NEXT_PUBLIC_API_URL in Vercel env vars to the AWS ALB for direct browser→ALB calls.
-// Empty string means "use relative URLs" → goes through Vercel proxy → ALB.
+// Empty string means "use relative URLs" → goes through Next.js proxy → backend.
+// In local dev without NEXT_PUBLIC_API_URL set, relative URLs hit the Next.js dev
+// server which proxies to the backend via app/api/v1/[...path]/route.ts.
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const apiClient = axios.create({
@@ -16,14 +18,30 @@ export const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// ── Request interceptor: attach access token ──────────────────────────────────
+/**
+ * Get or generate a persistent guest session ID stored in localStorage.
+ * Used for anonymous user tracking via the X-Session-ID header.
+ * Safe to call on server (returns empty string — header is simply omitted).
+ */
+export function getSessionId(): string {
+  if (typeof window === "undefined") return "";
+  let id = localStorage.getItem("pb_session_id");
+  if (!id) {
+    id = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem("pb_session_id", id);
+  }
+  return id;
+}
+
+// ── Request interceptor: attach access token + guest session ID ───────────────
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = useAuthStore.getState().accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // Guest session
-  const sessionId = typeof window !== "undefined" ? localStorage.getItem("pb_session_id") : null;
+  // Always attach (or generate) the guest session ID so the backend can track
+  // anonymous users. getSessionId() creates and persists a UUID on first call.
+  const sessionId = getSessionId();
   if (sessionId) {
     config.headers["X-Session-ID"] = sessionId;
   }
@@ -121,7 +139,20 @@ export const api = {
   getCategories: () => apiClient.get("/products/categories"),
   getFeatured: (limit = 20, signal?: AbortSignal) =>
     apiClient.get(`/products/featured?limit=${limit}`, { signal }),
-  searchProducts: (params: Record<string, string | number>) =>
+  /**
+   * Search products by text query — calls GET /products/search?q=<query>.
+   * Sends X-Session-ID automatically via the request interceptor.
+   * Throws AxiosError with status 400 if query is an empty string.
+   */
+  searchProducts: (query: string, params?: Record<string, string | number>) =>
+    apiClient.get<ProductSearchResult>("/products/search", {
+      params: { q: query, ...params },
+    }),
+  /**
+   * Full product list/filter endpoint — used for category browse, admin, etc.
+   * Accepts arbitrary filter params (category_slug, sort, page, page_size, …).
+   */
+  listProducts: (params: Record<string, string | number>) =>
     apiClient.get("/products", { params }),
   getProduct: (id: string) => apiClient.get(`/products/${id}`),
   getBulkProducts: (ids: string[]) =>
@@ -141,7 +172,14 @@ export const api = {
     apiClient.patch(`/cart/items/${id}`, data),
   removeCartItem: (id: string) => apiClient.delete(`/cart/items/${id}`),
   clearCart: () => apiClient.delete("/cart"),
-  optimizeCart: () => apiClient.get("/cart/optimize"),
+  /** Legacy session-based GET optimize (requires auth + cart in DB) */
+  optimizeCartSession: () => apiClient.get("/cart/optimize"),
+  /**
+   * Stateless POST optimize — works for guests, no auth required.
+   * Accepts an array of { product_id, quantity } and returns split recommendations.
+   */
+  optimizeCart: (items: { product_id: string; quantity: number }[]) =>
+    apiClient.post<FlatOptimizationResult>("/cart/optimize", { items }),
 
   // Price Alerts
   getAlerts: () => apiClient.get("/prices/alerts/me"),

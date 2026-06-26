@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useSearch } from "@/hooks/useSearch";
 import { ProductCard } from "@/components/ProductCard";
 import { PageLoader } from "@/components/PageLoader";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, AlertCircle } from "lucide-react";
+import { extractApiError } from "@/services/api";
 
 export default function SearchPage() {
   return (
@@ -26,6 +27,8 @@ function SearchResults() {
     results,
     isLoading,
     isFetching,
+    isError,
+    error,
     sort,
     setSort,
     page,
@@ -51,9 +54,29 @@ function SearchResults() {
     setPage(newPage);
   }
 
-  // Full-page loader on initial load
+  // Full-page loader on initial load (no cached data yet)
   if (isLoading) {
     return <PageLoader message={categorySlug ? `Loading ${categorySlug.replace(/-/g, " ")}` : "Searching products"} />;
+  }
+
+  // Error state — show a friendly message with the API error detail
+  if (isError) {
+    const message = extractApiError(error, "Could not load products. Please try again.");
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mb-4">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+        </div>
+        <h2 className="text-lg font-bold text-surface-900 mb-2">Something went wrong</h2>
+        <p className="text-sm text-surface-500 mb-6 max-w-sm mx-auto">{message}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   return (

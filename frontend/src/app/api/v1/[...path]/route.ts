@@ -33,9 +33,10 @@ const CACHEABLE_PATHS = [
   /^products\/featured/,
   /^products\/categories/,
   /^products\/sitemap/,
+  /^products\/search/,           // dedicated search alias (/products/search?q=...)
   /^products\/[0-9a-f-]{36}$/,  // single product
-  /^products\?/,                 // search
-  /^products$/,                  // search (no query string)
+  /^products\?/,                 // search via base endpoint (/products?q=...)
+  /^products$/,                  // product list (no query string)
 ];
 
 // Auth paths that may need extra time for Render cold-start warm-up.

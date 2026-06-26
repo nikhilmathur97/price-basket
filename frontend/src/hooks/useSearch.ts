@@ -1,5 +1,12 @@
 /**
  * Search hook with debounce and auto-suggestions via React Query.
+ *
+ * Two modes:
+ *  1. Text search  — query.length >= 2 → calls GET /products/search?q=<query>
+ *  2. Category / browse — no query, optional categorySlug → calls GET /products
+ *
+ * Both paths share the same React Query cache key so switching between them
+ * never leaves stale data on screen.
  */
 "use client";
 
@@ -23,11 +30,7 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
   const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc" | "fastest">("relevance");
   const [categorySlug, setCategorySlug] = useState<string | undefined>(initialCategory);
 
-  // FIX #6: Sync internal query/category state when URL params change.
-  // When SearchBar calls router.push('/search?q=butter'), the SearchResults
-  // component re-renders with new useSearchParams() values. We must sync
-  // the hook's internal state to match the new URL params so React Query
-  // fires a new fetch with the updated query.
+  // Sync internal state when URL params change (e.g. SearchBar pushes new route).
   useEffect(() => {
     setQuery(initialQuery);
     setPage(1);
@@ -40,6 +43,8 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
     setSort("relevance");
   }, [initialCategory]);
 
+  // 350 ms debounce — fast enough to feel responsive, slow enough to avoid
+  // hammering the API on every keystroke.
   const debouncedQuery = useDebounce(query, 350);
 
   // Track searches — only fire once per distinct debounced query string
@@ -51,27 +56,44 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
     }
   }, [debouncedQuery]);
 
-  const { data, isLoading, isError, isFetching } = useQuery<ProductSearchResult>({
+  // ── React Query ────────────────────────────────────────────────────────────
+  // Key includes all filter dimensions so any change triggers a fresh fetch.
+  const { data, isLoading, isError, isFetching, error } = useQuery<ProductSearchResult>({
     queryKey: ["search", debouncedQuery, page, sort, categorySlug],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, page_size: 20, sort };
-      if (debouncedQuery) params.q = debouncedQuery;
-      if (categorySlug) params.category_slug = categorySlug;
-      const { data } = await api.searchProducts(params);
-      return data;
+      const isTextSearch = debouncedQuery.length >= 2;
+
+      if (isTextSearch) {
+        // Dedicated search endpoint — GET /products/search?q=<query>
+        const extraParams: Record<string, string | number> = { page, page_size: 20, sort };
+        if (categorySlug) extraParams.category_slug = categorySlug;
+        const { data } = await api.searchProducts(debouncedQuery, extraParams);
+        return data;
+      } else {
+        // Category browse / "all products" — GET /products
+        const params: Record<string, string | number> = { page, page_size: 20, sort };
+        if (categorySlug) params.category_slug = categorySlug;
+        const { data } = await api.listProducts(params);
+        return data;
+      }
     },
+    // Always enabled — empty query shows all/category products; typed query
+    // shows search results. The queryFn branches on debouncedQuery.length.
     enabled: true,
     placeholderData: (prev) => prev,
     staleTime: 30_000,
+    // Retry once on network errors; don't retry on 4xx (bad query, etc.)
+    retry: (failureCount, err: any) => {
+      const status = err?.response?.status;
+      if (status && status >= 400 && status < 500) return false;
+      return failureCount < 1;
+    },
   });
 
   // Trust the API sort — sending `sort` as a param is enough.
-  // Client-side re-sort would shadow the API's sort and use only the first
-  // platform price, which may not match the server's cheapest-price logic.
   const results = useMemo((): ProductSearchResult | undefined => data, [data]);
 
-  // Derive suggestions from the already-cached search results — avoids a
-  // second parallel request to the same endpoint on every keystroke.
+  // Derive suggestions from already-cached results — avoids a second request.
   const suggestions = useMemo((): { id: string; name: string; brand?: string | null }[] => {
     if (!data || debouncedQuery.length < 2) return [];
     return data.items.slice(0, 5).map((p: ProductWithPrices) => ({
@@ -95,5 +117,6 @@ export function useSearch(initialQuery = "", initialCategory?: string) {
     isLoading,
     isFetching,
     isError,
+    error,
   };
 }

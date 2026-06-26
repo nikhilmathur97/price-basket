@@ -79,11 +79,15 @@ async def _warm_featured_cache() -> None:
 
 # ── Sentry (production only) ─────────────────────────────────────────────────
 if settings.SENTRY_DSN:
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
-        environment=settings.APP_ENV,
-        traces_sample_rate=0.2,
+        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        traces_sample_rate=0.1,
         profiles_sample_rate=0.1,
+        environment=settings.APP_ENV,
+        send_default_pii=False,
     )
 
 
@@ -133,7 +137,7 @@ def create_app() -> FastAPI:
     # ── Middleware stack (order matters) ─────────────────────────────────────
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     # Merge env-configured origins with hardcoded production domains so CORS
-    # works even if the Render env var is missing or incomplete.
+    # works even if the Render/production env var is missing or incomplete.
     _BASE_ORIGINS = [
         "https://pricebasket.in",
         "https://www.pricebasket.in",
@@ -143,12 +147,13 @@ def create_app() -> FastAPI:
         "http://localhost:3001",
         "http://localhost:4040",
     ]
-    _allowed_origins = list(dict.fromkeys(_BASE_ORIGINS + list(settings.ALLOWED_ORIGINS)))
+    _allowed_origins = list(dict.fromkeys(_BASE_ORIGINS + settings.allowed_origins_list))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_allowed_origins,
-        # Catches all subdomains + Vercel preview URLs
-        allow_origin_regex=r"https?://(?:[\w-]+\.)?pricebasket\.in|https?://[\w-]+\.vercel\.app|http://localhost(?::\d+)?",
+        # Vercel preview URLs (*.vercel.app) matched via regex; also covers all
+        # pricebasket.in subdomains and plain localhost for local development.
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

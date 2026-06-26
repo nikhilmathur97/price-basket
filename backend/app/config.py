@@ -30,8 +30,16 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
-            return [o.strip() for o in v.split(",")]
+            return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Returns the parsed ALLOWED_ORIGINS list.
+        Vercel preview URLs (*.vercel.app) are handled separately via
+        allow_origin_regex in the CORS middleware — not enumerated here.
+        """
+        return list(self.ALLOWED_ORIGINS)
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str
@@ -117,6 +125,10 @@ class Settings(BaseSettings):
 
     # ── AI / Marketing agents ─────────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash-lite"  # override in .env for pro model
+    ANTHROPIC_API_KEY: str = ""  # Claude fallback when Gemini unavailable
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
+    STABILITY_AI_KEY: str = ""  # Stability AI for poster image generation (25 free/mo)
 
     # ── Marketing / SEO automation ────────────────────────────────────────────
     # Public site URL (used to build canonical links for content + social posts).

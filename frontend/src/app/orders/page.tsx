@@ -4,11 +4,16 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ShoppingBag, ShoppingCart, Bell, ArrowRight } from "lucide-react";
 
 export default function OrdersPage() {
   const router = useRouter();
   const { isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
+
+  // useRequireAuth handles the redirect to /auth/login?next=/orders.
+  // The inline useEffect is kept as a belt-and-suspenders fallback.
+  const { isReady } = useRequireAuth();
 
   useEffect(() => {
     if (hasHydrated && !isValidatingSession && !isAuthenticated) {
@@ -17,7 +22,7 @@ export default function OrdersPage() {
   }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
   // Wait for hydration + session validation before deciding to redirect.
-  if (!hasHydrated || isValidatingSession) return null;
+  if (!isReady || !hasHydrated || isValidatingSession) return null;
   if (!isAuthenticated) return null;
 
   return (

@@ -11,6 +11,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { User } from "@/types";
 
+/** Keys written to localStorage by this store or legacy code. */
+const LS_KEYS = ["pb_auth", "pb_access_token", "pb_refresh_token", "pb_user"] as const;
+
+/** Expire an auth cookie by name (works for non-httpOnly cookies only). */
+function clearCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+  // Also attempt secure/cross-origin variant used in production
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -69,9 +80,33 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         set({ user: null, accessToken: null, isAuthenticated: false });
-        // Notify Flutter shell about logout
-        if (typeof window !== "undefined" && (window as any).FlutterBridge) {
-          (window as any).FlutterBridge.postMessage(JSON.stringify({ type: "logout" }));
+
+        // Clear all localStorage keys used by this app (pb_auth is the Zustand
+        // persist key; the others are legacy / belt-and-suspenders).
+        if (typeof window !== "undefined") {
+          LS_KEYS.forEach((key) => {
+            try { localStorage.removeItem(key); } catch { /* ignore */ }
+          });
+
+          // Clear the refresh-token cookie (non-httpOnly variant, if ever set).
+          // The httpOnly cookie is cleared server-side by POST /auth/logout.
+          clearCookie("pb_refresh_token");
+
+          // Fire-and-forget backend logout so the server revokes the refresh token
+          // and clears the httpOnly cookie. We intentionally don't await this —
+          // the user is already logged out locally regardless of network state.
+          fetch("/api/v1/auth/logout", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }).catch(() => {
+            // Swallowed — logout must never fail from the user's perspective.
+          });
+
+          // Notify Flutter shell about logout
+          if ((window as any).FlutterBridge) {
+            (window as any).FlutterBridge.postMessage(JSON.stringify({ type: "logout" }));
+          }
         }
       },
     }),

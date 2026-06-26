@@ -1,8 +1,8 @@
 """
-PriceBasket Free Digital Marketing Agent System — FastAPI router.
+PriceBasket Digital Marketing Agent System — FastAPI router.
 
 Endpoints:
-  POST /marketing/agents/run          → stream Claude response (SSE)
+  POST /marketing/agents/run          → stream AI response (SSE) — Gemini primary, Claude fallback
   POST /marketing/content             → save content
   GET  /marketing/content             → list content (filters)
   GET  /marketing/content/:id         → single content
@@ -52,6 +52,10 @@ from app.models.marketing import (
     MarketingGoal,
     MarketingSchedule,
 )
+from app.marketing.creative_generator import generate_platform_creative
+from app.marketing.publishers import dispatch as publish_dispatch
+from app.marketing.ai_engine import ai_engine
+from app.marketing.agent_prompts import build_prompt as _build_v3_prompt
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -118,207 +122,6 @@ def _build_system_prompt(agent_id: str) -> str:
     return MASTER_SYSTEM_PROMPT + extras.get(agent_id, "")
 
 
-def _build_user_prompt(agent_id: str, inputs: dict, tone: str, city: str) -> str:
-    i = inputs  # shorthand
-
-    if agent_id == "seo":
-        return f"""Write a complete SEO content package for PriceBasket.
-Target keyword: {i.get('keyword', 'grocery price comparison app India')}
-Topic: {i.get('topic', 'how to save money on groceries')}
-Word count: {i.get('word_count', '600')}
-City focus: {city} | Tone: {tone}
-
-DELIVER:
-1. BLOG ARTICLE — Full article with H1 + 3 H2 subheadings. Natural keyword use. End with app download CTA. Include 1 comparison table (platform vs price).
-2. META TITLE — 60 chars max, include keyword
-3. META DESCRIPTION — 155 chars max, compelling + keyword
-4. FAQ SCHEMA — 3 Q&As in complete JSON-LD format, paste-ready
-5. INTERNAL LINKS — 3 anchor text suggestions for linking to other pricebasket.in pages
-
-WHY THIS WORKS: [2-line SEO strategy rationale]"""
-
-    if agent_id == "reddit":
-        return f"""Write a Reddit organic content package for PriceBasket.
-Subreddit target: {i.get('subreddit', 'r/india')}
-Post angle: {i.get('angle', 'story')}
-City: {city} | Tone: conversational, human
-
-DELIVER:
-1. POST TITLE — Optimized for upvotes, not sales. ≤120 chars.
-2. POST BODY — 200 words. First-person story. Genuine discovery moment. PriceBasket appears as natural solution, never as subject.
-3. COMMENT DAY 2 — Adding value follow-up comment
-4. COMMENT DAY 4 — Responding to imagined question/skepticism
-5. COMMENT DAY 7 — Update post with "results"
-6. SUBREDDIT LIST — 5 subreddits + why each one works + best day/time to post
-7. SAFETY RULES — 3 tips to avoid removal or spam flags
-
-WHY THIS WORKS: [Reddit organic strategy rationale]"""
-
-    if agent_id == "instagram":
-        return f"""Write a complete Instagram content package for PriceBasket.
-Post type: {i.get('post_type', 'carousel')}
-Theme: {i.get('theme', 'savings')}
-Tone: {tone} | City: {city}
-
-DELIVER:
-1. CAPTION A — Hinglish, 150 words, 3-5 emojis, ends with engagement question
-2. CAPTION B — English, punchy 80 words, wit over warmth
-3. HASHTAG SET — Exactly 30 hashtags on separate lines:
-   [HIGH VOLUME - 10]: #GroceryIndia etc.
-   [MID VOLUME - 10]: #BlinkvsBigBasket etc.
-   [NICHE - 10]: #JodhpurSavings etc.
-4. REEL SCRIPT — 15s hook: LINE 1 (0-3s hook) / LINES 2-4 (3-13s reveal) / LINE 5 (13-15s CTA)
-5. CAROUSEL SLIDES — Title for each of 6 slides + 1-line copy per slide
-6. VISUAL BRIEF — Image/design description for Canva (colors, layout, text placement)
-
-WHY THIS WORKS: [Instagram algorithm rationale]"""
-
-    if agent_id == "twitter":
-        tweet_count = i.get('tweet_count', '8')
-        return f"""Write a viral Twitter/X thread for PriceBasket.
-Topic: {i.get('topic', 'how to save on groceries')}
-Hook style: {i.get('hook_style', 'shocking stat')}
-Tweet count: {tweet_count}
-Tone: {tone}
-
-DELIVER:
-1. THREAD — {tweet_count} tweets numbered X/{tweet_count}.
-   Tweet 1: Pattern interrupt hook (no "I", start with number/question/bold claim)
-   Tweets 2-{int(tweet_count)-1}: Value, story, data, insight
-   Tweet {tweet_count}: CTA + pricebasket.in
-   Each tweet ≤280 chars. Line breaks for readability.
-2. STANDALONE TWEET — Single punchy tweet version for off-thread posting
-3. HASHTAGS — 5 hashtags (2 trending + 3 niche)
-4. REPLY TEMPLATES — 2 pre-written replies for when people engage
-5. BEST TIME — Day + time to post for max Indian audience reach
-
-WHY THIS WORKS: [Twitter virality rationale]"""
-
-    if agent_id == "whatsapp":
-        return f"""Write a WhatsApp marketing content package for PriceBasket.
-Message type: {i.get('message_type', 'broadcast')}
-Group type: {i.get('group_type', 'housing-society')}
-Urgency: {i.get('urgency', 'medium')}
-City: {city}
-
-DELIVER:
-1. MAIN MESSAGE — ≤200 words. Personal tone (from a friend). Max 3 emojis total. Include specific savings figure (₹X saved this week). Ends with pricebasket.in.
-2. FOLLOW-UP DAY 3 — 60-word nudge for non-clickers. Different angle.
-3. FOLLOW-UP DAY 7 — FOMO angle. "Prices changed again" trigger.
-4. GROUP INTRO — Natural script for introducing PriceBasket organically in a WhatsApp group. Must not sound like an ad. Max 3 sentences.
-5. POLL MESSAGE — Engaging grocery poll (drives organic discussion, not about PriceBasket directly)
-
-WHY THIS WORKS: [WhatsApp viral loop rationale]"""
-
-    if agent_id == "youtube":
-        return f"""Write a complete YouTube Shorts content package for PriceBasket.
-Concept: {i.get('concept', 'price comparison reveal')}
-Duration: {i.get('duration', '45s')}
-Style: {i.get('style', 'talking-head')}
-Tone: {tone} | City: {city}
-
-DELIVER:
-1. FULL SCRIPT — Timestamped, labeled per line:
-   VOICEOVER: [spoken words]
-   ON-SCREEN: [text to show]
-   B-ROLL: [visual to show / what to film]
-   Hook at 0-3s. Must work muted (text carries story).
-2. THUMBNAIL CONCEPT — Describe: background, subject, text overlay (≤6 words), emotion
-3. TITLES — 3 options (keyword + curiosity + hindi variant)
-4. DESCRIPTION — 150 words with 3 keywords + pricebasket.in + app link
-5. TAGS — 15 tags (mix of broad + specific + Hindi)
-6. EDITING NOTES — 5 specific cut/effect suggestions for CapCut free
-
-WHY THIS WORKS: [YouTube Shorts algorithm rationale]"""
-
-    if agent_id == "quora":
-        return f"""Write a Quora authority content package for PriceBasket.
-Question theme: {i.get('theme', 'app comparison')}
-Answer style: {i.get('style', 'data-driven')}
-City: {city}
-
-DELIVER:
-1. ANSWER 1 (300 words) — Question: "Which app is best for comparing grocery prices in India?" Lead with data/insight. PriceBasket as natural recommendation, NOT first sentence.
-2. ANSWER 2 (250 words) — Question: "How do I save money ordering from Blinkit and Zepto?" Practical tips first. PriceBasket as the tool, not the product.
-3. ANSWER 3 (200 words) — Question: "Is quick commerce cheaper than local kirana shops?" Data-driven comparison. PriceBasket as reference for real prices.
-4. QUESTION TARGETING LIST — 10 Quora questions to answer with estimated monthly views
-5. AUTHOR BIO — 50-word bio establishing credibility (pricing/savings expert angle)
-6. UPVOTE HOOKS — Opening line for each answer (first 15 words = upvote bait)
-
-WHY THIS WORKS: [Quora SEO compounding rationale]"""
-
-    if agent_id == "email":
-        return f"""Write a complete email marketing package for PriceBasket.
-Newsletter type: {i.get('newsletter_type', 'weekly-digest')}
-Top price drops this week: {i.get('price_drops', 'Amul Butter ₹8 cheaper on Zepto, Tata Salt ₹5 cheaper on Blinkit')}
-Segment: {i.get('segment', 'active')}
-
-DELIVER:
-1. NEWSLETTER — "PriceBasket Savings Digest" full email:
-   SUBJECT A/B/C: 3 subject line variants (curiosity / savings / FOMO)
-   PREVIEW TEXT: 90 chars for each subject
-   GREETING: Personal, first-name friendly
-   SECTION 1: This week's top 3 price drops (specific platform + item + saving)
-   SECTION 2: Savings tip of the week (how to use PriceBasket smartly)
-   SECTION 3: Did you know? (one product feature spotlight)
-   CTA BUTTON: Text + URL
-   FOOTER: Unsubscribe note + pricebasket.in
-2. WELCOME EMAIL — For new subscribers. 150 words. Deliver immediate value.
-3. RE-ENGAGEMENT EMAIL 1 (Day 7 no open) — Subject + 80-word body
-4. RE-ENGAGEMENT EMAIL 2 (Day 14 no open) — Subject + 60-word body (FOMO angle)
-5. RE-ENGAGEMENT EMAIL 3 (Day 21 no open) — "Last email" breakup style. 40 words.
-
-WHY THIS WORKS: [Email list compounding rationale]"""
-
-    if agent_id == "linkedin":
-        return f"""Write a LinkedIn marketing package for PriceBasket.
-Content type: {i.get('content_type', 'founder-story')}
-Target audience: {i.get('target', 'consumer-awareness')}
-Tone: {tone}
-
-DELIVER:
-1. FOUNDER POST (Nikhil's personal post) — 200 words story format:
-   Line 1: Pattern interrupt hook (not "I am proud to announce")
-   Lines 2-8: Problem → Decision → Build → Result story
-   End with open question to drive comments (LinkedIn ranks comments)
-2. COMPANY PAGE POST — More formal. Product/data angle. 120 words.
-3. B2B COLD DM — For FMCG brand managers about pricing intelligence API:
-   Opening: curiosity hook (not "Hi, I'm from PriceBasket")
-   Value prop: SKU-level competitor pricing data (₹25k–1.25L/month)
-   CTA: 15-min call ask. ≤100 words.
-4. CONNECTION NOTE — 300 chars max. Reason to connect that's about them, not you.
-5. HASHTAGS — 10 LinkedIn hashtags sorted by relevance
-6. COMMENT TEMPLATES — 3 engagement comments to leave on related posts
-
-WHY THIS WORKS: [LinkedIn organic growth rationale]"""
-
-    if agent_id == "campaign":
-        return f"""Build a complete free digital marketing campaign for PriceBasket.
-Theme: {i.get('theme', 'Compare Before You Cart')}
-Duration: {i.get('duration', '30 days')}
-Primary goal: {i.get('goal', 'app installs')}
-City focus: {city}
-
-DELIVER:
-1. CREATIVE CONCEPT — Campaign name + 1-paragraph creative brief + key message
-2. WEEKLY PLAN:
-   Week 1 (Foundation): Which 3 agents to run, what content, which platforms, what days
-   Week 2 (Amplify): Content types, cross-posting, community engagement targets
-   Week 3 (Convert): Conversion-focused content, CTA intensity, email push
-   Week 4 (Retain + B2B): Retention content, referral ask, B2B LinkedIn outreach
-3. DAILY POSTING SCHEDULE — Mon–Sun, each day: platform + content type + best time
-4. CONTENT REPURPOSING MAP — Show how 1 SEO blog → Twitter thread → Instagram carousel → WhatsApp message → Quora answer → YouTube Short
-5. KPI TARGETS (Month 1, realistic free-channel numbers):
-   - Instagram organic reach, Reddit post impressions, Quora answer views
-   - Email subscribers gained, YouTube Shorts views, Website sessions from organic
-6. FREE TOOLS CHECKLIST — Tool name + purpose + setup time
-7. WEEK 1 ACTION CHECKLIST — Day-by-day todo list admin can tick off
-
-WHY THIS WORKS: [Full campaign compounding strategy rationale]"""
-
-    return f"Generate marketing content for PriceBasket. Context: {json.dumps(i)}. Tone: {tone}. City: {city}."
-
-
 def _derive_title(content: str, agent_id: str) -> str:
     """Extract a short title from the first meaningful line of generated content."""
     for line in content.strip().splitlines():
@@ -336,6 +139,22 @@ class AgentRunRequest(BaseModel):
     tone: str = "hinglish"
     city: str = "Jodhpur"
     custom_context: str = ""
+    generate_creative: bool = True   # auto-generate SVG poster
+    creative_theme: str = "orange"   # orange | dark | minimal
+
+
+class PublishRequest(BaseModel):
+    content_id: Optional[str] = None
+    content: str
+    platform: str
+    extra: Dict[str, Any] = {}
+
+
+class CreativeRequest(BaseModel):
+    platform: str = "instagram"
+    headline: str
+    subtext: str = ""
+    theme: str = "orange"
 
 
 class ContentUpdate(BaseModel):
@@ -426,45 +245,51 @@ async def run_agent(
     body: AgentRunRequest,
     admin=Depends(require_admin),
 ):
-    """Stream a Gemini marketing agent response via SSE. Auto-saves to DB on completion."""
+    """Stream marketing agent response via SSE. Gemini primary, Claude fallback. Auto-saves to DB."""
     if body.agent_id not in VALID_AGENT_IDS:
         raise HTTPException(status_code=400, detail=f"Unknown agent_id '{body.agent_id}'. Valid: {sorted(VALID_AGENT_IDS)}")
 
-    if not settings.GEMINI_API_KEY:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the backend.")
+    engine_status = ai_engine.status()
+    if not engine_status["ready"]:
+        raise HTTPException(
+            status_code=503,
+            detail="No AI provider configured. Add GEMINI_API_KEY (or ANTHROPIC_API_KEY) to backend/.env",
+        )
 
-    try:
-        from google import genai
-        from google.genai import types as genai_types
-    except ImportError:
-        raise HTTPException(status_code=503, detail="google-genai SDK not installed. Run: pip install google-genai")
-
+    from app.marketing.ai_engine import MASTER_SYSTEM as ENGINE_SYSTEM
     system_prompt = _build_system_prompt(body.agent_id)
     if body.custom_context:
         system_prompt += f"\n\nADDITIONAL CONTEXT FROM ADMIN:\n{body.custom_context}"
 
-    user_prompt = _build_user_prompt(body.agent_id, body.inputs, body.tone, body.city)
+    # Use v3.0 comprehensive prompts via agent_prompts module
+    user_prompt = _build_v3_prompt(body.agent_id, body.inputs, body.tone, body.city)
 
     async def event_stream():
         accumulated = []
         try:
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            stream = await client.aio.models.generate_content_stream(
-                model="gemini-flash-lite-latest",
-                contents=user_prompt,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    max_output_tokens=4000,
-                    temperature=0.9,
-                ),
-            )
-            async for chunk in stream:
-                if chunk.text:
-                    accumulated.append(chunk.text)
-                    yield f"data: {json.dumps({'text': chunk.text})}\n\n"
+            async for text_chunk in ai_engine.stream(user_prompt, system_prompt, body.agent_id):
+                accumulated.append(text_chunk)
+                yield f"data: {json.dumps({'type': 'chunk', 'text': text_chunk})}\n\n"
 
-            # Auto-save to DB after stream completes
             full_content = "".join(accumulated)
+
+            # ── Generate SVG creative ──────────────────────────────────────
+            if body.generate_creative:
+                try:
+                    headline = _extract_headline(full_content, body.agent_id)
+                    subtext  = _extract_subtext(full_content)
+                    svg = generate_platform_creative(
+                        platform=body.agent_id,
+                        headline=headline,
+                        subtext=subtext,
+                        theme=body.creative_theme,
+                    )
+                    if svg:
+                        yield f"data: {json.dumps({'type': 'creative', 'svg': svg, 'platform': body.agent_id})}\n\n"
+                except Exception as ce:
+                    log.warning("creative_gen_failed", error=str(ce))
+
+            # ── Auto-save to DB ────────────────────────────────────────────
             content_id = uuid.uuid4()
             try:
                 async with AsyncSessionLocal() as db:
@@ -482,15 +307,19 @@ async def run_agent(
                     db.add(obj)
                     await db.commit()
                     log.info("marketing_content_saved", agent=body.agent_id, content_id=str(content_id))
+                yield f"data: {json.dumps({'type': 'saved', 'content_id': str(content_id)})}\n\n"
+                # Legacy format for backward-compat with existing hook
                 yield f"data: [SAVED:{content_id}]\n\n"
             except Exception as save_err:
                 log.error("marketing_content_save_failed", error=str(save_err))
-                # Stream already complete — just skip the save notification
 
+            ai_provider = engine_status.get("active", "gemini")
+            yield f"data: {json.dumps({'type': 'done', 'content_id': str(content_id), 'word_count': len(full_content.split()), 'provider': ai_provider})}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as err:
             log.error("marketing_agent_stream_failed", agent=body.agent_id, error=str(err))
+            yield f"data: {json.dumps({'type': 'error', 'message': str(err)})}\n\n"
             yield f"data: [ERROR]{str(err)}\n\n"
 
     return StreamingResponse(
@@ -502,6 +331,124 @@ async def run_agent(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _extract_headline(text: str, agent_id: str) -> str:
+    """Extract a short headline from generated content for the SVG creative."""
+    lines = [l.strip() for l in text.split("\n") if l.strip() and len(l.strip()) > 10]
+    for line in lines[:5]:
+        clean = line.lstrip("#•-*123456789. ").strip()
+        if 10 < len(clean) < 80 and not clean.startswith("{"):
+            return clean
+    defaults = {
+        "instagram": "Save ₹400/Month on Groceries",
+        "twitter":   "You're Paying Too Much for Groceries",
+        "reddit":    "Found an app that saves me ₹300/month",
+        "whatsapp":  "Grocery Prices Compared Instantly",
+        "seo":       "Best Grocery Price Comparison App India",
+        "youtube":   "I Checked 6 Delivery Apps — Huge Difference",
+        "linkedin":  "Building PriceBasket from Jodhpur",
+        "email":     "This Week's Biggest Grocery Price Drops",
+        "quora":     "PriceBasket: Compare 6 Platforms Instantly",
+        "campaign":  "Compare Before You Cart — 30 Day Plan",
+    }
+    return defaults.get(agent_id, "Smart Grocery Savings with PriceBasket")
+
+
+def _extract_subtext(text: str) -> str:
+    """Extract a short subtext line from generated content."""
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    for line in lines[2:8]:
+        clean = line.lstrip("#•-*123456789. ").strip()
+        if 20 < len(clean) < 120:
+            return clean
+    return "Compare prices across Blinkit, Zepto, BigBasket & more. Free app."
+
+
+# ── MODULE: Publish Live ───────────────────────────────────────────────────────
+
+@router.post("/publish")
+async def publish_now(
+    body: PublishRequest,
+    admin=Depends(require_admin),
+):
+    """Post content directly to a social platform via its API."""
+    result = await publish_dispatch(body.platform, body.content, body.extra)
+
+    if not result.success:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": result.error,
+                "platform": body.platform,
+                "fix": f"Check {body.platform.upper()} credentials in .env or Admin → Marketing → Settings",
+            },
+        )
+
+    # Update DB status if content_id provided
+    if body.content_id:
+        try:
+            uid = uuid.UUID(body.content_id)
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(
+                    select(MarketingContent).where(MarketingContent.id == uid)
+                )
+                obj = res.scalar_one_or_none()
+                if obj:
+                    obj.status = "published"
+                    obj.published_at = datetime.now(tz=timezone.utc)
+                    await db.commit()
+        except Exception as e:
+            log.warning("publish_db_update_failed", error=str(e))
+
+    return result.dict()
+
+
+# ── MODULE: Creative Generator ────────────────────────────────────────────────
+
+@router.post("/creative/generate")
+async def generate_creative_endpoint(
+    body: CreativeRequest,
+    admin=Depends(require_admin),
+):
+    """Generate an SVG poster from custom headline/subtext."""
+    svg = generate_platform_creative(
+        platform=body.platform,
+        headline=body.headline,
+        subtext=body.subtext,
+        theme=body.theme,
+    )
+    return {"svg": svg, "platform": body.platform}
+
+
+# ── MODULE: Credential Status ─────────────────────────────────────────────────
+
+@router.get("/credentials/status")
+async def credential_status(admin=Depends(require_admin)):
+    """Return which platform credentials are configured."""
+    import os
+    engine_st = ai_engine.status()
+    return {
+        "ai": {
+            "gemini":       engine_st["gemini"],
+            "claude":       engine_st["claude"],
+            "active":       engine_st["active"],
+            "model":        engine_st.get("model", ""),
+            "ready":        engine_st["ready"],
+            "image_ai":     engine_st.get("image_ai", "pollinations"),
+        },
+        "platforms": {
+            "twitter":   bool(settings.TWITTER_API_KEY and settings.TWITTER_ACCESS_TOKEN),
+            "reddit":    bool(os.getenv("REDDIT_CLIENT_ID") and os.getenv("REDDIT_PASSWORD")),
+            "whatsapp":  bool(settings.WHATSAPP_ACCESS_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID),
+            "linkedin":  bool(os.getenv("LINKEDIN_ACCESS_TOKEN")),
+            "medium":    bool(os.getenv("MEDIUM_INTEGRATION_TOKEN")),
+            "email":     bool(settings.SMTP_USER and settings.SMTP_PASSWORD),
+            "instagram": bool(os.getenv("INSTAGRAM_ACCESS_TOKEN")),
+            "youtube":   bool(os.getenv("YOUTUBE_API_KEY")),
+            "onesignal": bool(os.getenv("ONESIGNAL_APP_ID")),
+        },
+    }
 
 
 # ── MODULE: Content CRUD ──────────────────────────────────────────────────────

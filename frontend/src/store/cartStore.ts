@@ -4,7 +4,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Cart, CartItem } from "@/types";
+import type { Cart, CartItem, FlatOptimizationResult } from "@/types";
 import { api } from "@/services/api";
 import { MOCK_PRODUCTS } from "@/lib/mockData";
 
@@ -35,6 +35,8 @@ interface CartState {
   isLoading: boolean;
   totalItems: number;
   _hasHydrated: boolean;
+  optimizationResult: FlatOptimizationResult | null;
+  isOptimizing: boolean;
 
   openCart: () => void;
   closeCart: () => void;
@@ -45,6 +47,8 @@ interface CartState {
   clearCart: () => Promise<void>;
   resetCart: () => void;
   _setHasHydrated: () => void;
+  setOptimizationResult: (result: FlatOptimizationResult | null) => void;
+  optimizeCart: () => Promise<void>;
 }
 
 export const useCartStore = create<CartState>()(
@@ -55,6 +59,8 @@ export const useCartStore = create<CartState>()(
       isLoading: false,
       totalItems: 0,
       _hasHydrated: false,
+      optimizationResult: null,
+      isOptimizing: false,
 
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
@@ -204,10 +210,32 @@ export const useCartStore = create<CartState>()(
       },
 
       resetCart: () => {
-        set({ cart: null, totalItems: 0, isOpen: false });
+        set({ cart: null, totalItems: 0, isOpen: false, optimizationResult: null });
       },
 
       _setHasHydrated: () => set({ _hasHydrated: true }),
+
+      setOptimizationResult: (result) => set({ optimizationResult: result }),
+
+      optimizeCart: async () => {
+        const cart = get().cart;
+        if (!cart?.items.length) return;
+        set({ isOptimizing: true });
+        try {
+          const items = cart.items
+            .filter((i) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(i.product.id))
+            .map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
+          if (!items.length) {
+            set({ isOptimizing: false });
+            return;
+          }
+          const { data } = await api.optimizeCart(items);
+          set({ optimizationResult: data, isOptimizing: false });
+        } catch {
+          set({ isOptimizing: false });
+          throw new Error("Optimization failed");
+        }
+      },
     }),
     {
       name: "pb_cart_meta",
