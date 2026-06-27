@@ -1119,10 +1119,19 @@ async def run_seed(
 #   - Only multi-word phrases or brand-specific terms that cannot appear in other categories
 #   - Generic single words (sugar, salt, butter, snack, chips) are EXCLUDED to avoid
 #     false positives on product names like "Zero Sugar Sparkling Drink" or "Snacky Apple"
+# ── Category keywords — MUST use actual DB slugs ─────────────────────────────
+# DB slugs: fruits-vegetables, dairy-breakfast, snacks-drinks, bakery,
+#           household, personal-care, chicken-meat, frozen-foods, baby-care,
+#           pet-care, staples, oils-spices, electronics
+# NOTE: There is NO separate "snacks", "beverages", "dairy-eggs", or
+#       "instant-food" slug in the DB. Snacks+drinks+ketchup/sauces all live
+#       in "snacks-drinks". Dairy+eggs+breakfast live in "dairy-breakfast".
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "dairy-eggs":        ["amul milk", "mother dairy milk", "skimmed milk", "toned milk",
+    # ── Dairy & Breakfast (DB slug: dairy-breakfast) ──────────────────────────
+    "dairy-breakfast":   ["amul milk", "mother dairy milk", "skimmed milk", "toned milk",
                           "full cream milk", "cow milk", "buffalo milk",
                           "amul curd", "mother dairy curd", "dahi pouch", "curd pouch",
+                          "milky mist curd", "nandini curd", "nandini thick curd",
                           "greek yogurt", "flavoured yogurt", "set yogurt",
                           "amul butter", "white butter", "salted butter", "unsalted butter",
                           "amul paneer", "fresh paneer", "cottage cheese",
@@ -1130,7 +1139,10 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "pure ghee", "cow ghee", "desi ghee",
                           "lassi", "buttermilk", "chaas",
                           "whey protein", "protein shake",
-                          "farm eggs", "brown eggs", "white eggs", "free range eggs"],
+                          "farm eggs", "brown eggs", "white eggs", "free range eggs",
+                          "oats", "muesli", "granola", "cornflakes", "cereal",
+                          "bread", "jam", "peanut butter"],
+    # ── Fruits & Vegetables ───────────────────────────────────────────────────
     "fruits-vegetables": ["patta gobhi", "dhaniya patta", "kadi patta", "palak",
                           "shimla mirch", "karela", "lauki", "tinda", "turai",
                           "organically grown", "hydroponically grown",
@@ -1139,7 +1151,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "fresh orange", "fresh lemon", "fresh grape", "broccoli",
                           "cauliflower", "fresh peas", "fresh beans", "fresh cabbage",
                           "fresh cucumber", "fresh capsicum"],
-    "snacks":            ["banana chips", "potato chips", "tortilla chips", "veggie chips",
+    # ── Snacks & Drinks (DB slug: snacks-drinks) ──────────────────────────────
+    # Covers: chips, namkeen, biscuits, juices, sodas, ketchup, sauces, etc.
+    "snacks-drinks":     ["banana chips", "potato chips", "tortilla chips", "veggie chips",
                           "corn chips", "rice chips",
                           "namkeen", "bhujia", "chivda", "mixture", "mathri", "sev",
                           "murukku", "chakli", "fryums",
@@ -1147,8 +1161,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "biscuit", "cookie", "cracker", "wafer",
                           "pretzel", "nachos", "puff snack",
                           "protein bar", "granola bar", "energy bar",
-                          "roasted nuts", "trail mix", "nut mix"],
-    "beverages":         ["fruit juice", "cold pressed juice", "mixed fruit juice",
+                          "roasted nuts", "trail mix", "nut mix",
+                          # beverages
+                          "fruit juice", "cold pressed juice", "mixed fruit juice",
                           "apple juice", "orange juice", "mango juice", "guava juice",
                           "pineapple juice", "pomegranate juice", "grape juice",
                           "cola", "soft drink", "carbonated beverage", "aerated drink",
@@ -1156,12 +1171,24 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "energy drink", "sports drink",
                           "iced tea", "green tea", "herbal tea", "tea bags",
                           "instant coffee", "cold brew coffee",
-                          "lemonade", "ginger ale", "classic lemonade", "nimbu pani", "shikanji", "aam panna",
+                          "lemonade", "ginger ale", "classic lemonade", "nimbu pani",
+                          "shikanji", "aam panna",
                           "coconut water", "sugarcane juice",
                           "squash", "cordial", "drink mix", "drink mixer",
                           "milkshake", "flavoured milk",
                           "tonic water", "soda water", "sparkling drink",
-                          "prebiotic soda", "kombucha"],
+                          "prebiotic soda", "kombucha",
+                          # sauces & condiments (no separate instant-food slug in DB)
+                          "tomato ketchup", "ketchup",
+                          "pasta sauce", "pizza sauce",
+                          "ready to eat", "ready-to-eat",
+                          "instant soup", "soup mix", "cup soup",
+                          "instant noodles", "cup noodles", "ramen noodles",
+                          "upma mix", "poha mix", "idli mix", "dosa mix",
+                          "canned tomatoes", "chopped tomatoes", "peeled tomatoes",
+                          "tomato puree", "tomato paste"],
+    # ── Staples ───────────────────────────────────────────────────────────────
+    # Includes cooking oils (olive oil, coconut oil etc. belong here, not oils-spices)
     "staples":           ["basmati rice", "brown rice", "sona masoori", "ponni rice",
                           "wheat flour", "atta", "maida", "suji", "sooji", "semolina", "rawa",
                           "besan", "gram flour",
@@ -1169,9 +1196,13 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "yellow dal", "green moong",
                           "mustard oil", "sunflower oil", "refined oil", "groundnut oil",
                           "olive oil", "coconut oil", "rice bran oil",
-                          "poha", "oats", "cornflour", "corn starch",
+                          "cold pressed mustard oil", "cold pressed coconut oil",
+                          "extra virgin olive oil", "extra light olive oil",
+                          "cooking spray", "cooking oil",
+                          "poha", "cornflour", "corn starch",
                           "dried peas", "dried beans", "rajma", "kabuli chana",
                           "rock salt", "sendha namak", "black salt"],
+    # ── Personal Care ─────────────────────────────────────────────────────────
     "personal-care":     ["shampoo", "conditioner", "hair mask",
                           "face wash", "face scrub", "face pack",
                           "moisturizer", "body lotion", "body butter",
@@ -1182,6 +1213,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "face serum", "eye cream",
                           "hair oil", "hair gel", "hair serum",
                           "hand wash", "hand sanitizer", "sanitizer gel"],
+    # ── Household ─────────────────────────────────────────────────────────────
     "household":         ["detergent powder", "detergent liquid", "fabric softener",
                           "dishwash bar", "dishwash liquid", "dish soap",
                           "toilet cleaner", "floor cleaner", "surface cleaner",
@@ -1191,6 +1223,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "tissue paper", "paper towel", "kitchen towel",
                           "wet wipes", "cleaning wipes",
                           "laundry detergent", "washing powder"],
+    # ── Baby Care ─────────────────────────────────────────────────────────────
     "baby-care":         ["baby diaper", "diaper pants", "nappy",
                           "baby wipes", "baby lotion", "baby oil",
                           "baby shampoo", "baby wash", "baby soap", "baby cream",
@@ -1198,6 +1231,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "infant formula", "toddler formula", "baby food",
                           "teether", "cerelac", "huggies", "pampers", "mamy poko",
                           "johnsons baby", "johnson baby"],
+    # ── Beauty ────────────────────────────────────────────────────────────────
     "beauty":            ["lipstick", "lip gloss", "lip liner",
                           "mascara", "eyeliner", "kajal", "eye shadow",
                           "foundation", "bb cream", "cc cream", "concealer",
@@ -1206,12 +1240,14 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "makeup remover", "micellar water",
                           "face primer", "setting spray",
                           "face mask", "sheet mask", "toner", "essence"],
+    # ── Frozen Foods ──────────────────────────────────────────────────────────
     "frozen-foods":      ["frozen peas", "frozen corn", "frozen vegetables",
                           "frozen paratha", "frozen roti", "frozen snack",
                           "frozen chicken", "frozen fish", "frozen prawns",
                           "ice cream", "gelato", "sorbet", "popsicle", "kulfi",
                           "frozen fries", "frozen nuggets", "frozen tikki",
                           "frozen pizza", "frozen burger"],
+    # ── Bakery ────────────────────────────────────────────────────────────────
     "bakery":            ["whole wheat bread", "multigrain bread", "white bread", "sandwich bread",
                           "dinner roll", "burger bun", "hot dog bun",
                           "croissant", "bagel", "pav",
@@ -1219,6 +1255,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "rusk", "toast",
                           "bakery cake", "bakery delight", "pop cake",
                           "loaf cake", "banana bread"],
+    # ── Chicken & Meat ────────────────────────────────────────────────────────
     "chicken-meat":      ["chicken breast", "chicken leg", "chicken thigh", "chicken wing",
                           "chicken curry cut", "boneless chicken", "whole chicken",
                           "chicken mince", "chicken keema",
@@ -1227,19 +1264,14 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
                           "prawn", "shrimp", "lobster",
                           "salmon", "tuna", "seafood",
                           "pork chop", "beef steak"],
-    "instant-food":      ["instant noodles", "cup noodles", "ramen noodles",
-                          "pasta sauce", "pizza sauce", "tomato ketchup", "ketchup",
-                          "ready to eat", "ready-to-eat",
-                          "instant soup", "soup mix", "cup soup",
-                          "upma mix", "poha mix", "idli mix", "dosa mix",
-                          "oatmeal", "porridge mix", "instant oats",
-                          "canned tomatoes", "chopped tomatoes", "peeled tomatoes",
-                          "tomato puree", "tomato paste"],
+    # ── Oils & Spices ─────────────────────────────────────────────────────────
+    # Only spice/masala products — cooking oils go to staples
     "oils-spices":       ["red chilli powder", "turmeric powder", "coriander powder",
                           "cumin powder", "garam masala", "kitchen king",
                           "curry powder", "biryani masala", "chaat masala",
                           "black pepper", "cardamom", "cloves", "cinnamon",
-                          "dried herbs", "cooking oil", "edible oil"],
+                          "dried herbs", "edible oil"],
+    # ── Pet Care ──────────────────────────────────────────────────────────────
     "pet-care":          ["dog food", "cat food", "pet food", "puppy food", "kitten food",
                           "dog treat", "cat treat", "pet treat",
                           "dog shampoo", "pet shampoo", "cat litter", "pet litter",
@@ -1249,36 +1281,38 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
 # Override list: if a product's name contains ANY of these phrases for its CURRENT category,
 # it is definitely in the right place — skip mismatch detection entirely.
 # Covers all common product name patterns to prevent false positives.
+# Override list: if a product's name contains ANY of these phrases for its CURRENT
+# category, it is definitely in the right place — skip mismatch detection entirely.
+# IMPORTANT: Only use actual DB slugs here.
 _CATEGORY_OVERRIDES: dict[str, list[str]] = {
     # ── Fruits & Vegetables ───────────────────────────────────────────────────
-    # IMPORTANT: Only use multi-word phrases or words that CANNOT appear in
-    # processed product names. Single words like "apple", "banana", "tomato"
-    # are intentionally excluded here because they appear in "Apple Juice",
-    # "Banana Chips", "Tomato Ketchup" etc. which belong in other categories.
-    # The _is_processed_food() check below handles the disambiguation.
+    # Only Hindi/regional names and qualifier phrases — NOT single English fruit/veg
+    # names like "apple", "banana", "tomato" which appear in processed product names.
     "fruits-vegetables": [
-        # Hindi/regional names that only appear on actual vegetables
         "patta gobhi", "dhaniya patta", "kadi patta", "palak",
         "shimla mirch", "karela", "lauki", "tinda", "turai", "baingan",
         "bhindi", "kaddu", "methi", "pudina",
-        # Qualifier phrases that confirm it's a raw produce item
         "organically grown", "hydroponically grown",
         "fresh ", "raw ", "sabzi", "vegetable", "fruit",
-        "snack pack",  # "Peeled Pomegranate - Snack Pack" is a fruit product
+        "snack pack",
     ],
-    # ── Snacks ────────────────────────────────────────────────────────────────
-    "snacks":            [
+    # ── Snacks & Drinks (DB slug) ─────────────────────────────────────────────
+    "snacks-drinks":     [
         "chips", "namkeen", "bhujia", "biscuit", "cookie", "wafer",
         "cracker", "popcorn", "murukku", "mixture", "mathri", "sev",
         "chivda", "fryums", "pretzel", "nachos", "puff",
         "protein bar", "granola bar", "energy bar", "trail mix", "nut mix",
-    ],
-    # ── Snacks & Drinks (combined DB slug) ───────────────────────────────────
-    "snacks-drinks":     [
-        "chips", "namkeen", "bhujia", "biscuit", "cookie", "wafer",
-        "cracker", "popcorn", "murukku", "mixture", "mathri", "sev",
-        "juice", "cola", "soda", "sparkling", "water", "tea", "coffee",
-        "lemonade", "shikanji", "milkshake", "energy drink", "drink",
+        "juice", "cola", "soda", "sparkling", "mineral water",
+        "energy drink", "iced tea", "green tea", "tea bags",
+        "instant coffee", "cold brew", "lemonade", "shikanji", "aam panna",
+        "coconut water", "squash", "cordial", "drink mix", "drink mixer",
+        "milkshake", "flavoured milk", "tonic water", "kombucha",
+        "soft drink", "carbonated", "aerated", "prebiotic", "drink",
+        "ketchup", "tomato sauce", "tomato puree", "tomato paste",
+        "pasta sauce", "pizza sauce", "ready to eat", "ready-to-eat",
+        "instant noodles", "cup noodles", "ramen", "instant soup", "soup mix",
+        "upma mix", "poha mix", "idli mix", "dosa mix",
+        "canned tomatoes", "chopped tomatoes", "peeled tomatoes", "maggi",
     ],
     # ── Staples ───────────────────────────────────────────────────────────────
     "staples":           [
@@ -1287,27 +1321,11 @@ _CATEGORY_OVERRIDES: dict[str, list[str]] = {
         "besan", "gram flour",
         "toor dal", "moong dal", "chana dal", "urad dal", "masoor dal",
         "mustard oil", "sunflower oil", "refined oil", "groundnut oil",
-        "olive oil", "coconut oil",
+        "olive oil", "coconut oil", "rice bran oil",
         "poha", "oats", "cornflour",
         "rajma", "kabuli chana", "dried peas", "dried beans",
     ],
-    # ── Beverages ─────────────────────────────────────────────────────────────
-    "beverages":         [
-        "juice", "cola", "soda", "sparkling", "mineral water", "packaged water",
-        "energy drink", "sports drink", "iced tea", "green tea", "tea bags",
-        "instant coffee", "cold brew", "lemonade", "shikanji", "aam panna",
-        "coconut water", "squash", "cordial", "drink mix", "drink mixer",
-        "milkshake", "flavoured milk", "tonic water", "kombucha",
-        "soft drink", "carbonated", "aerated", "prebiotic", "drink",
-    ],
-    # ── Dairy & Eggs ──────────────────────────────────────────────────────────
-    "dairy-eggs":        [
-        "milk", "curd", "dahi", "yogurt", "paneer", "ghee", "lassi",
-        "buttermilk", "chaas", "whey", "egg",
-        "cheese slice", "cheese spread", "processed cheese", "cottage cheese",
-        "amul butter", "white butter", "salted butter", "unsalted butter",
-    ],
-    # ── Dairy & Breakfast (combined DB slug) ─────────────────────────────────
+    # ── Dairy & Breakfast (DB slug) ───────────────────────────────────────────
     "dairy-breakfast":   [
         "milk", "curd", "dahi", "yogurt", "paneer", "ghee", "lassi",
         "buttermilk", "chaas", "whey", "egg", "cheese", "butter",
@@ -1322,14 +1340,6 @@ _CATEGORY_OVERRIDES: dict[str, list[str]] = {
     ],
     # ── Frozen Foods ──────────────────────────────────────────────────────────
     "frozen-foods":      ["frozen", "ice cream", "gelato", "sorbet", "popsicle", "kulfi"],
-    # ── Instant Food ──────────────────────────────────────────────────────────
-    "instant-food":      [
-        "instant noodles", "cup noodles", "ramen", "pasta sauce", "pizza sauce",
-        "ketchup", "tomato sauce", "ready to eat", "ready-to-eat",
-        "instant soup", "soup mix", "upma mix", "poha mix", "idli mix", "dosa mix",
-        "oatmeal", "porridge mix", "canned tomatoes", "chopped tomatoes",
-        "peeled tomatoes", "tomato puree", "tomato paste", "maggi",
-    ],
     # ── Personal Care ─────────────────────────────────────────────────────────
     "personal-care":     [
         "shampoo", "conditioner", "face wash", "moisturizer", "body lotion",
@@ -1356,10 +1366,11 @@ _CATEGORY_OVERRIDES: dict[str, list[str]] = {
         "beef", "pork", "salmon", "tuna", "seafood", "meat",
     ],
     # ── Oils & Spices ─────────────────────────────────────────────────────────
+    # Cooking oils (olive oil, coconut oil etc.) belong in staples, not here.
     "oils-spices":       [
         "masala", "spice", "chilli powder", "turmeric", "cumin",
         "coriander powder", "garam masala", "curry powder", "pepper",
-        "cardamom", "cloves", "cinnamon", "cooking oil", "edible oil",
+        "cardamom", "cloves", "cinnamon", "edible oil",
     ],
     # ── Pet Care ──────────────────────────────────────────────────────────────
     "pet-care":          ["dog food", "cat food", "pet food", "pedigree", "whiskas", "drools"],
