@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Cooking Oil Online India 2026 — Blinkit vs Zepto vs BigBasket Oil Price | PriceBasket",
+  title: "Cheapest Cooking Oil India 2026 — Blinkit vs Zepto",
   description:
-    "Compare cooking oil prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest sunflower oil, mustard oil online. 1L, 5L oil price comparison. Free.",
+    "Compare cooking oil prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest Fortune, Saffola, Dhara oil online. 1L, 5L price comparison. Free.",
   keywords: [
     "cheapest cooking oil online india",
     "oil price comparison india",

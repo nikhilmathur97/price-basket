@@ -5,7 +5,7 @@ import { BLOG_CATEGORIES } from "@/lib/blog";
 import { getAllPosts } from "@/lib/server-api";
 
 export const metadata: Metadata = {
-  title: "Grocery Saving Tips & Price Comparison Blog — PriceBasket",
+  title: "Grocery Saving Tips & Price Comparison Blog",
   description:
     "Expert tips to save money on groceries in India. Compare Blinkit vs Zepto vs BigBasket prices. Price alerts, cart optimizer guides, and weekly deal roundups.",
   keywords: [
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: "https://pricebasket.in/blog" },
   openGraph: {
-    title: "Grocery Saving Tips & Price Comparison Blog — PriceBasket",
+    title: "Grocery Saving Tips & Price Comparison Blog",
     description: "Expert tips to save money on groceries. Compare Blinkit, Zepto, BigBasket prices. Free.",
     url: "https://pricebasket.in/blog",
     type: "website",

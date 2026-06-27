@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Dal Online India 2026 — Blinkit vs Zepto vs BigBasket Dal Price | PriceBasket",
+  title: "Cheapest Dal Online India 2026 — Blinkit vs Zepto",
   description:
-    "Compare dal prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest toor dal, moong dal, chana dal online. 1kg, 5kg dal price comparison. Free.",
+    "Compare dal prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest toor dal, moong dal, chana dal online. 1kg, 5kg price comparison. Free.",
   keywords: [
     "cheapest dal online india",
     "dal price comparison india",

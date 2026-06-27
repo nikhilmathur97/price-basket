@@ -24,8 +24,8 @@ export async function generateMetadata({
   const m = parseMatchup(params.matchup);
   if (!m) return { title: "Compare Platforms" };
 
-  const title = `${m.a.name} vs ${m.b.name}: Which is Cheaper in 2026? — Price Comparison India`;
-  const description = `Compare ${m.a.name} vs ${m.b.name} prices in real-time across Mumbai, Delhi, Bangalore, Hyderabad. Find cheapest grocery delivery. Free price alerts on PriceBasket.`;
+  const title = `${m.a.name} vs ${m.b.name}: Which is Cheaper in 2026?`;
+  const description = `Compare ${m.a.name} vs ${m.b.name} grocery prices in real-time. Find cheapest delivery across Mumbai, Delhi, Bangalore & more. Free price alerts.`;
   const url = `${SITE_URL}/compare/${m.a.slug}-vs-${m.b.slug}`;
 
   return {

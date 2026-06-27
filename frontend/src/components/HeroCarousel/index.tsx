@@ -281,19 +281,28 @@ export function HeroCarousel() {
             <ChevronRight className="w-4 h-4" />
           </button>
 
-          {/* ── Dot / pill indicators ── */}
-          <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
+          {/* ── Dot / pill indicators ──
+              Each visible dot is 6 px tall, which fails the WCAG 2.5.5 / Lighthouse
+              touch-target audit (minimum 44×44 px). The fix: wrap each dot in a
+              44×44 px transparent button and render the dot as a non-interactive
+              child div. The button carries the aria-label and handles the click;
+              the visual dot is purely decorative. */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 flex items-center">
             {SLIDES.map((s, i) => (
               <button
                 key={s.id}
                 onClick={() => goTo(i, i > current ? 1 : -1)}
-                className={`rounded-full transition-all duration-300 ease-in-out ${
-                  i === current
-                    ? "w-5 h-[6px] bg-white"
-                    : "w-[6px] h-[6px] bg-white/45 hover:bg-white/70"
-                }`}
                 aria-label={`Go to slide ${i + 1}`}
-              />
+                className="w-[44px] h-[44px] flex items-center justify-center focus:outline-none"
+              >
+                <div
+                  className={`rounded-full transition-all duration-300 ease-in-out pointer-events-none ${
+                    i === current
+                      ? "w-5 h-[6px] bg-white"
+                      : "w-[6px] h-[6px] bg-white/45"
+                  }`}
+                />
+              </button>
             ))}
           </div>
         </div>

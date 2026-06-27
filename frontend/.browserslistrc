@@ -1,18 +1,10 @@
 # Target modern browsers only — eliminates legacy JS polyfills flagged by Lighthouse
 # (Array.prototype.at, Object.fromEntries, String.prototype.trimStart, etc.)
-# All listed browsers have full Baseline 2020 support.
-# This matches ~95 %+ of Indian mobile traffic (Chrome 90+, Safari 14+).
-
-[production]
-Chrome >= 90
-Firefox >= 90
-Safari >= 14
-Edge >= 90
-Samsung >= 14
-Opera >= 76
-iOS >= 14
-
-[development]
-last 1 Chrome version
-last 1 Firefox version
-last 1 Safari version
+# All of these are Baseline 2020+ features supported by every browser released
+# in the last 4 years. Dropping IE11 / old Safari saves ~11.6 KiB of polyfill JS.
+last 2 Chrome versions
+last 2 Firefox versions
+last 2 Safari versions
+last 2 Edge versions
+not dead
+not IE 11

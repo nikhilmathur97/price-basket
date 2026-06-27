@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Grocery Prices in Delhi 2026 — Compare Blinkit, Zepto, BigBasket | PriceBasket",
+  title: "Grocery Prices in Delhi 2026 — Blinkit vs Zepto",
   description:
-    "Compare grocery prices in Delhi NCR across Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart. Find cheapest grocery delivery in Delhi. Save ₹500/month. Free price alerts.",
+    "Compare grocery prices in Delhi NCR across Blinkit, Zepto, Instamart, BigBasket & JioMart. Find cheapest grocery delivery in Delhi. Save ₹500/month. Free.",
   keywords: [
     "grocery prices delhi",
     "cheapest grocery delivery delhi",

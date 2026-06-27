@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Eggs Online India 2026 — Blinkit vs Zepto vs BigBasket Egg Price | PriceBasket",
+  title: "Cheapest Eggs Online India 2026 — Blinkit vs Zepto",
   description:
-    "Compare egg prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest white eggs, brown eggs, desi eggs online. 6, 12, 30 egg tray price comparison. Free.",
+    "Compare egg prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest white, brown & desi eggs online. 6, 12, 30 egg tray price comparison. Free.",
   keywords: [
     "cheapest eggs online india",
     "egg price comparison india",
