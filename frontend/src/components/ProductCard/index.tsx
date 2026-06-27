@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Zap, CheckCircle2, Plus, Minus, BarChart2 } from "lucide-react";
@@ -99,15 +100,6 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
-  // Proxy external CDN URLs through /api/img to avoid hotlink protection
-  // (cdn.grofers.com uses vary:Origin and blocks direct browser requests)
-  function proxyUrl(url: string | null | undefined): string | null {
-    if (!url || url.trim() === "") return null;
-    // Local/relative URLs don't need proxying
-    if (url.startsWith("/") || url.startsWith("data:")) return url;
-    return `/api/img?url=${encodeURIComponent(url)}`;
-  }
-
   // Cascade: thumbnail_url → image_url → platform_image_url → SLUG_IMAGES → emoji
   const imgSources: (string | null | undefined)[] = [
     product.thumbnail_url,
@@ -117,8 +109,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     SLUG_IMAGES[product.slug],
   ];
   const validSources = imgSources.filter((s): s is string => !!s && s.trim() !== "");
-  const rawSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
-  const imgSrc = proxyUrl(rawSrc);
+  const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
 
   // Format price compactly — never truncate with ellipsis
   const formatPrice = (p: number) => {
@@ -149,24 +140,25 @@ export function ProductCard({ product, className }: ProductCardProps) {
           }
         >
           {/* ── Image — square, compact ── */}
-          {/* Use a plain <img> tag instead of Next.js <Image> to avoid:
-              1. Vercel Hobby 1,000/month image optimisation quota (HTTP 402)
-              2. fill+aspectRatio height collapse (fill needs explicit px height)
-              CDN images (cdn.grofers.com, cdn.zeptonow.com) are already
-              reasonably sized; serving them directly is reliable and fast. */}
-          <div className="bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1", width: "100%" }}>
+          <div className="relative bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1" }}>
             {imgSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={imgSrc}
                 alt={product.name}
-                className="w-full h-full object-contain p-2"
+                fill
+                // Product cards display at clamp(120px,40vw,150px).
+                // On a 360px mobile screen that is ~144px; on desktop it is 150px.
+                // Telling Next.js the true display size lets it serve a 160px or
+                // 256px optimised WebP/AVIF instead of the raw 1000×1000 PNG —
+                // saving ~1.7 MB per image (Lighthouse "Improve image delivery" fix).
+                sizes="(max-width: 480px) 44vw, (max-width: 640px) 40vw, 160px"
+                className="object-contain p-2"
                 onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
                 decoding="async"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl select-none" style={{ aspectRatio: "1/1" }}>🛒</div>
+              <div className="w-full h-full flex items-center justify-center text-3xl select-none">🛒</div>
             )}
 
             {/* Discount badge */}
