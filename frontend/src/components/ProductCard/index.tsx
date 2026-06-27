@@ -99,6 +99,15 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
+  // Proxy external CDN URLs through /api/img to avoid hotlink protection
+  // (cdn.grofers.com uses vary:Origin and blocks direct browser requests)
+  function proxyUrl(url: string | null | undefined): string | null {
+    if (!url || url.trim() === "") return null;
+    // Local/relative URLs don't need proxying
+    if (url.startsWith("/") || url.startsWith("data:")) return url;
+    return `/api/img?url=${encodeURIComponent(url)}`;
+  }
+
   // Cascade: thumbnail_url → image_url → platform_image_url → SLUG_IMAGES → emoji
   const imgSources: (string | null | undefined)[] = [
     product.thumbnail_url,
@@ -108,7 +117,8 @@ export function ProductCard({ product, className }: ProductCardProps) {
     SLUG_IMAGES[product.slug],
   ];
   const validSources = imgSources.filter((s): s is string => !!s && s.trim() !== "");
-  const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
+  const rawSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
+  const imgSrc = proxyUrl(rawSrc);
 
   // Format price compactly — never truncate with ellipsis
   const formatPrice = (p: number) => {
