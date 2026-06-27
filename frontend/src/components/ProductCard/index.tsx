@@ -146,12 +146,12 @@ export function ProductCard({ product, className }: ProductCardProps) {
                 src={imgSrc}
                 alt={product.name}
                 fill
-                // Product cards display at clamp(120px,40vw,150px).
-                // On a 360px mobile screen that is ~144px; on desktop it is 150px.
-                // Telling Next.js the true display size lets it serve a 160px or
-                // 256px optimised WebP/AVIF instead of the raw 1000×1000 PNG —
-                // saving ~1.7 MB per image (Lighthouse "Improve image delivery" fix).
-                sizes="(max-width: 480px) 44vw, (max-width: 640px) 40vw, 160px"
+                // unoptimized: bypass Vercel's /_next/image optimisation endpoint.
+                // The Hobby plan allows only 1,000 optimisations/month; once that
+                // quota is exhausted Vercel returns HTTP 402 and the image fails
+                // to load entirely. Serving the original CDN URL directly is more
+                // reliable — the CDN images are already reasonably sized PNGs.
+                unoptimized
                 className="object-contain p-2"
                 onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
