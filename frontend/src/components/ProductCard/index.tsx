@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Zap, CheckCircle2, Plus, Minus, BarChart2 } from "lucide-react";
@@ -140,25 +139,24 @@ export function ProductCard({ product, className }: ProductCardProps) {
           }
         >
           {/* ── Image — square, compact ── */}
-          <div className="relative bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1" }}>
+          {/* Use a plain <img> tag instead of Next.js <Image> to avoid:
+              1. Vercel Hobby 1,000/month image optimisation quota (HTTP 402)
+              2. fill+aspectRatio height collapse (fill needs explicit px height)
+              CDN images (cdn.grofers.com, cdn.zeptonow.com) are already
+              reasonably sized; serving them directly is reliable and fast. */}
+          <div className="bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1", width: "100%" }}>
             {imgSrc ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={imgSrc}
                 alt={product.name}
-                fill
-                // unoptimized: bypass Vercel's /_next/image optimisation endpoint.
-                // The Hobby plan allows only 1,000 optimisations/month; once that
-                // quota is exhausted Vercel returns HTTP 402 and the image fails
-                // to load entirely. Serving the original CDN URL directly is more
-                // reliable — the CDN images are already reasonably sized PNGs.
-                unoptimized
-                className="object-contain p-2"
+                className="w-full h-full object-contain p-2"
                 onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
                 decoding="async"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl select-none">🛒</div>
+              <div className="w-full h-full flex items-center justify-center text-3xl select-none" style={{ aspectRatio: "1/1" }}>🛒</div>
             )}
 
             {/* Discount badge */}
