@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Best Grocery Deals India 2026 — Blinkit vs Zepto",
+  title: "Best Grocery Deals India 2026 — Blinkit, Zepto, BigBasket, Instamart | PriceBasket",
   description:
-    "Find the best grocery deals across Blinkit, Zepto, Instamart, BigBasket & JioMart. Compare prices in real-time. Save ₹500/month. Free price alerts.",
+    "Find the best grocery deals across Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart in India. Compare prices in real-time. Save ₹500/month. Free price alerts.",
   keywords: [
     "best grocery deals india",
     "cheapest grocery app india 2026",

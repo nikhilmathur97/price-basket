@@ -1114,324 +1114,115 @@ async def run_seed(
 
 # ── Catalog audit ─────────────────────────────────────────────────────────────
 
-# Keywords that STRONGLY and UNAMBIGUOUSLY identify a category.
-# Rules:
-#   - Only multi-word phrases or brand-specific terms that cannot appear in other categories
-#   - Generic single words (sugar, salt, butter, snack, chips) are EXCLUDED to avoid
-#     false positives on product names like "Zero Sugar Sparkling Drink" or "Snacky Apple"
-# ── Category keywords — MUST use actual DB slugs ─────────────────────────────
-# DB slugs: fruits-vegetables, dairy-breakfast, snacks-drinks, bakery,
-#           household, personal-care, chicken-meat, frozen-foods, baby-care,
-#           pet-care, staples, oils-spices, electronics
-# NOTE: There is NO separate "snacks", "beverages", "dairy-eggs", or
-#       "instant-food" slug in the DB. Snacks+drinks+ketchup/sauces all live
-#       in "snacks-drinks". Dairy+eggs+breakfast live in "dairy-breakfast".
+# Keywords used to detect category mismatches
+# Keywords that STRONGLY identify a category (product name contains these → belongs here)
+# Use multi-word phrases first (more specific), then single words.
+# Words that are ambiguous (e.g. "banana" can be a fruit OR banana chips) are NOT listed here.
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    # ── Dairy & Breakfast (DB slug: dairy-breakfast) ──────────────────────────
-    # NOTE: No bare "lassi" — it is a substring of "classic". Use specific phrases only.
-    "dairy-breakfast":   ["amul milk", "mother dairy milk", "skimmed milk", "toned milk",
-                          "full cream milk", "cow milk", "buffalo milk",
-                          "amul curd", "mother dairy curd", "dahi pouch", "curd pouch",
-                          "milky mist curd", "nandini curd", "nandini thick curd",
-                          "greek yogurt", "flavoured yogurt", "set yogurt",
-                          "amul butter", "white butter", "salted butter", "unsalted butter",
-                          "amul paneer", "fresh paneer", "cottage cheese",
-                          "processed cheese", "cheese slice", "cheese spread",
-                          "pure ghee", "cow ghee", "desi ghee",
-                          "amul lassi", "mango lassi", "sweet lassi", "lassi drink",
-                          "rose lassi", "masala lassi", "salted lassi",
-                          "buttermilk drink", "chaas drink", "spiced buttermilk",
-                          "whey protein", "protein shake",
-                          "farm eggs", "brown eggs", "white eggs", "free range eggs",
-                          "breakfast oats", "rolled oats", "instant oats",
-                          "muesli", "granola", "cornflakes", "breakfast cereal",
-                          "whole wheat bread", "sandwich bread", "multigrain bread",
-                          "fruit jam", "mixed fruit jam", "peanut butter"],
-    # ── Fruits & Vegetables ───────────────────────────────────────────────────
-    "fruits-vegetables": ["patta gobhi", "dhaniya patta", "kadi patta", "palak",
-                          "shimla mirch", "karela", "lauki", "tinda", "turai",
-                          "organically grown", "hydroponically grown",
-                          "fresh apple", "fresh banana", "fresh mango", "fresh tomato",
+    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer", "cream cheese",
+                          "ghee", "lassi", "whey protein", "buttermilk", "skimmed milk"],
+    "fruits-vegetables": ["fresh apple", "fresh banana", "fresh mango", "fresh tomato",
                           "fresh potato", "fresh onion", "fresh spinach", "fresh carrot",
                           "fresh orange", "fresh lemon", "fresh grape", "broccoli",
                           "cauliflower", "fresh peas", "fresh beans", "fresh cabbage",
-                          "fresh cucumber", "fresh capsicum"],
-    # ── Snacks & Drinks (DB slug: snacks-drinks) ──────────────────────────────
-    # Covers: chips, namkeen, biscuits, juices, sodas, ketchup, sauces, etc.
-    # NOTE: No bare "sev" (substring of "seven"/"severe"). Use "sev namkeen"/"aloo sev".
-    # NOTE: No bare "puff" (substring of "stuffed"). Use "puff snack"/"corn puff".
-    # NOTE: No bare "classic lemonade" removed (redundant; "lemonade" already present).
-    "snacks-drinks":     ["banana chips", "potato chips", "tortilla chips", "veggie chips",
-                          "corn chips", "rice chips",
-                          "namkeen", "bhujia", "chivda", "mixture", "mathri",
-                          "sev namkeen", "aloo sev", "nylon sev",
-                          "murukku", "chakli", "fryums",
-                          "popcorn", "puffed rice", "makhana",
-                          "biscuit", "cookie", "cracker", "wafer",
-                          "pretzel", "nachos", "puff snack", "corn puff",
-                          "protein bar", "granola bar", "energy bar",
-                          "roasted nuts", "trail mix", "nut mix",
-                          # beverages
-                          "fruit juice", "cold pressed juice", "mixed fruit juice",
-                          "apple juice", "orange juice", "mango juice", "guava juice",
-                          "pineapple juice", "pomegranate juice", "grape juice",
-                          "cola", "soft drink", "carbonated beverage", "aerated drink",
-                          "sparkling water", "mineral water", "packaged water",
-                          "energy drink", "sports drink",
-                          "iced tea", "green tea", "herbal tea", "tea bags",
-                          "instant coffee", "cold brew coffee",
-                          "lemonade", "ginger ale", "nimbu pani",
-                          "shikanji", "aam panna",
-                          "coconut water", "sugarcane juice",
-                          "squash drink", "cordial drink", "drink mix", "drink mixer",
-                          "milkshake", "flavoured milk",
-                          "tonic water", "soda water", "sparkling drink",
-                          "prebiotic soda", "kombucha",
-                          # sauces & condiments (no separate instant-food slug in DB)
-                          "tomato ketchup", "ketchup",
-                          "pasta sauce", "pizza sauce",
-                          "ready to eat", "ready-to-eat",
-                          "instant soup", "soup mix", "cup soup",
-                          "instant noodles", "cup noodles", "ramen noodles",
-                          "upma mix", "poha mix", "idli mix", "dosa mix",
-                          "canned tomatoes", "chopped tomatoes", "peeled tomatoes",
-                          "tomato puree", "tomato paste",
-                          "maggi noodles", "maggi masala noodles", "maggi"],
-    # ── Staples ───────────────────────────────────────────────────────────────
-    # Includes cooking oils (olive oil, coconut oil etc. belong here, not oils-spices)
-    "staples":           ["basmati rice", "brown rice", "sona masoori", "ponni rice",
-                          "wheat flour", "atta", "maida", "suji", "sooji", "semolina", "rawa",
-                          "besan", "gram flour",
-                          "toor dal", "moong dal", "chana dal", "urad dal", "masoor dal",
-                          "yellow dal", "green moong",
-                          "mustard oil", "sunflower oil", "refined oil", "groundnut oil",
-                          "olive oil", "coconut oil", "rice bran oil",
-                          "cold pressed mustard oil", "cold pressed coconut oil",
-                          "extra virgin olive oil", "extra light olive oil",
-                          "cooking spray", "cooking oil",
-                          "poha", "cornflour", "corn starch",
-                          "dried peas", "dried beans", "rajma", "kabuli chana",
-                          "rock salt", "sendha namak", "black salt"],
-    # ── Personal Care ─────────────────────────────────────────────────────────
-    "personal-care":     ["shampoo", "conditioner", "hair mask",
-                          "face wash", "face scrub", "face pack",
-                          "moisturizer", "body lotion", "body butter",
-                          "deodorant", "antiperspirant",
-                          "toothpaste", "toothbrush", "mouthwash",
-                          "body wash", "shower gel", "bath soap",
-                          "sunscreen", "spf cream",
-                          "face serum", "eye cream",
-                          "hair oil", "hair gel", "hair serum",
-                          "hand wash", "hand sanitizer", "sanitizer gel"],
-    # ── Household ─────────────────────────────────────────────────────────────
-    "household":         ["detergent powder", "detergent liquid", "fabric softener",
-                          "dishwash bar", "dishwash liquid", "dish soap",
-                          "toilet cleaner", "floor cleaner", "surface cleaner",
-                          "scrubber", "scrub pad", "bleach", "phenyl",
-                          "air freshener", "room freshener",
-                          "garbage bag", "trash bag",
-                          "tissue paper", "paper towel", "kitchen towel",
-                          "wet wipes", "cleaning wipes",
-                          "laundry detergent", "washing powder"],
-    # ── Baby Care ─────────────────────────────────────────────────────────────
-    "baby-care":         ["baby diaper", "diaper pants", "nappy",
-                          "baby wipes", "baby lotion", "baby oil",
-                          "baby shampoo", "baby wash", "baby soap", "baby cream",
-                          "baby powder", "talcum powder",
-                          "infant formula", "toddler formula", "baby food",
+                          "fresh cucumber", "fresh capsicum", "raw vegetable", "raw fruit"],
+    "snacks":            ["chips", "biscuit", "cookie", "namkeen", "bhujia", "popcorn",
+                          "wafer", "cracker", "snack", "puff", "pretzel", "nachos",
+                          "banana chips", "potato chips", "tortilla", "murukku", "chivda",
+                          "mixture", "mathri", "sev", "chakli", "fryums"],
+    "beverages":         ["juice", "cola", "soda", "mineral water", "packaged water",
+                          "tea bags", "coffee powder", "instant coffee", "energy drink",
+                          "lemonade", "squash", "syrup", "milkshake", "smoothie",
+                          "cold drink", "soft drink", "aerated", "tonic water"],
+    "staples":           ["basmati rice", "brown rice", "wheat flour", "atta", "maida",
+                          "besan", "dal", "lentil", "toor dal", "moong dal", "chana dal",
+                          "urad dal", "masoor dal", "sugar", "salt", "refined oil",
+                          "mustard oil", "sunflower oil", "olive oil", "semolina", "sooji",
+                          "poha", "oats", "cornflour", "suji", "rawa"],
+    "personal-care":     ["shampoo", "conditioner", "face wash", "moisturizer", "body lotion",
+                          "deodorant", "toothpaste", "toothbrush", "body wash", "sunscreen",
+                          "face serum", "hair oil", "hair gel", "hand wash", "sanitizer gel"],
+    "household":         ["detergent", "dishwash", "toilet cleaner", "floor cleaner",
+                          "surface cleaner", "scrubber", "bleach", "air freshener",
+                          "garbage bag", "tissue paper", "paper towel", "wet wipes",
+                          "dish soap", "laundry", "fabric softener"],
+    "baby-care":         ["diaper", "nappy", "infant formula", "toddler formula",
+                          "baby diaper", "baby wipes", "baby lotion", "baby shampoo",
+                          "baby food", "baby powder", "baby oil", "baby soap", "baby cream",
                           "teether", "cerelac", "huggies", "pampers", "mamy poko",
                           "johnsons baby", "johnson baby"],
-    # ── Beauty ────────────────────────────────────────────────────────────────
-    "beauty":            ["lipstick", "lip gloss", "lip liner",
-                          "mascara", "eyeliner", "kajal", "eye shadow",
-                          "foundation", "bb cream", "cc cream", "concealer",
-                          "blush", "highlighter", "bronzer",
-                          "nail polish", "nail paint",
-                          "makeup remover", "micellar water",
-                          "face primer", "setting spray",
-                          "face mask", "sheet mask", "toner", "essence"],
-    # ── Frozen Foods ──────────────────────────────────────────────────────────
-    "frozen-foods":      ["frozen peas", "frozen corn", "frozen vegetables",
-                          "frozen paratha", "frozen roti", "frozen snack",
-                          "frozen chicken", "frozen fish", "frozen prawns",
-                          "ice cream", "gelato", "sorbet", "popsicle", "kulfi",
-                          "frozen fries", "frozen nuggets", "frozen tikki",
-                          "frozen pizza", "frozen burger"],
-    # ── Bakery ────────────────────────────────────────────────────────────────
-    "bakery":            ["whole wheat bread", "multigrain bread", "white bread", "sandwich bread",
-                          "dinner roll", "burger bun", "hot dog bun",
-                          "croissant", "bagel", "pav",
-                          "muffin", "cupcake", "pastry", "danish",
-                          "rusk", "toast",
-                          "bakery cake", "bakery delight", "pop cake",
-                          "loaf cake", "banana bread"],
-    # ── Chicken & Meat ────────────────────────────────────────────────────────
-    # NOTE: No bare "tuna" — it is a substring of "fortune" (Fortune brand oils).
-    #       Use "tuna fish" or "canned tuna" instead.
-    "chicken-meat":      ["chicken breast", "chicken leg", "chicken thigh", "chicken wing",
-                          "chicken curry cut", "boneless chicken", "whole chicken",
-                          "chicken mince", "chicken keema",
-                          "mutton leg", "mutton curry cut", "mutton keema",
-                          "fish fillet", "fish steak",
-                          "prawn", "shrimp", "lobster",
-                          "salmon", "tuna fish", "canned tuna", "seafood",
-                          "pork chop", "beef steak"],
-    # ── Oils & Spices ─────────────────────────────────────────────────────────
-    # Only spice/masala products — cooking oils go to staples
-    "oils-spices":       ["red chilli powder", "turmeric powder", "coriander powder",
-                          "cumin powder", "garam masala", "kitchen king",
-                          "curry powder", "biryani masala", "chaat masala",
-                          "black pepper", "cardamom", "cloves", "cinnamon",
-                          "dried herbs", "edible oil"],
-    # ── Pet Care ──────────────────────────────────────────────────────────────
-    "pet-care":          ["dog food", "cat food", "pet food", "puppy food", "kitten food",
-                          "dog treat", "cat treat", "pet treat",
-                          "dog shampoo", "pet shampoo", "cat litter", "pet litter",
-                          "pedigree", "whiskas", "drools", "royal canin", "me-o"],
+    "beauty":            ["lipstick", "mascara", "foundation", "blush", "kajal", "eyeliner",
+                          "nail polish", "makeup", "concealer", "primer", "highlighter",
+                          "face mask", "toner", "micellar", "bb cream", "cc cream"],
+    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle",
+                          "frozen peas", "frozen corn", "frozen paratha", "frozen snack"],
+    "bakery":            ["bread", "bun", "cake", "muffin", "pastry", "rusk", "toast",
+                          "croissant", "bagel", "pav", "dinner roll", "loaf"],
+    "meat-seafood":      ["chicken", "mutton", "fish fillet", "prawn", "shrimp",
+                          "beef", "pork", "salmon", "tuna", "seafood", "boneless chicken",
+                          "chicken breast", "chicken leg", "minced meat"],
+    "instant-food":      ["noodles", "pasta", "maggi", "instant noodles", "ready to eat",
+                          "instant soup", "cup noodles", "ramen", "upma mix", "poha mix",
+                          "oatmeal", "porridge mix", "instant oats"],
 }
 
-# Override list: if a product's name contains ANY of these phrases for its CURRENT category,
-# it is definitely in the right place — skip mismatch detection entirely.
-# Covers all common product name patterns to prevent false positives.
-# Override list: if a product's name contains ANY of these phrases for its CURRENT
-# category, it is definitely in the right place — skip mismatch detection entirely.
-# IMPORTANT: Only use actual DB slugs here.
+# These category slugs should NEVER be suggested as a mismatch for these product name fragments.
+# e.g. "banana chips" in snacks should NOT be flagged as fruits-vegetables.
 _CATEGORY_OVERRIDES: dict[str, list[str]] = {
-    # ── Fruits & Vegetables ───────────────────────────────────────────────────
-    # Only Hindi/regional names and qualifier phrases — NOT single English fruit/veg
-    # names like "apple", "banana", "tomato" which appear in processed product names.
-    "fruits-vegetables": [
-        "patta gobhi", "dhaniya patta", "kadi patta", "palak",
-        "shimla mirch", "karela", "lauki", "tinda", "turai", "baingan",
-        "bhindi", "kaddu", "methi", "pudina",
-        "organically grown", "hydroponically grown",
-        "fresh ", "raw ", "sabzi", "vegetable", "fruit",
-        "snack pack",
-    ],
-    # ── Snacks & Drinks (DB slug) ─────────────────────────────────────────────
-    # NOTE: No bare "sev" (substring of "seven"/"severe"). Use "sev namkeen"/"aloo sev".
-    # NOTE: No bare "puff" (substring of "stuffed"). Use "puff snack"/"corn puff".
-    "snacks-drinks":     [
-        "chips", "namkeen", "bhujia", "biscuit", "cookie", "wafer",
-        "cracker", "popcorn", "murukku", "mixture", "mathri",
-        "sev namkeen", "aloo sev", "nylon sev",
-        "chivda", "fryums", "pretzel", "nachos", "puff snack", "corn puff",
-        "protein bar", "granola bar", "energy bar", "trail mix", "nut mix",
-        "juice", "cola", "soda", "sparkling", "mineral water",
-        "energy drink", "iced tea", "green tea", "tea bags",
-        "instant coffee", "cold brew", "lemonade", "shikanji", "aam panna",
-        "coconut water", "squash drink", "cordial drink", "drink mix", "drink mixer",
-        "milkshake", "flavoured milk", "tonic water", "kombucha",
-        "soft drink", "carbonated", "aerated", "prebiotic", "drink",
-        "ketchup", "tomato sauce", "tomato puree", "tomato paste",
-        "pasta sauce", "pizza sauce", "ready to eat", "ready-to-eat",
-        "instant noodles", "cup noodles", "ramen", "instant soup", "soup mix",
-        "upma mix", "poha mix", "idli mix", "dosa mix",
-        "canned tomatoes", "chopped tomatoes", "peeled tomatoes", "maggi",
-    ],
-    # ── Staples ───────────────────────────────────────────────────────────────
-    "staples":           [
-        "basmati rice", "brown rice", "sona masoori",
-        "wheat flour", "atta", "maida", "suji", "sooji", "semolina", "rawa",
-        "besan", "gram flour",
-        "toor dal", "moong dal", "chana dal", "urad dal", "masoor dal",
-        "mustard oil", "sunflower oil", "refined oil", "groundnut oil",
-        "olive oil", "coconut oil", "rice bran oil",
-        "poha", "oats", "cornflour",
-        "rajma", "kabuli chana", "dried peas", "dried beans",
-    ],
-    # ── Dairy & Breakfast (DB slug) ───────────────────────────────────────────
-    # NOTE: No bare "lassi" — it is a substring of "classic". Use word-boundary safe terms.
-    "dairy-breakfast":   [
-        "milk", "curd", "dahi", "yogurt", "paneer", "ghee",
-        "amul lassi", "mango lassi", "sweet lassi", "lassi drink",
-        "rose lassi", "masala lassi", "salted lassi",
-        "buttermilk", "chaas", "whey", "egg", "cheese", "butter",
-        "oats", "muesli", "granola", "cornflakes", "cereal",
-        "bread", "jam", "peanut butter",
-    ],
-    # ── Bakery ────────────────────────────────────────────────────────────────
-    "bakery":            [
-        "bread", "bun", "muffin", "rusk", "toast", "pav",
-        "croissant", "pastry", "loaf", "bakery delight", "pop cake",
-        "cake", "cupcake",
-    ],
-    # ── Frozen Foods ──────────────────────────────────────────────────────────
-    # Extended to protect frozen products that don't have "frozen" in their name
-    # (e.g. "Hungritos French Fries", "McCain Nuggets", "Aloo Tikki")
-    "frozen-foods":      [
-        "frozen", "ice cream", "gelato", "sorbet", "popsicle", "kulfi",
-        "french fries", "finger chips", "hash brown",
-        "nuggets", "fish finger", "fish stick",
-        "aloo tikki", "veg tikki", "seekh kebab",
-        "spring roll", "samosa", "momos",
-        "paratha", "roti", "stuffed paratha",
-    ],
-    # ── Personal Care ─────────────────────────────────────────────────────────
-    "personal-care":     [
-        "shampoo", "conditioner", "face wash", "moisturizer", "body lotion",
-        "deodorant", "toothpaste", "toothbrush", "body wash", "shower gel",
-        "sunscreen", "face serum", "hair oil", "hair gel", "hand wash", "sanitizer",
-    ],
-    # ── Household ─────────────────────────────────────────────────────────────
-    "household":         [
-        "detergent", "dishwash", "toilet cleaner", "floor cleaner", "surface cleaner",
-        "scrubber", "bleach", "air freshener", "garbage bag", "tissue paper",
-        "paper towel", "wet wipes", "laundry", "fabric softener",
-    ],
-    # ── Baby Care ─────────────────────────────────────────────────────────────
-    "baby-care":         ["baby", "diaper", "nappy", "infant", "toddler", "teether", "cerelac"],
-    # ── Beauty ────────────────────────────────────────────────────────────────
-    "beauty":            [
-        "lipstick", "mascara", "foundation", "kajal", "eyeliner",
-        "nail polish", "makeup", "concealer", "primer", "highlighter",
-        "face mask", "toner", "micellar",
-    ],
-    # ── Chicken & Meat ────────────────────────────────────────────────────────
-    "chicken-meat":      [
-        "chicken", "mutton", "fish fillet", "prawn", "shrimp",
-        "beef", "pork", "salmon", "tuna", "seafood", "meat",
-    ],
-    # ── Oils & Spices ─────────────────────────────────────────────────────────
-    # Cooking oils (olive oil, coconut oil etc.) belong in staples, not here.
-    # BUT if a cooking oil product is already in oils-spices, protect it from
-    # being moved to staples (Fortune, Saffola, etc. are sold in both categories).
-    "oils-spices":       [
-        "masala", "spice", "chilli powder", "turmeric", "cumin",
-        "coriander powder", "garam masala", "curry powder", "pepper",
-        "cardamom", "cloves", "cinnamon", "edible oil",
-        "sunflower oil", "refined oil", "mustard oil", "groundnut oil",
-        "rice bran oil", "soybean oil", "palm oil",
-    ],
-    # ── Pet Care ──────────────────────────────────────────────────────────────
-    "pet-care":          ["dog food", "cat food", "pet food", "pedigree", "whiskas", "drools"],
+    # if product name contains any of these phrases, keep it in its current category
+    "snacks":            ["chips", "namkeen", "bhujia", "biscuit", "cookie", "wafer",
+                          "cracker", "puff", "popcorn", "snack", "murukku", "mixture",
+                          "mathri", "sev", "chivda", "fryums", "pretzel", "nachos"],
+    "staples":           ["rice", "atta", "flour", "dal", "oil", "sugar", "salt",
+                          "oats", "poha", "semolina", "sooji", "rawa", "lentil"],
+    "beverages":         ["juice", "drink", "water", "tea", "coffee", "cola", "soda",
+                          "shake", "smoothie", "squash", "syrup", "aerated"],
+    "dairy-eggs":        ["milk", "curd", "yogurt", "butter", "cheese", "paneer",
+                          "ghee", "cream", "lassi", "whey", "egg"],
+    "bakery":            ["bread", "bun", "cake", "muffin", "rusk", "toast", "pav",
+                          "croissant", "pastry", "loaf"],
+    "frozen":            ["frozen", "ice cream", "gelato", "sorbet", "popsicle"],
+    "instant-food":      ["noodles", "pasta", "maggi", "instant", "ready to eat",
+                          "soup", "ramen", "upma", "porridge"],
+    "personal-care":     ["shampoo", "conditioner", "face wash", "moisturizer", "lotion",
+                          "deodorant", "toothpaste", "toothbrush", "body wash", "sunscreen",
+                          "serum", "hair oil", "hand wash", "sanitizer"],
+    "household":         ["detergent", "dishwash", "cleaner", "scrubber", "bleach",
+                          "freshener", "tissue", "wipes", "laundry", "fabric"],
+    "baby-care":         ["baby", "diaper", "nappy", "infant", "toddler", "teether"],
+    "beauty":            ["lipstick", "mascara", "foundation", "kajal", "eyeliner",
+                          "nail polish", "makeup", "concealer", "primer", "highlighter"],
+    "meat-seafood":      ["chicken", "mutton", "fish", "prawn", "shrimp", "beef",
+                          "pork", "salmon", "tuna", "seafood", "meat"],
+    "fruits-vegetables": ["fresh", "raw", "vegetable", "fruit", "sabzi",
+                          "baby corn", "baby potato", "baby onion", "baby spinach",
+                          "baby carrot", "baby banana", "baby apple", "baby tomato",
+                          "baby peas", "baby"],
 }
 
 
 def _detect_expected_category(name: str, current_slug: str) -> Optional[str]:
     """
-    Return a suggested category slug only when we are HIGHLY CONFIDENT the product
+    Return a suggested category slug only when we are highly confident the product
     is in the WRONG category.
 
-    Algorithm:
-    1. Check override list for current category — if any override phrase is found
-       in the product name, it definitely belongs here → return None (no mismatch).
-    2. Score every category by keyword matches. Multi-word phrases score = word count
-       (more specific = higher weight). Single-word keywords are only used in
-       _CATEGORY_KEYWORDS for categories where they are truly unambiguous.
-    3. Flag a mismatch ONLY when:
-       a. Current category scores 0 AND best other category scores >= 2 (not just 1,
-          to avoid single generic word matches), OR
-       b. Best other category scores > 3× current (overwhelming evidence).
+    Rules:
+    1. If the product name contains an override keyword for its current category → no mismatch.
+    2. Score every category by keyword matches (multi-word phrases score higher).
+       Single-word matches score 1; multi-word phrases score = number of words.
+    3. Only flag a mismatch when:
+       - The current category scores 0 (no keywords match at all), AND
+       - Another category scores >= 1 (any signal), OR
+       - Another category scores strictly more than 2× the current category score.
     """
     name_lower = name.lower()
 
-    # Step 1: override check — trust current category if any strong indicator found
+    # Rule 1: override — if name contains a strong indicator for current category, trust it
     for kw in _CATEGORY_OVERRIDES.get(current_slug, []):
         if kw in name_lower:
-            return None
+            return None  # definitely belongs here
 
-    # Step 2: score each candidate category
+    # Score each category; multi-word phrases get weight = number of words
     scores: dict[str, float] = {}
     for cat_slug, keywords in _CATEGORY_KEYWORDS.items():
         score = sum(len(kw.split()) for kw in keywords if kw in name_lower)
@@ -1439,21 +1230,22 @@ def _detect_expected_category(name: str, current_slug: str) -> Optional[str]:
             scores[cat_slug] = score
 
     if not scores:
-        return None  # no keyword signal at all → don't flag
+        return None  # no signal at all → don't flag
 
     best = max(scores, key=lambda k: scores[k])
     current_score = scores.get(current_slug, 0.0)
     best_score = scores[best]
 
+    # Only flag if best category is different AND signal is strong
     if best == current_slug:
-        return None  # current category already has the highest score
+        return None
 
-    # Step 3: require strong evidence before flagging
-    # Threshold >= 1 is safe because the override list is now comprehensive
+    # Require strong evidence:
+    # - current scores 0 (no keyword matches for current category) AND best has any match, OR
+    # - best scores more than 2× current (overwhelming evidence for different category)
     if current_score == 0 and best_score >= 1:
         return best
-    # Require 3× dominance to reduce false positives when current has some score
-    if current_score > 0 and best_score > current_score * 3:
+    if current_score > 0 and best_score > current_score * 2:
         return best
 
     return None

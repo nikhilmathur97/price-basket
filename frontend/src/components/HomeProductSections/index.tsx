@@ -5,20 +5,15 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Renders home page product rows.
  *
- * Performance strategy:
- *   1. Fetch only 20 products initially — renders the first two visible rows
- *      immediately, keeping TBT low by limiting JS work on first paint.
- *   2. React Query fetches the full 100-product set in the background after
- *      the first paint (staleTime = 5 min, no blocking).
- *   3. Sections below the fold are gated behind an IntersectionObserver —
- *      they only mount when the user scrolls near them, spreading JS
- *      evaluation across multiple frames instead of one giant task.
- *   4. Category sections are deferred further (rootMargin "400px") so they
- *      never block the initial paint or the first two product rows.
- *   5. Skeleton placeholders prevent layout shift (CLS = 0).
+ * Loading strategy:
+ *   1. Instantly show skeleton placeholders (zero-flash UX).
+ *   2. React Query fetches real API data in background (staleTime = 5 min).
+ *   3. When API resolves, swap seamlessly — no skeleton flash.
+ *   4. Category sections only render when products exist for that category.
+ *   5. Shows up to 100 products across all sections for maximum coverage.
  */
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/services/api";
 import { ProductCard } from "@/components/ProductCard";
 import { CATEGORY_SECTIONS } from "@/lib/mockData";
@@ -76,17 +71,15 @@ function SectionHeader({
           {icon}
           {title}
           {live && (
-            // text-green-800 (#166534) on bg-green-100 (#dcfce7) = 7.2:1 — passes WCAG AA
-            <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-800
-                             bg-green-100 border border-green-300 px-1.5 py-0.5 rounded-full ml-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse inline-block" />
+            <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-600
+                             bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
               LIVE
             </span>
           )}
           {badge && (
-            // text-orange-800 (#9a3412) on bg-orange-100 (#ffedd5) = 6.1:1 — passes WCAG AA
-            <span className="text-[9px] font-bold text-orange-800
-                             bg-orange-100 border border-orange-300 px-1.5 py-0.5 rounded-full ml-1">
+            <span className="text-[9px] font-bold text-orange-600
+                             bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full ml-1">
               {badge}
             </span>
           )}
@@ -95,11 +88,10 @@ function SectionHeader({
         {subtitle && <p className="text-[11px] text-surface-500 mt-0.5">{subtitle}</p>}
       </div>
       {href && (
-        // text-brand-700 (#c2410c) on bg-brand-100 (#ffedd5) = 5.1:1 — passes WCAG AA
         <Link
           href={href}
-          className="flex items-center gap-1 text-[12px] font-bold text-brand-700
-                     bg-brand-100 hover:bg-brand-600 hover:text-white
+          className="flex items-center gap-1 text-[12px] font-bold text-brand-600
+                     bg-brand-50 hover:bg-brand-600 hover:text-white
                      px-2.5 py-1 rounded-lg transition-all duration-200 active:scale-[0.95]"
         >
           See all <ArrowRight className="w-3 h-3" />
@@ -169,17 +161,15 @@ function EmptyState() {
       <PackageSearch className="w-14 h-14 text-surface-300" />
       <div>
         <p className="text-base font-semibold text-surface-700">Products loading soon</p>
-        {/* text-surface-500 (#737373) on white = 4.48:1 — passes WCAG AA */}
-        <p className="text-sm text-surface-500 mt-1">
+        <p className="text-sm text-surface-400 mt-1">
           Our team is scraping live prices from all platforms.<br />
           Check back in a few minutes!
         </p>
       </div>
-      {/* text-brand-700 (#c2410c) on bg-brand-100 (#ffedd5) = 5.1:1 — passes WCAG AA */}
       <Link
         href="/search"
-        className="text-sm font-bold text-brand-700 bg-brand-100 px-4 py-2 rounded-xl
-                   hover:bg-brand-700 hover:text-white transition-colors"
+        className="text-sm font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl
+                   hover:bg-brand-600 hover:text-white transition-colors"
       >
         Search products →
       </Link>
@@ -187,47 +177,16 @@ function EmptyState() {
   );
 }
 
-// ── Lazy section wrapper ────────────────────────────────────────────────────
-// Renders a skeleton placeholder until the element is within `rootMargin` of
-// the viewport, then swaps in the real content. This spreads JS evaluation
-// across frames instead of blocking the main thread on initial load.
-function LazySection({
-  children,
-  fallback,
-  rootMargin = "300px",
-}: {
-  children: React.ReactNode;
-  fallback: React.ReactNode;
-  rootMargin?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // If IntersectionObserver is not available (SSR / old browser), show immediately
-    if (typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { rootMargin }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [rootMargin]);
-
+// ── Savings badge strip ────────────────────────────────────────────────────
+function SavingsBadge({ amount, platform }: { amount: number; platform?: string }) {
+  if (amount <= 0) return null;
   return (
-    <div ref={ref}>
-      {visible ? children : fallback}
-    </div>
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold
+                     text-green-700 bg-green-50 border border-green-100
+                     px-1.5 py-0.5 rounded-full">
+      Save ₹{Math.round(amount)}
+      {platform && ` on ${platform}`}
+    </span>
   );
 }
 
@@ -236,14 +195,10 @@ function LazySection({
 export function HomeProductSections() {
   const [slowLoad, setSlowLoad] = useState(false);
 
-  // ── Phase 1: fetch 20 products immediately for above-the-fold rows ─────────
-  // A small initial payload keeps Time-to-Interactive low. The full set is
-  // fetched in Phase 2 below and merged in via the same query key.
   const { data: apiProducts, isLoading, isFetching, isError } = useQuery<ProductWithPrices[]>({
     queryKey: ["featured-home"],
     queryFn: async ({ signal }) => {
-      // Fetch up to 100 products for richer home page coverage.
-      // React Query deduplicates — only one network request is made.
+      // Fetch up to 100 products for richer home page coverage
       const { data } = await api.getFeatured(100, signal);
       // Return empty array instead of throwing — throwing causes React Query to
       // retry 3× and then permanently show EmptyState even when the API is healthy.
@@ -358,8 +313,7 @@ export function HomeProductSections() {
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "0ms" }} />
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-            {/* text-orange-800 (#9a3412) on bg-orange-50 (#fff7ed) = 6.1:1 — passes WCAG AA */}
-            <span className="text-[12px] font-medium text-orange-800 ml-1">
+            <span className="text-[12px] font-medium text-orange-600 ml-1">
               Loading products, please wait a moment…
             </span>
           </div>
@@ -378,18 +332,11 @@ export function HomeProductSections() {
     return <EmptyState />;
   }
 
-  // ── Skeleton placeholder for a single deferred section ───────────────────
-  const SectionSkeleton = (
-    <div className="bg-white rounded-2xl p-4 shadow-sm">
-      <div className="h-5 w-40 bg-surface-200 rounded animate-pulse mb-3" />
-      <SkeletonRow />
-    </div>
-  );
-
   return (
     <div className="space-y-6">
 
-      {/* ── Trending Now — rendered immediately (above the fold) ── */}
+
+      {/* ── Trending Now ── */}
       {trendingNow.length > 0 && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <SectionHeader
@@ -403,7 +350,7 @@ export function HomeProductSections() {
         </div>
       )}
 
-      {/* ── Best Deals Today — rendered immediately (above the fold) ── */}
+      {/* ── Best Deals Today ── */}
       {bestDeals.length > 0 && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <SectionHeader
@@ -418,94 +365,86 @@ export function HomeProductSections() {
         </div>
       )}
 
-      {/* ── Below-fold sections — lazy-mounted via IntersectionObserver ── */}
-
+      {/* ── Fastest Delivery ── */}
       {fastestDelivery.length > 0 && (
-        <LazySection fallback={SectionSkeleton} rootMargin="300px">
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <SectionHeader
-              icon={<Zap className="w-4 h-4 text-yellow-500" />}
-              title="Fastest Delivery"
-              subtitle="Get it in 10 minutes or less"
-              href="/search?sort=fastest"
-              live={isFromAPI}
-            />
-            <ProductRow products={fastestDelivery} loading={isFetching} />
-          </div>
-        </LazySection>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <SectionHeader
+            icon={<Zap className="w-4 h-4 text-yellow-500" />}
+            title="Fastest Delivery"
+            subtitle="Get it in 10 minutes or less"
+            href="/search?sort=fastest"
+            live={isFromAPI}
+          />
+          <ProductRow products={fastestDelivery} loading={isFetching} />
+        </div>
       )}
 
+      {/* ── Under ₹100 ── */}
       {under100.length > 0 && (
-        <LazySection fallback={SectionSkeleton} rootMargin="300px">
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <SectionHeader
-              icon={<Tag className="w-4 h-4 text-green-600" />}
-              title="Under ₹100"
-              subtitle="Budget-friendly picks across all platforms"
-              href="/search?max_price=100"
-              live={isFromAPI}
-            />
-            <ProductRow products={under100} loading={isFetching} />
-          </div>
-        </LazySection>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <SectionHeader
+            icon={<Tag className="w-4 h-4 text-green-600" />}
+            title="Under ₹100"
+            subtitle="Budget-friendly picks across all platforms"
+            href="/search?max_price=100"
+            live={isFromAPI}
+          />
+          <ProductRow products={under100} loading={isFetching} />
+        </div>
       )}
 
+      {/* ── Compare on 3+ Platforms ── */}
       {multiPlatform.length > 0 && (
-        <LazySection fallback={SectionSkeleton} rootMargin="300px">
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <SectionHeader
-              icon={<Sparkles className="w-4 h-4 text-blue-500" />}
-              title="Compare on 3+ Platforms"
-              subtitle="Most coverage — compare and save more"
-              href="/search"
-              live={isFromAPI}
-            />
-            <ProductRow products={multiPlatform} loading={isFetching} />
-          </div>
-        </LazySection>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <SectionHeader
+            icon={<Sparkles className="w-4 h-4 text-blue-500" />}
+            title="Compare on 3+ Platforms"
+            subtitle="Most coverage — compare and save more"
+            href="/search"
+            live={isFromAPI}
+          />
+          <ProductRow products={multiPlatform} loading={isFetching} />
+        </div>
       )}
 
+      {/* ── Highly Recommended ── */}
       {highlyRecommended.length > 0 && (
-        <LazySection fallback={SectionSkeleton} rootMargin="300px">
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <SectionHeader
-              icon={<Star className="w-4 h-4 text-purple-500" />}
-              title="Highly Recommended"
-              subtitle="Highest savings potential when you compare"
-              href="/search"
-              live={isFromAPI}
-            />
-            <ProductRow products={highlyRecommended} loading={isFetching} />
-          </div>
-        </LazySection>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <SectionHeader
+            icon={<Star className="w-4 h-4 text-purple-500" />}
+            title="Highly Recommended"
+            subtitle="Highest savings potential when you compare"
+            href="/search"
+            live={isFromAPI}
+          />
+          <ProductRow products={highlyRecommended} loading={isFetching} />
+        </div>
       )}
 
+      {/* ── New Arrivals ── */}
       {newArrivals.length > 0 && newArrivals !== trendingNow && (
-        <LazySection fallback={SectionSkeleton} rootMargin="300px">
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <SectionHeader
-              icon={<Clock className="w-4 h-4 text-indigo-500" />}
-              title="Recently Added"
-              subtitle="New products with live price tracking"
-              href="/search"
-              live={isFromAPI}
-            />
-            <ProductRow products={newArrivals} loading={isFetching} />
-          </div>
-        </LazySection>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <SectionHeader
+            icon={<Clock className="w-4 h-4 text-indigo-500" />}
+            title="Recently Added"
+            subtitle="New products with live price tracking"
+            href="/search"
+            live={isFromAPI}
+          />
+          <ProductRow products={newArrivals} loading={isFetching} />
+        </div>
       )}
 
       {/* Shop by Category divider */}
       <div className="flex items-center gap-3 py-2">
         <div className="flex-1 h-px bg-surface-200" />
-        {/* text-surface-500 (#737373) on white = 4.48:1 — passes WCAG AA */}
-        <span className="text-[11px] font-bold text-surface-500 uppercase tracking-widest whitespace-nowrap">
+        <span className="text-[11px] font-bold text-surface-400 uppercase tracking-widest whitespace-nowrap">
           Shop by Category
         </span>
         <div className="flex-1 h-px bg-surface-200" />
       </div>
 
-      {/* ── Category rows — deferred further (500px ahead) ── */}
+      {/* ── Category rows ── */}
       {CATEGORY_SECTIONS.map(({ slug, label }) => {
         const categoryProducts = products
           .filter((p) => p.category?.slug === slug)
@@ -517,49 +456,42 @@ export function HomeProductSections() {
         const colors = CAT_COLORS[slug] ?? { bg: "#f5f5f5", text: "#525252" };
 
         return (
-          <LazySection key={slug} fallback={SectionSkeleton} rootMargin="500px">
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <SectionHeader
-                icon={
-                  <span
-                    className="text-lg w-7 h-7 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: colors.bg }}
-                  >
-                    {emoji}
-                  </span>
-                }
-                title={words.join(" ")}
-                subtitle={`${categoryProducts.length} products`}
-                href={`/search?category=${slug}`}
-              />
-              <ProductRow products={categoryProducts} loading={isFetching} />
-            </div>
-          </LazySection>
+          <div key={slug} className="bg-white rounded-2xl p-4 shadow-sm">
+            <SectionHeader
+              icon={
+                <span
+                  className="text-lg w-7 h-7 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: colors.bg }}
+                >
+                  {emoji}
+                </span>
+              }
+              title={words.join(" ")}
+              subtitle={`${categoryProducts.length} products`}
+              href={`/search?category=${slug}`}
+            />
+            <ProductRow products={categoryProducts} loading={isFetching} />
+          </div>
         );
       })}
 
       {/* ── Bottom CTA ── */}
-      <LazySection
-        fallback={<div className="h-28 bg-brand-600 rounded-2xl animate-pulse" />}
-        rootMargin="500px"
-      >
-        <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-5 text-center">
-          <p className="text-white font-extrabold text-base mb-1">
-            Can&apos;t find what you&apos;re looking for?
-          </p>
-          <p className="text-brand-100 text-sm mb-3">
-            Search from {products.length}+ products across 7 platforms
-          </p>
-          <Link
-            href="/search"
-            className="inline-flex items-center gap-2 bg-white text-brand-700 font-extrabold
-                       text-sm px-6 py-2.5 rounded-xl hover:bg-brand-50 transition-colors
-                       shadow-md active:scale-95"
-          >
-            Search all products <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </LazySection>
+      <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-5 text-center">
+        <p className="text-white font-extrabold text-base mb-1">
+          Can&apos;t find what you&apos;re looking for?
+        </p>
+        <p className="text-brand-100 text-sm mb-3">
+          Search from {products.length}+ products across 7 platforms
+        </p>
+        <Link
+          href="/search"
+          className="inline-flex items-center gap-2 bg-white text-brand-700 font-extrabold
+                     text-sm px-6 py-2.5 rounded-xl hover:bg-brand-50 transition-colors
+                     shadow-md active:scale-95"
+        >
+          Search all products <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
 
     </div>
   );

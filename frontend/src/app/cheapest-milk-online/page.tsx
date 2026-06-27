@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Milk Online India 2026 — Blinkit vs Zepto",
+  title: "Cheapest Milk Online India 2026 — Blinkit vs Zepto vs BigBasket Milk Price | PriceBasket",
   description:
-    "Compare milk prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest Amul, Mother Dairy, Nandini milk online. 500ml, 1L price comparison. Free.",
+    "Compare milk prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest Amul, Mother Dairy, Nandini milk online. 500ml, 1L milk price comparison. Free.",
   keywords: [
     "cheapest milk online india",
     "milk price comparison india",

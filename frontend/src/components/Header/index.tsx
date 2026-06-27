@@ -78,11 +78,9 @@ export function Header() {
             />
             <div className="hidden sm:block leading-tight">
               <p className="text-[15px] font-extrabold text-surface-900 tracking-tight leading-none">
-                {/* text-brand-700 (#c2410c) on white = 5.4:1 — passes WCAG AA */}
-                Price<span className="text-brand-700">Basket</span>
+                Price<span className="text-brand-600">Basket</span>
               </p>
-              {/* text-surface-500 (#737373) on white = 4.48:1 — passes WCAG AA for bold text */}
-              <p className="text-[9px] text-surface-500 font-semibold leading-none mt-0.5 tracking-wide uppercase">
+              <p className="text-[9px] text-surface-400 font-semibold leading-none mt-0.5 tracking-wide uppercase">
                 Compare · Save · Smart
               </p>
             </div>
@@ -108,13 +106,12 @@ export function Header() {
                        transition-all cursor-pointer"
           >
             <ShoppingCart className="w-5 h-5 text-surface-700" />
-            {/* bg-brand-700 (#c2410c) — white on #c2410c = 4.6:1 — passes WCAG AA */}
             {isAuthenticated && totalItems > 0 && (
               <motion.span
                 key={totalItems}
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="absolute -top-1 -right-1 bg-brand-700 text-white
+                className="absolute -top-1 -right-1 bg-brand-600 text-white
                            text-[10px] font-extrabold min-w-[18px] h-[18px] px-1
                            rounded-full flex items-center justify-center leading-none"
               >
@@ -173,10 +170,8 @@ export function Header() {
               )}
             </div>
           ) : (
-            // bg-brand-700 = #c2410c — white on #c2410c = 4.6:1 (passes WCAG AA).
-            // bg-brand-600 = #ea580c — white on #ea580c = 3.1:1 (fails WCAG AA for normal text).
             <Link href="/auth/login"
-              className="h-9 px-4 bg-brand-700 hover:bg-brand-800 active:scale-[0.97]
+              className="h-9 px-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.97]
                          text-white text-sm font-bold rounded-xl transition-all
                          flex items-center whitespace-nowrap">
               Login

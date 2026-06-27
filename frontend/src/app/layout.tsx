@@ -25,7 +25,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Compare Grocery Prices — Blinkit, Zepto & BigBasket | PriceBasket",
+    default: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices | Save ₹500/Month",
     template: "%s | PriceBasket",
   },
   description:
@@ -109,12 +109,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://cdn.grofers.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://cdn.blinkit.com" crossOrigin="anonymous" />
-        {/*
-          images.pexels.com serves category tile images. Lighthouse flags it as a
-          preconnect candidate with 300 ms estimated LCP savings — adding it here
-          eliminates the DNS+TCP+TLS handshake from the critical path.
-        */}
-        <link rel="preconnect" href="https://images.pexels.com" crossOrigin="anonymous" />
         {/* dns-prefetch as a fallback for browsers that ignore preconnect */}
         <link rel="dns-prefetch" href="https://api.pricebasket.in" />
         <link rel="dns-prefetch" href="https://cdn.zeptonow.com" />

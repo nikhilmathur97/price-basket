@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Grocery Prices in Hyderabad 2026 — Blinkit vs Zepto",
+  title: "Grocery Prices in Hyderabad 2026 — Compare Blinkit, Zepto, BigBasket | PriceBasket",
   description:
-    "Compare grocery prices in Hyderabad across Blinkit, Zepto, Instamart, BigBasket & JioMart. Find cheapest grocery delivery in Hyderabad. Save ₹500/month. Free.",
+    "Compare grocery prices in Hyderabad across Blinkit, Zepto, Swiggy Instamart, BigBasket, JioMart. Find cheapest grocery delivery in Hyderabad. Save ₹500/month. Free price alerts.",
   keywords: [
     "grocery prices hyderabad",
     "cheapest grocery delivery hyderabad",

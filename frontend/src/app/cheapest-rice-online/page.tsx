@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Rice Online India 2026 — Blinkit vs Zepto",
+  title: "Cheapest Rice Online India 2026 — Blinkit vs Zepto vs BigBasket Rice Price | PriceBasket",
   description:
-    "Compare rice prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest India Gate, Daawat, BB Royal basmati & sona masoori rice online. Free.",
+    "Compare rice prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest basmati, sona masoori, ponni rice online. 1kg, 5kg, 10kg rice price comparison. Free.",
   keywords: [
     "cheapest rice online india",
     "rice price comparison india",

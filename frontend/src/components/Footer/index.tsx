@@ -194,8 +194,7 @@ export function Footer() {
           <div className="py-8 border-b border-surface-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-surface-900 text-xs font-bold uppercase tracking-wider">Categories</h3>
-              {/* text-brand-700 (#c2410c) on white = 5.4:1 — passes WCAG AA */}
-              <Link href="/search" className="text-brand-700 hover:text-brand-800 text-xs font-semibold transition-colors">
+              <Link href="/search" className="text-brand-600 hover:text-brand-700 text-xs font-semibold transition-colors">
                 see all →
               </Link>
             </div>
@@ -224,11 +223,9 @@ export function Footer() {
             </h3>
             <div className="flex flex-wrap gap-2">
               {PLATFORMS.map((p) => (
-                // text-surface-600 (#525252) on bg-surface-100 (#f5f5f5) = 5.9:1 — passes WCAG AA
-                // (text-surface-500 = #737373 on #f5f5f5 = 4.0:1 — fails at small font sizes)
                 <span
                   key={p}
-                  className="text-surface-600 text-xs px-3 py-1.5 bg-surface-100
+                  className="text-surface-500 text-xs px-3 py-1.5 bg-surface-100
                              border border-surface-200 rounded-full"
                 >
                   {p}

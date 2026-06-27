@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Sugar Online India 2026 — Blinkit vs Zepto",
+  title: "Cheapest Sugar Online India 2026 — Blinkit vs Zepto vs BigBasket Sugar Price | PriceBasket",
   description:
-    "Compare sugar prices across Blinkit, Zepto, BigBasket & JioMart. Find cheapest refined, raw and brown sugar online in India. 1kg, 5kg price comparison. Free.",
+    "Compare sugar prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest refined sugar, raw sugar, brown sugar online. 1kg, 5kg sugar price comparison. Free.",
   keywords: [
     "cheapest sugar online india",
     "sugar price comparison india",
