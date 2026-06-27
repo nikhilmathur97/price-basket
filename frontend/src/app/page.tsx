@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import Image from "next/image";
 import { MOCK_CATEGORIES } from "@/lib/mockData";
 import { HomeProductSections } from "@/components/HomeProductSections";
 
@@ -224,15 +223,14 @@ export default function HomePage() {
                   }}
                 >
                   {cat.image_url ? (
-                      <Image
-                        src={cat.image_url}
-                        alt={cat.name}
-                        fill
-                        // Category tiles display at 56–64px. Removing unoptimized lets
-                        // Next.js serve a 64px WebP/AVIF instead of the raw JPEG.
-                        sizes="64px"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={cat.image_url}
+                      alt={cat.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : (
                     <span className="text-2xl sm:text-3xl select-none">{cat.icon}</span>
                   )}
