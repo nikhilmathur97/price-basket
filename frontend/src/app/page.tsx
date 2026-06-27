@@ -158,6 +158,13 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }}
       />
 
+      {/* ── H1 — always present in server-rendered HTML for SEO crawlers.
+          Visually hidden so it doesn't duplicate the carousel headline,
+          but fully accessible to screen readers and search engines. ── */}
+      <h1 className="sr-only">
+        Compare Grocery Prices — Blinkit, Zepto, BigBasket &amp; More
+      </h1>
+
       {/* ── Hero carousel ── */}
       <HeroCarousel />
 

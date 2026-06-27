@@ -17,8 +17,16 @@ export const metadata: Metadata = {
 export default function SearchPage() {
   return (
     <>
-      {/* Static H1 always present in server-rendered HTML for SEO crawlers */}
+      {/* Static H1 — always present in server-rendered HTML for SEO crawlers */}
       <h1 className="sr-only">Search Grocery Products — Compare Prices on Blinkit, Zepto, Instamart &amp; More</h1>
+
+      {/* Static H2s — server-rendered so crawlers always see them regardless of
+          client-side hydration state. These mirror the SEO section in SearchClient
+          and satisfy the ≥2 H2 requirement for content structure. */}
+      <h2 className="sr-only">Compare Grocery Prices Across All Platforms</h2>
+      <h2 className="sr-only">Popular Categories — Atta, Rice, Oil, Dal, Milk &amp; More</h2>
+      <h2 className="sr-only">Best Grocery Deals Today on Blinkit, Zepto &amp; BigBasket</h2>
+
       <SearchClient />
     </>
   );
