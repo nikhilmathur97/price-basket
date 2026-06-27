@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -101,10 +100,13 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }
 
-  // Cascade: thumbnail_url → image_url → platform_image_url → SLUG_IMAGES → emoji
+  // Cascade: image_url → thumbnail_url → platform_image_url → SLUG_IMAGES → emoji
+  // NOTE: image_url is the PRIMARY field populated by scrapers.
+  //       thumbnail_url is secondary and often null — must come AFTER image_url.
+  //       platform_image_url is the last CDN fallback from the PlatformPrice row.
   const imgSources: (string | null | undefined)[] = [
-    product.thumbnail_url,
     product.image_url,
+    product.thumbnail_url,
     // Use the first available platform_image_url as a last-resort CDN fallback
     product.platform_prices.find((p) => p.platform_image_url)?.platform_image_url,
     SLUG_IMAGES[product.slug],
@@ -112,12 +114,6 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const validSources = imgSources.filter((s): s is string => !!s && s.trim() !== "");
   const imgSrc = imgFallbackLevel < validSources.length ? validSources[imgFallbackLevel] : null;
 
-  // Skip Vercel image optimizer for external CDN URLs — the Hobby plan has a
-  // 1,000 optimizations/month quota; exhausting it causes 402 errors and blank images.
-  // External CDNs (Blinkit/Grofers/Zepto/Swiggy etc.) already serve Cloudflare-optimised
-  // images, so bypassing Next.js optimisation has zero quality impact.
-  const isExternalUrl = (url: string | null) =>
-    !!url && (url.startsWith("http://") || url.startsWith("https://"));
 
   // Format price compactly — never truncate with ellipsis
   const formatPrice = (p: number) => {
@@ -150,17 +146,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
           }
         >
           {/* ── Image — square, compact ── */}
+          {/* fill+aspectRatio collapses height to 0 (fill = position:absolute, no in-flow content).
+              Plain <img> stays in flow so aspect-ratio correctly computes the container height. */}
           <div className="relative bg-[#f9f9f9] overflow-hidden" style={{ aspectRatio: "1/1" }}>
             {imgSrc ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={imgSrc}
                 alt={product.name}
-                fill
-                sizes="(max-width: 640px) 40vw, 150px"
-                className="object-contain p-2"
+                className="w-full h-full object-contain p-2"
                 onError={() => setImgFallbackLevel((lvl) => lvl + 1)}
                 loading="lazy"
-                unoptimized={isExternalUrl(imgSrc)}
+                decoding="async"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl select-none">🛒</div>
