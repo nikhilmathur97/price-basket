@@ -1377,3 +1377,75 @@ async def catalog_overview(
         "mismatches": all_mismatches,
         "categories": categories,
     }
+
+
+# ── Fix mismatches ─────────────────────────────────────────────────────────────
+
+@router.post("/catalog/fix-mismatches")
+async def fix_catalog_mismatches(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """
+    Bulk-reassign all mismatched products to their expected categories.
+    Uses the same keyword detection logic as GET /admin/catalog.
+    Returns the number of products reassigned and a summary of changes.
+    """
+    from sqlalchemy import update as sa_update
+
+    # Load all categories into a slug→id map
+    cat_rows = (await db.execute(select(Category))).scalars().all()
+    cat_map: dict[str, uuid.UUID] = {c.slug: c.id for c in cat_rows}
+
+    # Load all products with their current category slug
+    prod_rows = (await db.execute(
+        select(
+            Product.id,
+            Product.name,
+            Category.slug.label("category_slug"),
+        )
+        .join(Category, Product.category_id == Category.id, isouter=True)
+    )).all()
+
+    fixed: list[dict] = []
+    skipped: list[str] = []
+
+    for p in prod_rows:
+        current_slug = p.category_slug or ""
+        expected_slug = _detect_expected_category(p.name, current_slug)
+        if expected_slug is None:
+            continue  # no mismatch detected
+
+        new_cat_id = cat_map.get(expected_slug)
+        if new_cat_id is None:
+            skipped.append(f"{p.name} → {expected_slug} (category not found)")
+            continue
+
+        await db.execute(
+            sa_update(Product)
+            .where(Product.id == p.id)
+            .values(category_id=new_cat_id)
+        )
+        fixed.append({
+            "product_id": str(p.id),
+            "product_name": p.name,
+            "from_category": current_slug,
+            "to_category": expected_slug,
+        })
+
+    await db.commit()
+
+    # Bust product/category caches
+    try:
+        await cache_delete_pattern("categories:*")
+        await cache_delete_pattern("featured:*")
+        await cache_delete_pattern("products:*")
+    except Exception:
+        pass
+
+    return {
+        "fixed": len(fixed),
+        "skipped": len(skipped),
+        "changes": fixed,
+        "skipped_details": skipped,
+    }

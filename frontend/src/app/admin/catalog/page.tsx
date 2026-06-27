@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Search,
   XCircle,
   LayoutGrid,
+  Wrench,
 } from "lucide-react";
 import { api } from "@/services/api";
 
@@ -271,6 +272,10 @@ function CategorySection({ cat, defaultOpen }: { cat: CatalogCategory; defaultOp
 export default function AdminCatalogPage() {
   const [search, setSearch] = useState("");
   const [showMismatchOnly, setShowMismatchOnly] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [fixResult, setFixResult] = useState<{ fixed: number; skipped: number } | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery<CatalogData>({
     queryKey: ["admin-catalog"],
@@ -280,6 +285,26 @@ export default function AdminCatalogPage() {
     },
     staleTime: 60_000,
   });
+
+  async function handleFixMismatches() {
+    setFixing(true);
+    setFixResult(null);
+    setFixError(null);
+    try {
+      const res = await api.fixCatalogMismatches();
+      setFixResult({ fixed: res.data.fixed, skipped: res.data.skipped });
+      // Refetch catalog so counts update immediately
+      await queryClient.invalidateQueries({ queryKey: ["admin-catalog"] });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        (err as Error)?.message ??
+        "Fix failed";
+      setFixError(String(msg));
+    } finally {
+      setFixing(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -362,30 +387,72 @@ export default function AdminCatalogPage() {
           </div>
         </div>
 
+        {/* Fix result banner */}
+        {fixResult && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">
+                Fixed {fixResult.fixed} product{fixResult.fixed !== 1 ? "s" : ""}
+                {fixResult.skipped > 0 ? ` · ${fixResult.skipped} skipped` : ""}
+              </p>
+              <p className="text-xs text-green-700 mt-0.5">
+                Products have been reassigned to their correct categories. The catalog below has been refreshed.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Fix error banner */}
+        {fixError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{fixError}</p>
+          </div>
+        )}
+
         {/* Mismatch alert banner */}
         {data.total_mismatches > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800">
-                  {data.total_mismatches} product{data.total_mismatches !== 1 ? "s" : ""} may be in the wrong category
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  These products were detected by keyword analysis as potentially belonging to a different category.
-                  Review and reassign if needed.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {data.mismatches.slice(0, 5).map((m) => (
-                    <span key={m.product_id} className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                      {m.product_name} → {m.expected_category}
-                    </span>
-                  ))}
-                  {data.mismatches.length > 5 && (
-                    <span className="text-[10px] text-amber-600">+{data.mismatches.length - 5} more</span>
-                  )}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">
+                    {data.total_mismatches} product{data.total_mismatches !== 1 ? "s" : ""} may be in the wrong category
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    These products were detected by keyword analysis as potentially belonging to a different category.
+                    Review and reassign if needed.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {data.mismatches.slice(0, 5).map((m) => (
+                      <span key={m.product_id} className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        {m.product_name} → {m.expected_category}
+                      </span>
+                    ))}
+                    {data.mismatches.length > 5 && (
+                      <span className="text-[10px] text-amber-600">+{data.mismatches.length - 5} more</span>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Fix All button */}
+              <button
+                onClick={handleFixMismatches}
+                disabled={fixing}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl
+                           bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed
+                           text-white text-xs font-semibold transition-colors shadow-sm"
+              >
+                {fixing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wrench className="w-3.5 h-3.5" />
+                )}
+                {fixing ? "Fixing…" : "Fix All"}
+              </button>
             </div>
           </div>
         )}
