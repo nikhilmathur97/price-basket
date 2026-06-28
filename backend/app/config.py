@@ -117,8 +117,11 @@ class Settings(BaseSettings):
     # Get one free at https://resend.com/api-keys (100 emails/day free tier).
     RESEND_API_KEY: str = ""
     # ── SMS / OTP providers ───────────────────────────────────────────────────
-    # Set one provider; the service falls back in order: Twilio → MSG91 → AWS SNS → dev-log.
-    SMS_PROVIDER: str = ""  # "twilio" | "msg91" | "aws_sns" | "" (auto-detect from keys)
+    # Set one provider; the service falls back in order: Fast2SMS → Twilio → MSG91 → AWS SNS → dev-log.
+    SMS_PROVIDER: str = ""  # "fast2sms" | "twilio" | "msg91" | "aws_sns" | "" (auto-detect from keys)
+
+    # Fast2SMS — https://fast2sms.com  (recommended for India, no DLT required for OTP route)
+    FAST2SMS_API_KEY: str = ""
 
     # Twilio — https://console.twilio.com
     TWILIO_ACCOUNT_SID: str = ""

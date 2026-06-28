@@ -2,10 +2,11 @@
 SMS service abstraction — plug in any provider via environment variables.
 
 Priority order:
-  1. Twilio      — TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER
-  2. MSG91       — MSG91_AUTH_KEY
-  3. AWS SNS     — SMS_PROVIDER=aws_sns + AWS credentials
-  4. Dev fallback — logs OTP to console (never sends a real SMS)
+  1. Fast2SMS    — FAST2SMS_API_KEY  (recommended for India, no DLT needed)
+  2. Twilio      — TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER
+  3. MSG91       — MSG91_AUTH_KEY
+  4. AWS SNS     — SMS_PROVIDER=aws_sns + AWS credentials
+  5. Dev fallback — logs OTP to console (never sends a real SMS)
 """
 import asyncio
 import structlog
@@ -19,7 +20,16 @@ async def send_otp_sms(mobile_number: str, otp: str) -> None:
     """Send a 6-digit OTP to the given 10-digit Indian mobile number."""
     phone_e164 = _to_e164(mobile_number)
 
-    # ── 1. Twilio ─────────────────────────────────────────────────────────────
+    # ── 1. Fast2SMS ───────────────────────────────────────────────────────────
+    if settings.FAST2SMS_API_KEY:
+        try:
+            await _fast2sms(mobile_number, otp)
+            log.info("otp_sms_sent", provider="fast2sms", mobile_suffix=mobile_number[-4:])
+            return
+        except Exception as exc:
+            log.error("otp_sms_failed", provider="fast2sms", error=str(exc))
+
+    # ── 2. Twilio ─────────────────────────────────────────────────────────────
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_FROM_NUMBER:
         try:
             await _twilio(phone_e164, otp)
@@ -46,19 +56,42 @@ async def send_otp_sms(mobile_number: str, otp: str) -> None:
         except Exception as exc:
             log.error("otp_sms_failed", provider="aws_sns", error=str(exc))
 
-    # ── 4. Dev fallback / production error ────────────────────────────────────
+    # ── 5. Dev fallback / production error ────────────────────────────────────
     if settings.APP_ENV == "production":
         raise RuntimeError(
             "SMS delivery failed — no working provider configured. "
-            "Set TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER or MSG91_AUTH_KEY."
+            "Set FAST2SMS_API_KEY, TWILIO_*, or MSG91_AUTH_KEY."
         )
 
     log.warning(
         "otp_sms_dev_fallback__no_provider_configured",
         mobile_suffix=mobile_number[-4:],
         otp=otp,
-        hint="Set TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER or MSG91_AUTH_KEY to send real SMS.",
+        hint="Set FAST2SMS_API_KEY or TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER or MSG91_AUTH_KEY to send real SMS.",
     )
+
+
+async def _fast2sms(mobile_number: str, otp: str) -> None:
+    import httpx
+
+    digits = "".join(c for c in mobile_number if c.isdigit())
+    if digits.startswith("91") and len(digits) == 12:
+        digits = digits[2:]
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            "https://www.fast2sms.com/dev/bulkV2",
+            headers={"authorization": settings.FAST2SMS_API_KEY},
+            json={
+                "route": "otp",
+                "variables_values": otp,
+                "flash": 0,
+                "numbers": digits,
+            },
+        )
+    data = resp.json()
+    if not data.get("return", False):
+        raise RuntimeError(f"Fast2SMS error: {data.get('message', resp.text[:200])}")
 
 
 def _to_e164(mobile_number: str) -> str:
