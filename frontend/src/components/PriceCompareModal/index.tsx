@@ -95,17 +95,17 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
             className="fixed inset-0 bg-black/60 z-[9998] backdrop-blur-sm"
           />
 
-          {/* ── Modal — centered on all screen sizes ── */}
+          {/* ── Centering wrapper (flex, not transform) ── */}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+          {/* ── Modal ── */}
           <motion.div
             key="modal"
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.94 }}
             transition={{ type: "spring", damping: 28, stiffness: 340 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999]
-                       bg-white rounded-3xl shadow-2xl
-                       w-[calc(100vw-32px)] max-w-[480px]
-                       max-h-[88vh] overflow-y-auto"
+            className="pointer-events-auto bg-white rounded-3xl shadow-2xl
+                       w-full max-w-[480px] max-h-[88vh] overflow-y-auto relative"
           >
 
             {/* Close button */}
@@ -324,6 +324,7 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
               )}
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
