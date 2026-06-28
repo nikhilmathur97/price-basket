@@ -764,14 +764,59 @@ async def payment_overview(
 
 @router.get("/queries")
 async def query_overview(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    status: Optional[str] = Query(default=None),
+):
+    from app.models.contact import ContactQuery
+    stmt = select(ContactQuery).order_by(ContactQuery.created_at.desc())
+    if status in ("new", "read", "replied"):
+        stmt = stmt.where(ContactQuery.status == status)
+    result = await db.execute(stmt.limit(limit).offset(offset))
+    items = result.scalars().all()
+    total = (await db.execute(select(func.count()).select_from(ContactQuery))).scalar() or 0
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": [
+            {
+                "id": str(q.id),
+                "name": q.name,
+                "email": q.email,
+                "mobile": q.mobile,
+                "subject": q.subject,
+                "message": q.message,
+                "status": q.status,
+                "created_at": q.created_at.isoformat(),
+            }
+            for q in items
+        ],
+    }
+
+
+@router.patch("/queries/{query_id}")
+async def update_query_status(
+    query_id: str,
+    status: str = Query(...),
+    db: AsyncSession = Depends(get_db),
     _admin=Depends(require_admin),
 ):
-    # Placeholder until support/contact query table is added.
-    return {
-        "total": 0,
-        "items": [],
-        "note": "Support queries module not yet integrated in backend models.",
-    }
+    from app.models.contact import ContactQuery
+    if status not in ("new", "read", "replied"):
+        raise HTTPException(status_code=400, detail="status must be one of: new, read, replied")
+    try:
+        qid = uuid.UUID(query_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid query ID")
+    q = await db.get(ContactQuery, qid)
+    if not q:
+        raise HTTPException(status_code=404, detail="Query not found")
+    q.status = status
+    await db.commit()
+    return {"id": str(q.id), "status": q.status}
 
 
 # ── Blinkit bulk scraper ──────────────────────────────────────────────────────

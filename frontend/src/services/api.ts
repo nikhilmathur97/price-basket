@@ -216,7 +216,13 @@ export const api = {
   deleteAdminUser: (userId: string) => apiClient.delete(`/admin/users/${userId}`),
   getAdminDailyLogins: (days = 7) => apiClient.get(`/admin/logins/daily?days=${days}`),
   getAdminPayments: () => apiClient.get("/admin/payments"),
-  getAdminQueries: () => apiClient.get("/admin/queries"),
+  getAdminQueries: (params?: { status?: string; limit?: number; offset?: number }) =>
+    apiClient.get("/admin/queries", { params }),
+  updateQueryStatus: (id: string, status: string) =>
+    apiClient.patch(`/admin/queries/${id}?status=${encodeURIComponent(status)}`),
+  submitContactQuery: (data: {
+    name: string; email?: string; mobile?: string; subject: string; message: string;
+  }) => apiClient.post("/contact", data),
   getAdminPlatforms: () => apiClient.get("/admin/platforms"),
   setAdminPlatformActive: (platformId: string, isActive: boolean) =>
     apiClient.patch(`/admin/platforms/${platformId}?is_active=${isActive}`),
