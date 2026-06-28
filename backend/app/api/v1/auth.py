@@ -102,7 +102,13 @@ async def send_signup_otp(
 
     otp = await create_otp(db, body.mobile_number, "signup")
     await db.commit()
-    await send_otp_sms(body.mobile_number, otp)
+    try:
+        await send_otp_sms(body.mobile_number, otp)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not send OTP SMS. Please try again in a moment.",
+        )
 
 
 # ── Mobile — Verify signup OTP + create account ──────────────────────────────
@@ -195,7 +201,13 @@ async def send_forgot_password_otp(
 
     otp = await create_otp(db, body.mobile_number, "forgot_password")
     await db.commit()
-    await send_otp_sms(body.mobile_number, otp)
+    try:
+        await send_otp_sms(body.mobile_number, otp)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not send OTP SMS. Please try again in a moment.",
+        )
 
 
 # ── Mobile — Reset password (verify OTP + set new password in one call) ───────

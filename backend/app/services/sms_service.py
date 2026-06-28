@@ -46,7 +46,13 @@ async def send_otp_sms(mobile_number: str, otp: str) -> None:
         except Exception as exc:
             log.error("otp_sms_failed", provider="aws_sns", error=str(exc))
 
-    # ── 4. Dev fallback ───────────────────────────────────────────────────────
+    # ── 4. Dev fallback / production error ────────────────────────────────────
+    if settings.APP_ENV == "production":
+        raise RuntimeError(
+            "SMS delivery failed — no working provider configured. "
+            "Set TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER or MSG91_AUTH_KEY."
+        )
+
     log.warning(
         "otp_sms_dev_fallback__no_provider_configured",
         mobile_suffix=mobile_number[-4:],
