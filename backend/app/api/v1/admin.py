@@ -566,6 +566,37 @@ async def list_users(
     }
 
 
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Permanently delete a user and all their data (cascades to cart, wishlist, alerts, tokens)."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    user = await db.get(User, uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own admin account")
+
+    if user.is_admin:
+        # Count remaining admins
+        admin_count = (
+            await db.execute(select(func.count()).select_from(User).where(User.is_admin.is_(True)))
+        ).scalar() or 0
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last admin account")
+
+    await db.delete(user)
+    await db.commit()
+
+
 @router.get("/users/{user_id}/cart")
 async def get_user_cart_detail(
     user_id: str,

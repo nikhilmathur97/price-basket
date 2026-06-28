@@ -213,6 +213,7 @@ export const api = {
   getAdminUsers: (params?: { limit?: number; offset?: number }) =>
     apiClient.get("/admin/users", { params }),
   getAdminUserCart: (userId: string) => apiClient.get(`/admin/users/${userId}/cart`),
+  deleteAdminUser: (userId: string) => apiClient.delete(`/admin/users/${userId}`),
   getAdminDailyLogins: (days = 7) => apiClient.get(`/admin/logins/daily?days=${days}`),
   getAdminPayments: () => apiClient.get("/admin/payments"),
   getAdminQueries: () => apiClient.get("/admin/queries"),
