@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   MapPin, Navigation, Search, X, ChevronDown,
   Loader2, CheckCircle2, MapPinned,
@@ -231,8 +231,55 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [searchResults, setSearchResults] = useState<{ city: string; pincode: string; state: string; lat: number; lng: number }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Live city search via Nominatim
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&addressdetails=1&limit=8`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        const results = (data as Array<{
+          display_name: string;
+          address: { city?: string; town?: string; village?: string; county?: string; state?: string; postcode?: string };
+          lat: string;
+          lon: string;
+        }>)
+          .map((item) => {
+            const addr = item.address ?? {};
+            const city = addr.city || addr.town || addr.village || addr.county || query;
+            return {
+              city,
+              pincode: addr.postcode ?? "",
+              state: addr.state ?? "",
+              lat: parseFloat(item.lat),
+              lng: parseFloat(item.lon),
+            };
+          })
+          .filter((r, idx, arr) => arr.findIndex((x) => x.city === r.city) === idx);
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
 
   // Pre-fill location from user profile when authenticated
   useEffect(() => {
@@ -248,14 +295,10 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
-  const filtered =
+  const displayList =
     query.length >= 2
-      ? POPULAR_CITIES.filter(
-          (c) =>
-            c.city.toLowerCase().includes(query.toLowerCase()) ||
-            c.pincode.startsWith(query)
-        )
-      : POPULAR_CITIES;
+      ? searchResults.map((r) => ({ city: r.city, pincode: r.pincode, state: r.state, lat: r.lat, lng: r.lng }))
+      : POPULAR_CITIES.map((c) => ({ ...c, state: "", lat: 0, lng: 0 }));
 
   async function handleGPS() {
     if (!navigator.geolocation) {
@@ -301,10 +344,12 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
     }
   }
 
-  function selectCity(city: string, pincode: string) {
-    setLocation({ label: `${city}, ${pincode}`, city, pincode, lat: null, lng: null });
+  function selectCity(city: string, pincode: string, lat?: number, lng?: number) {
+    const label = pincode ? `${city}, ${pincode}` : city;
+    setLocation({ label, city, pincode: pincode || null, lat: lat ?? null, lng: lng ?? null });
     setOpen(false);
     setQuery("");
+    setSearchResults([]);
   }
 
   if (!mounted) {
@@ -476,16 +521,23 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
                 {/* City list */}
                 <div className="px-5 pb-8">
                   <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-2">
-                    {query.length >= 2 ? "Results" : "Popular cities"}
+                    {query.length >= 2 ? "Search results" : "Popular cities"}
                   </p>
 
-                  {/* When search has no match — let user use whatever they typed */}
-                  {filtered.length === 0 && query.length >= 2 && (
+                  {/* Searching spinner */}
+                  {searchLoading && (
+                    <div className="flex items-center gap-2 py-6 justify-center">
+                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                      <span className="text-[12px] text-surface-500">Searching…</span>
+                    </div>
+                  )}
+
+                  {/* No results — let user confirm their typed city */}
+                  {!searchLoading && query.length >= 2 && displayList.length === 0 && (
                     <div className="space-y-2">
                       <button
                         onClick={() => selectCity(
-                          query.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
-                          ""
+                          query.trim().replace(/\b\w/g, (c) => c.toUpperCase()), ""
                         )}
                         className="flex items-center gap-3 w-full px-3 py-3 rounded-xl
                                    bg-brand-50 border border-brand-200 hover:bg-brand-100
@@ -501,20 +553,18 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
                           <p className="text-[11px] text-surface-500">Set as my delivery city</p>
                         </div>
                       </button>
-                      <p className="text-[11px] text-surface-400 px-1 text-center">
-                        All products will be shown — availability varies by city
-                      </p>
                     </div>
                   )}
 
-                  {filtered.length > 0 && (
+                  {/* City results */}
+                  {!searchLoading && displayList.length > 0 && (
                     <div className="space-y-0.5">
-                      {filtered.map(({ city, pincode }) => {
+                      {displayList.map(({ city, pincode, state, lat, lng }) => {
                         const isSelected = current?.city === city;
                         return (
                           <button
-                            key={city}
-                            onClick={() => selectCity(city, pincode)}
+                            key={`${city}-${pincode}`}
+                            onClick={() => selectCity(city, pincode, lat || undefined, lng || undefined)}
                             className={`flex items-center gap-3 w-full px-3 py-3 rounded-xl
                                         transition-colors text-left
                                         ${isSelected
@@ -532,7 +582,9 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-semibold text-surface-800">{city}</p>
-                              {pincode && <p className="text-[11px] text-surface-400">{pincode}</p>}
+                              <p className="text-[11px] text-surface-400">
+                                {[state, pincode].filter(Boolean).join(" · ")}
+                              </p>
                             </div>
                             {isSelected && (
                               <CheckCircle2 className="w-4 h-4 text-brand-600 flex-shrink-0" />
