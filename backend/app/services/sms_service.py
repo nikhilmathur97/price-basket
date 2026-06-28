@@ -78,13 +78,15 @@ async def _fast2sms(mobile_number: str, otp: str) -> None:
     if digits.startswith("91") and len(digits) == 12:
         digits = digits[2:]
 
+    message = f"{otp} is your PriceBasket OTP. Valid for 5 minutes. Do not share."
+
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
             "https://www.fast2sms.com/dev/bulkV2",
             headers={"authorization": settings.FAST2SMS_API_KEY},
             json={
-                "route": "otp",
-                "variables_values": otp,
+                "route": "q",
+                "message": message,
                 "flash": 0,
                 "numbers": digits,
             },
