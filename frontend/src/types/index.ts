@@ -187,7 +187,9 @@ export interface FlatOptimizationResult {
 
 export interface User {
   id: string;
-  email: string;
+  email: string | null;
+  mobile_number: string | null;
+  mobile_verified: boolean;
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;

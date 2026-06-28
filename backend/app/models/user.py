@@ -1,7 +1,7 @@
-from typing import Optional
 """SQLAlchemy model for application users."""
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Enum, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -17,9 +17,14 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # None for OAuth users
+    # Email is now optional — mobile number is the primary auth identifier.
+    # Existing accounts retain their email; new mobile-only accounts have email=NULL.
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
+    # mobile_number is the primary login identifier; indexed + unique via partial index in migration.
+    mobile_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     phone: Mapped[Optional[str]] = mapped_column(String(20))
     avatar_url: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -62,4 +67,5 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        identifier = self.mobile_number or self.email or str(self.id)
+        return f"<User {identifier}>"

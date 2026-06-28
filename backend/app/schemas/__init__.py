@@ -1,13 +1,103 @@
 """Pydantic schemas for auth, users, products, cart, and prices."""
+import re
 import uuid
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+_MOBILE_RE = re.compile(r"^\d{10}$")
+
+
+def _validate_password(v: str) -> str:
+    if not any(c.isupper() for c in v):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one digit")
+    if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?" for c in v):
+        raise ValueError("Password must contain at least one special character")
+    return v
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  Auth
+#  Auth — Mobile (primary)
+# ═════════════════════════════════════════════════════════════════════════════
+
+class SendSignupOTPRequest(BaseModel):
+    mobile_number: str = Field(..., min_length=10, max_length=10)
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: str) -> str:
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
+
+
+class VerifySignupOTPRequest(BaseModel):
+    mobile_number: str = Field(..., min_length=10, max_length=10)
+    otp: str = Field(..., min_length=6, max_length=6)
+    full_name: str = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+    email: Optional[EmailStr] = None
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: str) -> str:
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def _strong_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+class MobileLoginRequest(BaseModel):
+    mobile_number: str = Field(..., min_length=10, max_length=10)
+    password: str
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: str) -> str:
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
+
+
+class SendForgotPasswordOTPRequest(BaseModel):
+    mobile_number: str = Field(..., min_length=10, max_length=10)
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: str) -> str:
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
+
+
+class ResetPasswordMobileRequest(BaseModel):
+    """Verify forgot-password OTP and reset the password in one call."""
+    mobile_number: str = Field(..., min_length=10, max_length=10)
+    otp: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: str) -> str:
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def _strong_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Auth — Legacy email (kept for backward compatibility / admin accounts)
 # ═════════════════════════════════════════════════════════════════════════════
 
 class UserRegister(BaseModel):
@@ -68,12 +158,14 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    email: str
-    full_name: Optional[str]
-    phone: Optional[str]
-    avatar_url: Optional[str]
-    city: Optional[str]
-    pincode: Optional[str]
+    email: Optional[str] = None
+    mobile_number: Optional[str] = None
+    mobile_verified: bool = False
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    city: Optional[str] = None
+    pincode: Optional[str] = None
     is_admin: bool
     created_at: datetime
 

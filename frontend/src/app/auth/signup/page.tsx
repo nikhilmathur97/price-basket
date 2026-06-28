@@ -7,25 +7,17 @@ import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
-import { useCartStore } from "@/store/cartStore";
 import { useBackendWakeup } from "@/hooks/useBackendWakeup";
 import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
 
 function getSignupErrorMessage(err: any): string {
-  if (!err?.response) {
-    // Raw network error — proxy itself is unreachable (should be rare after proxy fix)
-    return "Cannot reach server — please try again in a few seconds.";
-  }
+  if (!err?.response) return "Cannot reach server — please try again in a few seconds.";
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
-  if (status === 409) return "Email already registered. Try signing in instead.";
-  if (status === 503) {
-    // Proxy returned 503: backend cold-starting or unreachable
-    return typeof detail === "string"
-      ? detail
-      : "Server is starting up — please wait a moment and try again.";
-  }
+  if (status === 409) return "Mobile number already registered. Try signing in instead.";
+  if (status === 429) return "Too many OTP requests. Please wait 15 minutes and try again.";
+  if (status === 503) return typeof detail === "string" ? detail : "Server is starting up — please wait and try again.";
   if (status === 502) return "Service unavailable — please try again in a few seconds.";
   if (status === 500) return "Server error — please try again or contact support.";
   if (typeof detail === "string") return detail;
@@ -36,82 +28,75 @@ function getSignupErrorMessage(err: any): string {
   return `Registration failed (HTTP ${status})`;
 }
 
+const PASSWORD_HINT = "Min. 8 chars, 1 uppercase, 1 number, 1 special character";
+
 export default function SignupPage() {
   const router = useRouter();
-  const { setUser, setAccessToken, isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
-  const { fetchCart, resetCart } = useCartStore();
-  const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
+  const { isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
+  const [form, setForm] = useState({
+    full_name: "",
+    mobile_number: "",
+    email: "",
+    password: "",
+    confirm: "",
+  });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [emailError, setEmailError] = useState("");
   const signupInProgress = useRef(false);
   const { wakingUp, retryCountdown, trigger: triggerWakeup } = useBackendWakeup("signup-form");
 
-  // Redirect already-authenticated users away from the signup page.
-  // Only redirect after session validation finishes — prevents phantom-session redirect.
   useEffect(() => {
     if (hasHydrated && !isValidatingSession && isAuthenticated && !signupInProgress.current) {
       router.replace("/");
     }
   }, [hasHydrated, isValidatingSession, isAuthenticated, router]);
 
-  // Only block on hydration — NOT on isValidatingSession.
-  // isValidatingSession can hang if backend is slow (Render cold start) and would
-  // make the signup form invisible. The redirect above already waits for it.
-  if (!hasHydrated) {
-    return <PageLoader message="Loading" />;
-  }
-
-  // Redirect is imminent — show loader to avoid flash of form before navigation.
+  if (!hasHydrated) return <PageLoader message="Loading" />;
   if (isAuthenticated && !isValidatingSession && !signupInProgress.current) {
     return <PageLoader message="Loading" />;
   }
+  if (loading) return <PageLoader message="Sending verification code" />;
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    if (loading) return; // guard against double-submit
+    if (loading) return;
+
     const trimmedName = form.full_name.trim();
-    const normalizedEmail = form.email.trim().toLowerCase();
+    const mobile = form.mobile_number.trim();
+    const email = form.email.trim().toLowerCase() || undefined;
 
     if (!trimmedName) { toast.error("Full name is required"); return; }
+    if (!/^\d{10}$/.test(mobile)) { toast.error("Enter a valid 10-digit mobile number"); return; }
     if (form.password !== form.confirm) { toast.error("Passwords do not match"); return; }
     if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (!/[A-Z]/.test(form.password)) { toast.error("Password must contain at least one uppercase letter"); return; }
     if (!/\d/.test(form.password)) { toast.error("Password must contain at least one number"); return; }
+    if (!/[!@#$%^&*()_+\-=\[\]{}|;':",./<>?]/.test(form.password)) {
+      toast.error("Password must contain at least one special character");
+      return;
+    }
 
-    setEmailError("");
     signupInProgress.current = true;
     setLoading(true);
     try {
-      // Register now returns a TokenResponse (access_token + user) — no second login call needed.
-      const { data } = await api.register({ email: normalizedEmail, password: form.password, full_name: trimmedName });
-      setAccessToken(data.access_token);
-      // Register response includes user — no extra api.me() round-trip needed.
-      let user = data.user;
-      if (!user) {
-        const meRes = await api.me();
-        user = meRes.data;
-      }
-      setUser(user);
-      toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
-      // Clear loading BEFORE navigation so the spinner doesn't block the redirect
-      setLoading(false);
-      signupInProgress.current = false;
-      resetCart();
-      fetchCart().catch(() => {});
-      // Navigate after state is cleared
-      router.replace("/");
+      // Store form data in sessionStorage so the OTP page can retrieve it
+      sessionStorage.setItem(
+        "pb_signup_pending",
+        JSON.stringify({ full_name: trimmedName, mobile_number: mobile, password: form.password, email })
+      );
+      await api.sendSignupOtp(mobile);
+      // Navigate to OTP verification screen
+      router.push(`/auth/verify-otp?purpose=signup&mobile=${encodeURIComponent(mobile)}`);
     } catch (err: any) {
       signupInProgress.current = false;
       const status = err?.response?.status;
       if (!err?.response || status === 503) {
-        // Backend cold-starting — show waking-up banner + auto-retry in 5s
         triggerWakeup();
         setLoading(false);
         return;
       }
       if (status === 409) {
-        setEmailError("This email is already registered. Sign in instead?");
+        toast.error("This mobile number is already registered. Sign in instead?");
       } else {
         toast.error(getSignupErrorMessage(err));
       }
@@ -119,17 +104,23 @@ export default function SignupPage() {
     }
   }
 
-  if (loading) {
-    return <PageLoader message="Creating your account" />;
-  }
+  const pwMismatch = !!form.confirm && form.confirm !== form.password;
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <Image src="/pricebasket-logo.png" alt="PriceBasket" width={52} height={52} sizes="52px" className="w-[52px] h-[52px] object-contain" style={{ mixBlendMode: "multiply" }} priority />
+            <Image
+              src="/pricebasket-logo.png"
+              alt="PriceBasket"
+              width={52}
+              height={52}
+              sizes="52px"
+              className="w-[52px] h-[52px] object-contain"
+              style={{ mixBlendMode: "multiply" }}
+              priority
+            />
             <span className="text-2xl font-bold">
               Price<span className="text-brand-600">Basket</span>
             </span>
@@ -138,11 +129,8 @@ export default function SignupPage() {
 
         <div className="card p-8">
           <h1 className="text-xl font-bold text-surface-900 mb-1">Create account</h1>
-          <p className="text-sm text-surface-400 mb-6">
-            Start comparing prices and saving money
-          </p>
+          <p className="text-sm text-surface-400 mb-6">Start comparing prices and saving money</p>
 
-          {/* Waking-up banner — shown when backend is cold-starting */}
           {wakingUp && (
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
@@ -156,6 +144,7 @@ export default function SignupPage() {
           )}
 
           <form id="signup-form" onSubmit={handleSignup} className="space-y-4">
+            {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">Full Name</label>
               <input
@@ -169,31 +158,50 @@ export default function SignupPage() {
               />
             </div>
 
+            {/* Mobile Number */}
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => {
-                  setForm({ ...form, email: e.target.value });
-                  if (emailError) setEmailError("");
-                }}
-                placeholder="you@example.com"
-                className={`w-full border rounded-xl px-4 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-brand-500
-                            ${emailError ? "border-red-400 bg-red-50" : "border-surface-200"}`}
-              />
-              {emailError && (
-                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                  {emailError}
-                  {emailError.includes("Sign in") && (
-                    <a href="/auth/login" className="underline font-semibold ml-1">Sign in</a>
-                  )}
-                </p>
-              )}
+              <label className="block text-sm font-medium text-surface-700 mb-1">
+                Mobile Number <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 font-medium select-none">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  required
+                  value={form.mobile_number}
+                  onChange={(e) =>
+                    setForm({ ...form, mobile_number: e.target.value.replace(/\D/g, "").slice(0, 10) })
+                  }
+                  placeholder="9876543210"
+                  className="w-full border border-surface-200 rounded-xl pl-12 pr-4 py-2.5 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <p className="text-xs text-surface-400 mt-1">
+                We&apos;ll send a verification code to this number
+              </p>
             </div>
 
+            {/* Email (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">
+                Email Address <span className="text-surface-400 text-xs">(Optional)</span>
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@example.com"
+                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">Password</label>
               <div className="relative">
@@ -203,7 +211,7 @@ export default function SignupPage() {
                   minLength={8}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Min. 8 chars, 1 uppercase, 1 number"
+                  placeholder={PASSWORD_HINT}
                   className="w-full border border-surface-200 rounded-xl px-4 py-2.5 pr-10 text-sm
                              focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
@@ -217,8 +225,11 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">Confirm Password</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">
+                Confirm Password
+              </label>
               <input
                 type={showPw ? "text" : "password"}
                 required
@@ -227,25 +238,21 @@ export default function SignupPage() {
                 placeholder="Re-enter password"
                 className={`w-full border rounded-xl px-4 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-brand-500
-                            ${form.confirm && form.confirm !== form.password
-                              ? "border-red-400 bg-red-50"
-                              : "border-surface-200"}`}
+                            ${pwMismatch ? "border-red-400 bg-red-50" : "border-surface-200"}`}
               />
-              {form.confirm && form.confirm !== form.password && (
+              {pwMismatch && (
                 <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
               )}
             </div>
 
-            <p className="text-xs text-surface-500">
-              Password must be 8+ characters and include at least one uppercase letter and one number.
-            </p>
+            <p className="text-xs text-surface-500">{PASSWORD_HINT}</p>
 
             <button
               type="submit"
-              disabled={loading || wakingUp || (!!form.confirm && form.confirm !== form.password)}
+              disabled={loading || wakingUp || pwMismatch}
               className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {wakingUp ? "Waking up…" : "Create Account"}
+              {wakingUp ? "Waking up…" : "Get Verification Code"}
             </button>
           </form>
 

@@ -116,6 +116,20 @@ class Settings(BaseSettings):
     # Resend.com HTTP API key (re_xxxx). No IP restrictions — preferred over SMTP.
     # Get one free at https://resend.com/api-keys (100 emails/day free tier).
     RESEND_API_KEY: str = ""
+    # ── SMS / OTP providers ───────────────────────────────────────────────────
+    # Set one provider; the service falls back in order: Twilio → MSG91 → AWS SNS → dev-log.
+    SMS_PROVIDER: str = ""  # "twilio" | "msg91" | "aws_sns" | "" (auto-detect from keys)
+
+    # Twilio — https://console.twilio.com
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""  # e.g. "+15551234567" or your Twilio number
+
+    # MSG91 — https://msg91.com/  (popular in India, supports DLT-registered templates)
+    MSG91_AUTH_KEY: str = ""
+    MSG91_SENDER_ID: str = "PRZBKT"   # 6-char DLT-registered sender ID
+    MSG91_TEMPLATE_ID: str = ""        # DLT-registered template ID
+
     FCM_SERVER_KEY: str = ""  # legacy HTTP API — deprecated by Google (June 2024)
     # Firebase Admin SDK credentials for FCM HTTP v1. Either an absolute path to
     # a service-account JSON file OR the raw JSON string. Generate in Firebase

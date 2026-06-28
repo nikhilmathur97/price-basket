@@ -60,7 +60,7 @@ apiClient.interceptors.response.use(
     // 401 means wrong credentials, not an expired session. Intercepting these causes
     // the refresh cycle to run, then logout() to fire, which corrupts the login flow.
     const url = original?.url ?? "";
-    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
+    const isAuthEndpoint = /\/auth\/(login|login-email|register|refresh|verify-signup-otp|reset-password)/.test(url);
     if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
@@ -110,16 +110,37 @@ apiClient.interceptors.response.use(
 // ── API helpers ────────────────────────────────────────────────────────────────
 
 export const api = {
-  // Auth
-  register: (data: { email: string; password: string; full_name: string }) =>
-    apiClient.post("/auth/register", data),
-  login: (data: { email: string; password: string }) =>
+  // ── Mobile auth (primary) ────────────────────────────────────────────────
+  sendSignupOtp: (mobile_number: string) =>
+    apiClient.post("/auth/send-signup-otp", { mobile_number }),
+  verifySignupOtp: (data: {
+    mobile_number: string;
+    otp: string;
+    full_name: string;
+    password: string;
+    email?: string;
+  }) => apiClient.post("/auth/verify-signup-otp", data),
+  login: (data: { mobile_number: string; password: string }) =>
     apiClient.post("/auth/login", data),
+  sendForgotPasswordOtp: (mobile_number: string) =>
+    apiClient.post("/auth/send-forgot-password-otp", { mobile_number }),
+  resetPasswordMobile: (data: {
+    mobile_number: string;
+    otp: string;
+    new_password: string;
+  }) => apiClient.post("/auth/reset-password-mobile", data),
+
+  // ── Shared ────────────────────────────────────────────────────────────────
   // _retry:true tells the response interceptor to never attempt a token refresh on
-  // a 401 from this endpoint. Without it, an expired access token causes the
-  // interceptor to refresh → setAccessToken() → user re-authenticated after logout.
+  // a 401 from this endpoint.
   logout: () => apiClient.post("/auth/logout", {}, { _retry: true } as any),
   me: () => apiClient.get("/auth/me"),
+
+  // ── Legacy email auth (admin accounts / migration) ─────────────────────
+  register: (data: { email: string; password: string; full_name: string }) =>
+    apiClient.post("/auth/register", data),
+  loginEmail: (data: { email: string; password: string }) =>
+    apiClient.post("/auth/login-email", data),
   forgotPassword: (email: string) =>
     apiClient.post("/auth/forgot-password", { email }),
   resetPassword: (token: string, new_password: string) =>
