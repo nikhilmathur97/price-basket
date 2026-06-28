@@ -88,19 +88,21 @@ export function Footer() {
               Download App
             </p>
             <div className="flex gap-2">
-              <a
-                href="#"
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20
-                           border border-white/30 rounded-xl px-4 py-2.5 transition-colors"
+              <span
+                className="flex items-center gap-2 bg-white/10
+                           border border-white/30 rounded-xl px-4 py-2.5 opacity-60 cursor-default"
+                title="iOS app coming soon"
               >
                 <span className="text-xl leading-none">🍎</span>
                 <div>
-                  <p className="text-[10px] text-orange-200 leading-none">Download on the</p>
+                  <p className="text-[10px] text-orange-200 leading-none">Coming soon</p>
                   <p className="text-sm font-semibold text-white leading-tight">App Store</p>
                 </div>
-              </a>
+              </span>
               <a
-                href="#"
+                href="https://play.google.com/store/apps/details?id=in.pricebasket.app"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20
                            border border-white/30 rounded-xl px-4 py-2.5 transition-colors"
               >

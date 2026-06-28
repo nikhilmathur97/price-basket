@@ -65,32 +65,31 @@ function SectionHeader({
   badge?: string;
 }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div>
-        <h2 className="text-[15px] font-extrabold text-surface-900 flex items-center gap-1.5">
+    <div className="flex items-start justify-between mb-3 gap-2">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-[15px] font-extrabold text-surface-900 flex items-center gap-1.5 flex-wrap">
           {icon}
-          {title}
+          <span className="truncate">{title}</span>
           {live && (
             <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-600
-                             bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full ml-1">
+                             bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
               LIVE
             </span>
           )}
           {badge && (
             <span className="text-[9px] font-bold text-orange-600
-                             bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full ml-1">
+                             bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
               {badge}
             </span>
           )}
         </h2>
-        {/* surface-500 (#737373) on white = 4.48:1 — passes WCAG AA for UI text */}
         {subtitle && <p className="text-[11px] text-surface-500 mt-0.5">{subtitle}</p>}
       </div>
       {href && (
         <Link
           href={href}
-          className="flex items-center gap-1 text-[12px] font-bold text-brand-600
+          className="flex-shrink-0 flex items-center gap-1 text-[12px] font-bold text-brand-600
                      bg-brand-50 hover:bg-brand-600 hover:text-white
                      px-2.5 py-1 rounded-lg transition-all duration-200 active:scale-[0.95]"
         >

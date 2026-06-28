@@ -138,6 +138,7 @@ export function HeroCarousel() {
 
   function onTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
+    setPaused(true);
   }
 
   function onTouchEnd(e: React.TouchEvent) {
@@ -145,6 +146,7 @@ export function HeroCarousel() {
     const delta = touchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(delta) > 50) delta > 0 ? next() : prev();
     touchStartX.current = null;
+    setPaused(false);
   }
 
   const slide = SLIDES[current];
@@ -153,14 +155,12 @@ export function HeroCarousel() {
     <div className="px-3 pt-2 pb-2">
       <div className="max-w-screen-xl mx-auto">
         <div
-          className="relative overflow-hidden rounded-3xl shadow-lg h-[210px] sm:h-[235px] md:h-[260px] lg:h-[280px]"
+          className="relative overflow-hidden rounded-3xl shadow-lg h-[240px] sm:h-[245px] md:h-[265px] lg:h-[285px]"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
-          // contain:layout prevents this carousel from triggering reflows in
-          // surrounding elements when Framer Motion animates slide positions.
-          style={{ contain: "layout" }}
+          style={{ contain: "layout", touchAction: "pan-y" }}
         >
           <AnimatePresence custom={direction} initial={false}>
             <motion.div
