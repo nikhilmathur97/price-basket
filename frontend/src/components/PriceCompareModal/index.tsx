@@ -95,29 +95,18 @@ export default function PriceCompareModal({ product, onClose }: PriceCompareModa
             className="fixed inset-0 bg-black/60 z-[9998] backdrop-blur-sm"
           />
 
-          {/* ── Modal — always centered on desktop, bottom-sheet on mobile ── */}
+          {/* ── Modal — centered on all screen sizes ── */}
           <motion.div
             key="modal"
-            initial={{ opacity: 0, scale: 0.94, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 20 }}
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.94 }}
             transition={{ type: "spring", damping: 28, stiffness: 340 }}
-            className={cn(
-              // Mobile: fixed bottom sheet
-              "fixed bottom-0 left-0 right-0 z-[9999]",
-              "bg-white rounded-t-3xl shadow-2xl",
-              "max-h-[92vh] overflow-y-auto",
-              // Desktop: centered dialog
-              "sm:bottom-auto sm:top-1/2 sm:left-1/2",
-              "sm:-translate-x-1/2 sm:-translate-y-1/2",
-              "sm:w-[480px] sm:max-w-[95vw]",
-              "sm:rounded-3xl sm:max-h-[88vh]"
-            )}
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999]
+                       bg-white rounded-3xl shadow-2xl
+                       w-[calc(100vw-32px)] max-w-[480px]
+                       max-h-[88vh] overflow-y-auto"
           >
-            {/* Drag handle — mobile only */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-10 h-1 bg-surface-200 rounded-full" />
-            </div>
 
             {/* Close button */}
             <button
