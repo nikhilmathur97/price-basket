@@ -10,18 +10,56 @@ import { useLocationStore } from "@/store/locationStore";
 import { useAuthStore } from "@/store/authStore";
 
 const POPULAR_CITIES = [
-  { city: "Mumbai",    pincode: "400001" },
-  { city: "Delhi",     pincode: "110001" },
-  { city: "Bengaluru", pincode: "560001" },
-  { city: "Hyderabad", pincode: "500001" },
-  { city: "Chennai",   pincode: "600001" },
-  { city: "Pune",      pincode: "411001" },
-  { city: "Kolkata",   pincode: "700001" },
-  { city: "Ahmedabad", pincode: "380001" },
-  { city: "Jaipur",    pincode: "302001" },
-  { city: "Lucknow",   pincode: "226001" },
-  { city: "Surat",     pincode: "395001" },
-  { city: "Chandigarh",pincode: "160001" },
+  { city: "Mumbai",       pincode: "400001" },
+  { city: "Delhi",        pincode: "110001" },
+  { city: "Bengaluru",    pincode: "560001" },
+  { city: "Hyderabad",    pincode: "500001" },
+  { city: "Chennai",      pincode: "600001" },
+  { city: "Pune",         pincode: "411001" },
+  { city: "Kolkata",      pincode: "700001" },
+  { city: "Ahmedabad",    pincode: "380001" },
+  { city: "Jaipur",       pincode: "302001" },
+  { city: "Lucknow",      pincode: "226001" },
+  { city: "Surat",        pincode: "395001" },
+  { city: "Chandigarh",   pincode: "160001" },
+  { city: "Jodhpur",      pincode: "342001" },
+  { city: "Nagpur",       pincode: "440001" },
+  { city: "Patna",        pincode: "800001" },
+  { city: "Indore",       pincode: "452001" },
+  { city: "Bhopal",       pincode: "462001" },
+  { city: "Visakhapatnam",pincode: "530001" },
+  { city: "Vadodara",     pincode: "390001" },
+  { city: "Ludhiana",     pincode: "141001" },
+  { city: "Agra",         pincode: "282001" },
+  { city: "Nashik",       pincode: "422001" },
+  { city: "Faridabad",    pincode: "121001" },
+  { city: "Meerut",       pincode: "250001" },
+  { city: "Rajkot",       pincode: "360001" },
+  { city: "Varanasi",     pincode: "221001" },
+  { city: "Srinagar",     pincode: "190001" },
+  { city: "Aurangabad",   pincode: "431001" },
+  { city: "Dhanbad",      pincode: "826001" },
+  { city: "Amritsar",     pincode: "143001" },
+  { city: "Allahabad",    pincode: "211001" },
+  { city: "Ranchi",       pincode: "834001" },
+  { city: "Coimbatore",   pincode: "641001" },
+  { city: "Jabalpur",     pincode: "482001" },
+  { city: "Gwalior",      pincode: "474001" },
+  { city: "Vijayawada",   pincode: "520001" },
+  { city: "Mysuru",       pincode: "570001" },
+  { city: "Thiruvananthapuram", pincode: "695001" },
+  { city: "Kochi",        pincode: "682001" },
+  { city: "Guwahati",     pincode: "781001" },
+  { city: "Dehradun",     pincode: "248001" },
+  { city: "Noida",        pincode: "201301" },
+  { city: "Gurgaon",      pincode: "122001" },
+  { city: "Thane",        pincode: "400601" },
+  { city: "Navi Mumbai",  pincode: "400703" },
+  { city: "Kota",         pincode: "324001" },
+  { city: "Udaipur",      pincode: "313001" },
+  { city: "Ajmer",        pincode: "305001" },
+  { city: "Sikar",        pincode: "332001" },
+  { city: "Bikaner",      pincode: "334001" },
 ];
 
 export function LocationBar({ variant = "header" }: { variant?: "header" | "hero" }) {
@@ -279,12 +317,36 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
                   <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-2">
                     {query.length >= 2 ? "Results" : "Popular cities"}
                   </p>
-                  {filtered.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <MapPin className="w-8 h-8 text-surface-300 mx-auto mb-2" />
-                      <p className="text-sm text-surface-400">No cities found</p>
+
+                  {/* When search has no match — let user use whatever they typed */}
+                  {filtered.length === 0 && query.length >= 2 && (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => selectCity(
+                          query.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
+                          ""
+                        )}
+                        className="flex items-center gap-3 w-full px-3 py-3 rounded-xl
+                                   bg-brand-50 border border-brand-200 hover:bg-brand-100
+                                   active:scale-[0.98] transition-all text-left"
+                      >
+                        <div className="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <MapPin className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-bold text-brand-700">
+                            Use &quot;{query.trim().replace(/\b\w/g, (c) => c.toUpperCase())}&quot;
+                          </p>
+                          <p className="text-[11px] text-surface-500">Set as my delivery city</p>
+                        </div>
+                      </button>
+                      <p className="text-[11px] text-surface-400 px-1 text-center">
+                        All products will be shown — availability varies by city
+                      </p>
                     </div>
-                  ) : (
+                  )}
+
+                  {filtered.length > 0 && (
                     <div className="space-y-0.5">
                       {filtered.map(({ city, pincode }) => {
                         const isSelected = current?.city === city;
@@ -309,7 +371,7 @@ export function LocationBar({ variant = "header" }: { variant?: "header" | "hero
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-semibold text-surface-800">{city}</p>
-                              <p className="text-[11px] text-surface-400">{pincode}</p>
+                              {pincode && <p className="text-[11px] text-surface-400">{pincode}</p>}
                             </div>
                             {isSelected && (
                               <CheckCircle2 className="w-4 h-4 text-brand-600 flex-shrink-0" />
