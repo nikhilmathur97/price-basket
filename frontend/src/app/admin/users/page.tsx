@@ -6,8 +6,10 @@ import { api } from "@/services/api";
 type AdminUser = {
   id: string;
   full_name: string | null;
-  email: string;
+  email: string | null;
   phone: string | null;
+  mobile_number: string | null;
+  mobile_verified: boolean;
   password_status: string;
   password_hash_preview: string | null;
   is_admin: boolean;
@@ -54,8 +56,19 @@ export default function AdminUsersPage() {
             {(data?.items ?? []).map((u) => (
               <tr key={u.id} className="border-t border-surface-100 hover:bg-surface-50/50">
                 <td className="px-4 py-3 font-medium text-surface-900">{u.full_name ?? "—"}</td>
-                <td className="px-4 py-3">{u.email}</td>
-                <td className="px-4 py-3">{u.phone ?? "—"}</td>
+                <td className="px-4 py-3 text-surface-500">{u.email ?? "—"}</td>
+                <td className="px-4 py-3">
+                  {u.mobile_number ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-surface-900">+91 {u.mobile_number}</span>
+                      {u.mobile_verified && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs">✓</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-surface-400">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="text-xs">
                     <p className="font-semibold text-surface-700">{u.password_status}</p>

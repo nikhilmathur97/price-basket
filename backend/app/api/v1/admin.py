@@ -541,6 +541,8 @@ async def list_users(
                 "full_name": u.full_name,
                 "email": u.email,
                 "phone": u.phone,
+                "mobile_number": u.mobile_number,
+                "mobile_verified": u.mobile_verified,
                 # Never expose raw password. Only return safety metadata.
                 "password_status": "Password Set" if u.hashed_password else "OAuth Only",
                 "password_hash_preview": f"{u.hashed_password[:12]}..." if u.hashed_password else None,
