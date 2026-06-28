@@ -72,7 +72,8 @@ async def _twilio(phone_e164: str, otp: str) -> None:
         f"{settings.TWILIO_ACCOUNT_SID}:{settings.TWILIO_AUTH_TOKEN}".encode()
     ).decode()
     body = (
-        f"Your PriceBasket verification code is {otp}. "
+        f"Hello! Welcome to PriceBasket. "
+        f"Your verification code is {otp}. "
         "Valid for 5 minutes. Do not share this with anyone."
     )
     async with httpx.AsyncClient(timeout=15) as client:
