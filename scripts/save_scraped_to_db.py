@@ -257,13 +257,12 @@ async def main():
         print("\n🔧 Upserting categories...")
         for cat_slug, cat_meta in CATEGORIES.items():
             await conn.execute(text("""
-                INSERT INTO categories (id, name, slug, icon, display_order, is_active, created_at, updated_at)
-                VALUES (:id, :name, :slug, :icon, :display_order, true, NOW(), NOW())
+                INSERT INTO categories (id, name, slug, icon, display_order, is_active, created_at)
+                VALUES (:id, :name, :slug, :icon, :display_order, true, NOW())
                 ON CONFLICT (slug) DO UPDATE SET
                     name = EXCLUDED.name,
                     icon = EXCLUDED.icon,
-                    display_order = EXCLUDED.display_order,
-                    updated_at = NOW()
+                    display_order = EXCLUDED.display_order
             """), {
                 "id": str(uuid.uuid4()),
                 "name": cat_meta["name"],
@@ -288,143 +287,165 @@ async def main():
     saved = 0
     updated = 0
     skipped = 0
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
 
     # Cache: slug -> product_id
     seen_products: dict[str, str] = {}
 
     BATCH_SIZE = 100
 
-    async with engine.begin() as conn:
-        for idx, item in enumerate(all_items):
-            platform_slug = item.get("platform", "")
-            platform_id = platform_ids.get(platform_slug)
-            if not platform_id:
-                skipped += 1
-                continue
+    for batch_start in range(0, len(all_items), BATCH_SIZE):
+        async with engine.begin() as conn:
+            for idx, item in enumerate(all_items[batch_start:batch_start + BATCH_SIZE], start=batch_start):
+                platform_slug = item.get("platform", "")
+                platform_id = platform_ids.get(platform_slug)
+                if not platform_id:
+                    skipped += 1
+                    continue
 
-            name = re.sub(r"\s+", " ", (item.get("name") or "").strip())[:200]
-            price = item.get("price")
-            if not name or not price or float(price) <= 0 or float(price) > 50000:
-                skipped += 1
-                continue
+                name = re.sub(r"\s+", " ", (item.get("name") or "").strip())[:200]
+                price = item.get("price")
+                if not name or not price or float(price) <= 0 or float(price) > 50000:
+                    skipped += 1
+                    continue
 
-            query = item.get("query", "")
-            cat_slug = guess_category(name, query)
-            category_id = category_ids.get(cat_slug) or category_ids.get("snacks-drinks")
+                query = item.get("query", "")
+                cat_slug = guess_category(name, query)
+                category_id = category_ids.get(cat_slug) or category_ids.get("snacks-drinks")
 
-            unit = extract_unit(name, item.get("unit", ""))
-            brand = extract_brand(name)
-            prod_slug = slugify(name)
-            image_url = item.get("image_url") or None
+                unit = extract_unit(name, item.get("unit", ""))
+                brand = extract_brand(name)
+                prod_slug = slugify(name)
+                image_url = item.get("image_url") or None
 
-            # Check product cache
-            product_id = seen_products.get(prod_slug)
-            if not product_id:
-                # Check DB
-                row = await conn.execute(
-                    text("SELECT id FROM products WHERE slug = :slug"),
-                    {"slug": prod_slug}
-                )
-                existing = row.fetchone()
-                if existing:
-                    product_id = str(existing[0])
-                    # Update missing fields
-                    await conn.execute(text("""
-                        UPDATE products SET
-                            is_featured = true,
-                            image_url = COALESCE(NULLIF(image_url, ''), :image_url),
-                            thumbnail_url = COALESCE(NULLIF(thumbnail_url, ''), :image_url),
-                            unit = COALESCE(NULLIF(unit, ''), :unit),
-                            brand = COALESCE(NULLIF(brand, ''), :brand),
-                            updated_at = NOW()
-                        WHERE id = :id
-                    """), {
-                        "id": product_id,
-                        "image_url": image_url,
-                        "unit": unit or None,
-                        "brand": brand,
-                    })
-                    updated += 1
-                else:
-                    # Insert new product
-                    product_id = str(uuid.uuid4())
-                    desc = f"{name} — Compare prices across Blinkit, Zepto, BigBasket, Instamart and more."
-                    await conn.execute(text("""
-                        INSERT INTO products (id, name, slug, brand, unit, description,
-                            category_id, image_url, thumbnail_url, is_active, is_featured,
-                            created_at, updated_at)
-                        VALUES (:id, :name, :slug, :brand, :unit, :description,
-                            :category_id, :image_url, :thumbnail_url, true, true,
-                            NOW(), NOW())
-                        ON CONFLICT (slug) DO UPDATE SET
-                            is_featured = true,
-                            image_url = COALESCE(NULLIF(products.image_url, ''), EXCLUDED.image_url),
-                            updated_at = NOW()
-                        RETURNING id
-                    """), {
-                        "id": product_id,
-                        "name": name,
-                        "slug": prod_slug,
-                        "brand": brand,
-                        "unit": unit or None,
-                        "description": desc,
-                        "category_id": category_id,
-                        "image_url": image_url,
-                        "thumbnail_url": image_url,
-                    })
-                    saved += 1
+                # Check product cache
+                product_id = seen_products.get(prod_slug)
+                if not product_id:
+                    # Check DB
+                    row = await conn.execute(
+                        text("SELECT id FROM products WHERE slug = :slug"),
+                        {"slug": prod_slug}
+                    )
+                    existing = row.fetchone()
+                    if existing:
+                        product_id = str(existing[0])
+                        # Update missing fields.
+                        # IMPORTANT: thumbnail_url must be kept in sync with image_url.
+                        # The home page ProductCard cascades image_url → thumbnail_url →
+                        # platform_image_url. If both product-level fields are NULL the
+                        # card falls through to platform_image_url which causes a blank
+                        # flash on first render. Always fill both from the scraped image.
+                        await conn.execute(text("""
+                            UPDATE products SET
+                                is_featured = true,
+                                image_url = COALESCE(NULLIF(image_url, ''), :image_url),
+                                thumbnail_url = COALESCE(NULLIF(thumbnail_url, ''), :image_url),
+                                unit = COALESCE(NULLIF(unit, ''), :unit),
+                                brand = COALESCE(NULLIF(brand, ''), :brand),
+                                updated_at = NOW()
+                            WHERE id = :id
+                              AND :image_url IS NOT NULL
+                        """), {
+                            "id": product_id,
+                            "image_url": image_url,
+                            "unit": unit or None,
+                            "brand": brand,
+                        })
+                        # Also run a separate update for non-image fields when image_url is null
+                        if not image_url:
+                            await conn.execute(text("""
+                                UPDATE products SET
+                                    is_featured = true,
+                                    unit = COALESCE(NULLIF(unit, ''), :unit),
+                                    brand = COALESCE(NULLIF(brand, ''), :brand),
+                                    updated_at = NOW()
+                                WHERE id = :id
+                            """), {
+                                "id": product_id,
+                                "unit": unit or None,
+                                "brand": brand,
+                            })
+                        updated += 1
+                    else:
+                        # Insert new product.
+                        # thumbnail_url is set to image_url so the home page ProductCard
+                        # always has a usable image on the very first render (no blank flash).
+                        product_id = str(uuid.uuid4())
+                        desc = f"{name} — Compare prices across Blinkit, Zepto, BigBasket, Instamart and more."
+                        await conn.execute(text("""
+                            INSERT INTO products (id, name, slug, brand, unit, description,
+                                category_id, image_url, thumbnail_url, is_active, is_featured,
+                                created_at, updated_at)
+                            VALUES (:id, :name, :slug, :brand, :unit, :description,
+                                :category_id, :image_url, :thumbnail_url, true, true,
+                                NOW(), NOW())
+                            ON CONFLICT (slug) DO UPDATE SET
+                                is_featured = true,
+                                image_url = COALESCE(NULLIF(products.image_url, ''), EXCLUDED.image_url),
+                                thumbnail_url = COALESCE(NULLIF(products.thumbnail_url, ''), EXCLUDED.thumbnail_url),
+                                updated_at = NOW()
+                            RETURNING id
+                        """), {
+                            "id": product_id,
+                            "name": name,
+                            "slug": prod_slug,
+                            "brand": brand,
+                            "unit": unit or None,
+                            "description": desc,
+                            "category_id": category_id,
+                            "image_url": image_url,
+                            "thumbnail_url": image_url,   # mirror image_url into thumbnail_url
+                        })
+                        saved += 1
 
-                seen_products[prod_slug] = product_id
+                    seen_products[prod_slug] = product_id
 
-            # Upsert platform price
-            price_val = float(price)
-            mrp_val = float(item.get("mrp") or price)
-            if mrp_val < price_val:
-                mrp_val = price_val
-            discount = round((mrp_val - price_val) / mrp_val * 100, 1) if mrp_val > price_val else 0.0
-            discount_label = f"{int(discount)}% OFF" if discount > 0 else None
+                # Upsert platform price
+                price_val = float(price)
+                mrp_val = float(item.get("mrp") or price)
+                if mrp_val < price_val:
+                    mrp_val = price_val
+                discount = round((mrp_val - price_val) / mrp_val * 100, 1) if mrp_val > price_val else 0.0
+                discount_label = f"{int(discount)}% OFF" if discount > 0 else None
 
-            await conn.execute(text("""
-                INSERT INTO platform_prices (id, product_id, platform_id, price,
-                    original_price, discount_percent, discount_label, is_available,
-                    delivery_time_minutes, platform_product_id, platform_product_url,
-                    platform_image_url, last_updated, source, created_at, updated_at)
-                VALUES (:id, :product_id, :platform_id, :price,
-                    :original_price, :discount_percent, :discount_label, :is_available,
-                    :delivery_time_minutes, :platform_product_id, :platform_product_url,
-                    :platform_image_url, :last_updated, :source, NOW(), NOW())
-                ON CONFLICT ON CONSTRAINT uq_platform_prices_product_platform DO UPDATE SET
-                    price = EXCLUDED.price,
-                    original_price = EXCLUDED.original_price,
-                    discount_percent = EXCLUDED.discount_percent,
-                    discount_label = EXCLUDED.discount_label,
-                    is_available = EXCLUDED.is_available,
-                    platform_product_id = COALESCE(EXCLUDED.platform_product_id, platform_prices.platform_product_id),
-                    platform_product_url = COALESCE(EXCLUDED.platform_product_url, platform_prices.platform_product_url),
-                    platform_image_url = COALESCE(EXCLUDED.platform_image_url, platform_prices.platform_image_url),
-                    last_updated = EXCLUDED.last_updated,
-                    source = EXCLUDED.source,
-                    updated_at = NOW()
-            """), {
-                "id": str(uuid.uuid4()),
-                "product_id": product_id,
-                "platform_id": platform_id,
-                "price": price_val,
-                "original_price": mrp_val if mrp_val > price_val else None,
-                "discount_percent": discount,
-                "discount_label": discount_label,
-                "is_available": item.get("in_stock", True),
-                "delivery_time_minutes": PLATFORM_META.get(platform_slug, {}).get("avg_delivery_minutes"),
-                "platform_product_id": item.get("pid") or None,
-                "platform_product_url": item.get("url") or None,
-                "platform_image_url": image_url,
-                "last_updated": now,
-                "source": item.get("source", "scrape"),
-            })
+                await conn.execute(text("""
+                    INSERT INTO platform_prices (id, product_id, platform_id, price,
+                        original_price, discount_percent, discount_label, is_available,
+                        delivery_time_minutes, platform_product_id, platform_product_url,
+                        platform_image_url, last_updated, source)
+                    VALUES (:id, :product_id, :platform_id, :price,
+                        :original_price, :discount_percent, :discount_label, :is_available,
+                        :delivery_time_minutes, :platform_product_id, :platform_product_url,
+                        :platform_image_url, :last_updated, :source)
+                    ON CONFLICT ON CONSTRAINT uq_platform_prices_product_platform DO UPDATE SET
+                        price = EXCLUDED.price,
+                        original_price = EXCLUDED.original_price,
+                        discount_percent = EXCLUDED.discount_percent,
+                        discount_label = EXCLUDED.discount_label,
+                        is_available = EXCLUDED.is_available,
+                        platform_product_id = COALESCE(EXCLUDED.platform_product_id, platform_prices.platform_product_id),
+                        platform_product_url = COALESCE(EXCLUDED.platform_product_url, platform_prices.platform_product_url),
+                        platform_image_url = COALESCE(EXCLUDED.platform_image_url, platform_prices.platform_image_url),
+                        last_updated = EXCLUDED.last_updated,
+                        source = EXCLUDED.source
+                """), {
+                    "id": str(uuid.uuid4()),
+                    "product_id": product_id,
+                    "platform_id": platform_id,
+                    "price": price_val,
+                    "original_price": mrp_val if mrp_val > price_val else None,
+                    "discount_percent": discount,
+                    "discount_label": discount_label,
+                    "is_available": item.get("in_stock", True),
+                    "delivery_time_minutes": PLATFORM_META.get(platform_slug, {}).get("avg_delivery_minutes"),
+                    "platform_product_id": item.get("pid") or None,
+                    "platform_product_url": item.get("url") or None,
+                    "platform_image_url": image_url,
+                    "last_updated": now,
+                    "source": item.get("source", "scrape"),
+                })
 
-            if (idx + 1) % BATCH_SIZE == 0:
-                print(f"   ... {idx + 1}/{len(all_items)} processed (new: {saved}, updated: {updated}, skipped: {skipped})")
+            print(f"   ... {min(batch_start + BATCH_SIZE, len(all_items))}/{len(all_items)} processed (new: {saved}, updated: {updated}, skipped: {skipped})")
 
     print(f"\n✅ Done!")
     print(f"   New products : {saved}")
