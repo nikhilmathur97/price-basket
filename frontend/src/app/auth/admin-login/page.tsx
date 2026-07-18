@@ -34,7 +34,7 @@ export default function AdminLoginPage() {
     loginInProgress.current = true;
     setLoading(true);
     try {
-      const { data } = await api.loginEmail({ email: form.email.trim(), password: form.password });
+      const { data } = await api.login({ email: form.email.trim(), password: form.password });
       setAccessToken(data.access_token);
       let user = data.user;
       if (!user) {
@@ -161,7 +161,7 @@ export default function AdminLoginPage() {
           <p className="text-sm text-center text-surface-500 mt-6">
             Regular user?{" "}
             <Link href="/auth/login" className="text-brand-600 font-semibold hover:underline">
-              Login with mobile
+              Login with email
             </Link>
           </p>
         </div>

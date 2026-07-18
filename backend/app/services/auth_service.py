@@ -244,43 +244,24 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
-async def get_user_by_mobile(db: AsyncSession, mobile_number: str) -> Optional[User]:
-    result = await db.execute(select(User).where(User.mobile_number == mobile_number))
-    return result.scalar_one_or_none()
-
-
 async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
     result = await db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
 
 
-async def create_user(db: AsyncSession, email: str, password: str, full_name: str) -> User:
-    user = User(
-        email=email,
-        hashed_password=hash_password(password),
-        full_name=full_name,
-        is_verified=False,
-    )
-    db.add(user)
-    await db.flush()
-    return user
-
-
-async def create_user_mobile(
+async def create_user(
     db: AsyncSession,
-    mobile_number: str,
+    email: str,
     password: str,
     full_name: str,
-    email: Optional[str] = None,
+    mobile_number: Optional[str] = None,
 ) -> User:
-    """Create a user whose primary login identifier is their mobile number."""
     user = User(
-        mobile_number=mobile_number,
-        mobile_verified=True,
         email=email,
         hashed_password=hash_password(password),
         full_name=full_name,
-        is_verified=True,
+        mobile_number=mobile_number,
+        is_verified=False,
     )
     db.add(user)
     await db.flush()

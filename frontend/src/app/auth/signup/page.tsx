@@ -7,6 +7,7 @@ import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import { useBackendWakeup } from "@/hooks/useBackendWakeup";
 import { PageLoader } from "@/components/PageLoader";
 import toast from "react-hot-toast";
@@ -15,8 +16,7 @@ function getSignupErrorMessage(err: any): string {
   if (!err?.response) return "Cannot reach server — please try again in a few seconds.";
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
-  if (status === 409) return "Mobile number already registered. Try signing in instead.";
-  if (status === 429) return "Too many OTP requests. Please wait 15 minutes and try again.";
+  if (status === 409) return "Email already registered. Try signing in instead.";
   if (status === 503) return typeof detail === "string" ? detail : "Server is starting up — please wait and try again.";
   if (status === 502) return "Service unavailable — please try again in a few seconds.";
   if (status === 500) return "Server error — please try again or contact support.";
@@ -32,7 +32,8 @@ const PASSWORD_HINT = "Min. 8 chars, 1 uppercase, 1 number, 1 special character"
 
 export default function SignupPage() {
   const router = useRouter();
-  const { isAuthenticated, hasHydrated, isValidatingSession } = useAuthStore();
+  const { isAuthenticated, hasHydrated, isValidatingSession, setUser, setAccessToken } = useAuthStore();
+  const { resetCart, fetchCart } = useCartStore();
   const [form, setForm] = useState({
     full_name: "",
     mobile_number: "",
@@ -55,7 +56,7 @@ export default function SignupPage() {
   if (isAuthenticated && !isValidatingSession && !signupInProgress.current) {
     return <PageLoader message="Loading" />;
   }
-  if (loading) return <PageLoader message="Sending verification code" />;
+  if (loading) return <PageLoader message="Creating your account" />;
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -63,10 +64,12 @@ export default function SignupPage() {
 
     const trimmedName = form.full_name.trim();
     const mobile = form.mobile_number.trim();
-    const email = form.email.trim().toLowerCase() || undefined;
+    const email = form.email.trim().toLowerCase();
 
     if (!trimmedName) { toast.error("Full name is required"); return; }
-    if (!/^\d{10}$/.test(mobile)) { toast.error("Enter a valid 10-digit mobile number"); return; }
+    if (mobile && !/^\d{10}$/.test(mobile)) { toast.error("Enter a valid 10-digit mobile number"); return; }
+    if (!email) { toast.error("Email address is required"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("Enter a valid email address"); return; }
     if (form.password !== form.confirm) { toast.error("Passwords do not match"); return; }
     if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (!/[A-Z]/.test(form.password)) { toast.error("Password must contain at least one uppercase letter"); return; }
@@ -79,14 +82,23 @@ export default function SignupPage() {
     signupInProgress.current = true;
     setLoading(true);
     try {
-      // Store form data in sessionStorage so the OTP page can retrieve it
-      sessionStorage.setItem(
-        "pb_signup_pending",
-        JSON.stringify({ full_name: trimmedName, mobile_number: mobile, password: form.password, email })
-      );
-      await api.sendSignupOtp(mobile);
-      // Navigate to OTP verification screen
-      router.push(`/auth/verify-otp?purpose=signup&mobile=${encodeURIComponent(mobile)}`);
+      const { data } = await api.register({
+        full_name: trimmedName,
+        email,
+        password: form.password,
+        mobile_number: mobile || undefined,
+      });
+      setAccessToken(data.access_token);
+      let user = data.user;
+      if (!user) {
+        const meRes = await api.me();
+        user = meRes.data;
+      }
+      setUser(user);
+      toast.success(`Welcome to PriceBasket, ${user.full_name ?? "there"}!`);
+      resetCart();
+      fetchCart().catch(() => {});
+      router.replace("/");
     } catch (err: any) {
       signupInProgress.current = false;
       const status = err?.response?.status;
@@ -95,11 +107,7 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      if (status === 409) {
-        toast.error("This mobile number is already registered. Sign in instead?");
-      } else {
-        toast.error(getSignupErrorMessage(err));
-      }
+      toast.error(getSignupErrorMessage(err));
       setLoading(false);
     }
   }
@@ -158,10 +166,29 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* Mobile Number */}
+            {/* Email (required — primary login identifier) */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">
-                Mobile Number <span className="text-red-500">*</span>
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@example.com"
+                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <p className="text-xs text-surface-400 mt-1">
+                You&apos;ll use this to sign in
+              </p>
+            </div>
+
+            {/* Mobile Number (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">
+                Mobile Number
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 font-medium select-none">
@@ -171,7 +198,6 @@ export default function SignupPage() {
                   type="tel"
                   inputMode="numeric"
                   maxLength={10}
-                  required
                   value={form.mobile_number}
                   onChange={(e) =>
                     setForm({ ...form, mobile_number: e.target.value.replace(/\D/g, "").slice(0, 10) })
@@ -182,23 +208,8 @@ export default function SignupPage() {
                 />
               </div>
               <p className="text-xs text-surface-400 mt-1">
-                We&apos;ll send a verification code to this number
+                Optional — for order updates
               </p>
-            </div>
-
-            {/* Email (optional) */}
-            <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Email Address <span className="text-surface-400 text-xs">(Optional)</span>
-              </label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="you@example.com"
-                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
             </div>
 
             {/* Password */}
@@ -252,7 +263,7 @@ export default function SignupPage() {
               disabled={loading || wakingUp || pwMismatch}
               className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {wakingUp ? "Waking up…" : "Get Verification Code"}
+              {wakingUp ? "Waking up…" : "Create account"}
             </button>
           </form>
 

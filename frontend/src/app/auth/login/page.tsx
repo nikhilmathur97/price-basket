@@ -18,7 +18,7 @@ export default function LoginPage() {
   const { setUser, setAccessToken, isAuthenticated, hasHydrated, isValidatingSession } =
     useAuthStore();
   const { fetchCart, resetCart } = useCartStore();
-  const [form, setForm] = useState({ mobile_number: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const { wakingUp, retryCountdown, trigger: triggerWakeup } = useBackendWakeup("login-form");
@@ -36,16 +36,16 @@ export default function LoginPage() {
     e.preventDefault();
     if (loading) return;
 
-    const mobile = form.mobile_number.trim();
-    if (!/^\d{10}$/.test(mobile)) {
-      toast.error("Please enter a valid 10-digit mobile number");
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
     loginInProgress.current = true;
     setLoading(true);
     try {
-      const { data } = await api.login({ mobile_number: mobile, password: form.password });
+      const { data } = await api.login({ email, password: form.password });
       setAccessToken(data.access_token);
       let user = data.user;
       if (!user) {
@@ -74,7 +74,7 @@ export default function LoginPage() {
 
       let message: string;
       if (status === 401) {
-        message = "Invalid mobile number or password. Please try again.";
+        message = "Invalid email or password. Please try again.";
       } else if (status === 403) {
         message = "Your account has been disabled. Please contact support.";
       } else if (typeof detail === "string") {
@@ -131,26 +131,17 @@ export default function LoginPage() {
           <form id="login-form" onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">
-                Mobile Number
+                Email Address
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 font-medium select-none">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  required
-                  value={form.mobile_number}
-                  onChange={(e) =>
-                    setForm({ ...form, mobile_number: e.target.value.replace(/\D/g, "").slice(0, 10) })
-                  }
-                  placeholder="9876543210"
-                  className="w-full border border-surface-200 rounded-xl pl-12 pr-4 py-2.5 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
+              <input
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@example.com"
+                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
             </div>
 
             <div>

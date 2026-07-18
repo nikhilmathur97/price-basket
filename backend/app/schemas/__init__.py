@@ -20,90 +20,23 @@ def _validate_password(v: str) -> str:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  Auth — Mobile (primary)
-# ═════════════════════════════════════════════════════════════════════════════
-
-class SendSignupOTPRequest(BaseModel):
-    mobile_number: str = Field(..., min_length=10, max_length=10)
-
-    @field_validator("mobile_number")
-    @classmethod
-    def _valid_mobile(cls, v: str) -> str:
-        if not _MOBILE_RE.match(v):
-            raise ValueError("Mobile number must be exactly 10 digits")
-        return v
-
-
-class VerifySignupOTPRequest(BaseModel):
-    mobile_number: str = Field(..., min_length=10, max_length=10)
-    otp: str = Field(..., min_length=6, max_length=6)
-    full_name: str = Field(..., min_length=1, max_length=255)
-    password: str = Field(..., min_length=8, max_length=128)
-    email: Optional[EmailStr] = None
-
-    @field_validator("mobile_number")
-    @classmethod
-    def _valid_mobile(cls, v: str) -> str:
-        if not _MOBILE_RE.match(v):
-            raise ValueError("Mobile number must be exactly 10 digits")
-        return v
-
-    @field_validator("password")
-    @classmethod
-    def _strong_password(cls, v: str) -> str:
-        return _validate_password(v)
-
-
-class MobileLoginRequest(BaseModel):
-    mobile_number: str = Field(..., min_length=10, max_length=10)
-    password: str
-
-    @field_validator("mobile_number")
-    @classmethod
-    def _valid_mobile(cls, v: str) -> str:
-        if not _MOBILE_RE.match(v):
-            raise ValueError("Mobile number must be exactly 10 digits")
-        return v
-
-
-class SendForgotPasswordOTPRequest(BaseModel):
-    mobile_number: str = Field(..., min_length=10, max_length=10)
-
-    @field_validator("mobile_number")
-    @classmethod
-    def _valid_mobile(cls, v: str) -> str:
-        if not _MOBILE_RE.match(v):
-            raise ValueError("Mobile number must be exactly 10 digits")
-        return v
-
-
-class ResetPasswordMobileRequest(BaseModel):
-    """Verify forgot-password OTP and reset the password in one call."""
-    mobile_number: str = Field(..., min_length=10, max_length=10)
-    otp: str = Field(..., min_length=6, max_length=6)
-    new_password: str = Field(..., min_length=8, max_length=128)
-
-    @field_validator("mobile_number")
-    @classmethod
-    def _valid_mobile(cls, v: str) -> str:
-        if not _MOBILE_RE.match(v):
-            raise ValueError("Mobile number must be exactly 10 digits")
-        return v
-
-    @field_validator("new_password")
-    @classmethod
-    def _strong_password(cls, v: str) -> str:
-        return _validate_password(v)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-#  Auth — Legacy email (kept for backward compatibility / admin accounts)
+#  Auth — Email + password (primary)
 # ═════════════════════════════════════════════════════════════════════════════
 
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
+    mobile_number: Optional[str] = Field(default=None, description="Optional contact number")
+
+    @field_validator("mobile_number")
+    @classmethod
+    def _valid_mobile(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if not _MOBILE_RE.match(v):
+            raise ValueError("Mobile number must be exactly 10 digits")
+        return v
 
     @field_validator("password")
     @classmethod
