@@ -1211,7 +1211,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     # because this file disagreed with how the product was categorized in the first place).
     "dairy-breakfast":   ["milk", "curd", "yogurt", "butter", "cheese", "paneer", "cream cheese",
                           "ghee", "lassi", "whey protein", "buttermilk", "skimmed milk",
-                          "honey", "jam", "bread", "coffee", "tea", "oats",
+                          "honey", "jam", "bread", "coffee", "tea", "chai", "oats",
                           "cornflakes", "corn flakes", "horlicks", "bournvita"],
     "fruits-vegetables": ["fresh apple", "fresh banana", "fresh mango", "fresh tomato",
                           "fresh potato", "fresh onion", "fresh spinach", "fresh carrot",
@@ -1275,7 +1275,7 @@ _CATEGORY_OVERRIDES: dict[str, list[str]] = {
     "oils-spices":       ["oil", "salt", "masala", "turmeric", "spice"],
     "dairy-breakfast":   ["milk", "curd", "yogurt", "butter", "cheese", "paneer",
                           "ghee", "cream", "lassi", "whey", "egg", "honey", "jam",
-                          "bread", "coffee", "tea", "oats", "cornflakes", "corn flakes",
+                          "bread", "coffee", "tea", "chai", "oats", "cornflakes", "corn flakes",
                           "horlicks", "bournvita"],
     "bakery":            ["bread", "bun", "cake", "muffin", "rusk", "toast", "pav",
                           "croissant", "pastry", "loaf"],
