@@ -51,11 +51,19 @@ from typing import AsyncGenerator, Optional
 
 import structlog
 
+from app.config import settings
+
 log = structlog.get_logger(__name__)
 
 _playwright = None
 _browser    = None
 _lock       = asyncio.Lock()
+
+# Caps how many callers can hold the browser (i.e. have a context/page open)
+# at once, process-wide. Every scraper enters Playwright through get_browser(),
+# so gating here bounds peak Chromium memory regardless of how many platforms
+# or requests fan out concurrently.
+_concurrency = asyncio.Semaphore(settings.SCRAPER_CONCURRENCY)
 
 # ── Cookie persistence ─────────────────────────────────────────────────────────
 _COOKIE_DIR = Path(tempfile.gettempdir()) / "pricebasket_cookies"
@@ -482,9 +490,15 @@ async def new_stealth_context(browser, platform: str = "", **kwargs):
 
 @contextlib.asynccontextmanager
 async def get_browser():
-    """Yield the shared Chromium browser instance."""
-    await _ensure_browser()
-    yield _browser
+    """
+    Yield the shared Chromium browser instance.
+
+    Bounded by _concurrency (SCRAPER_CONCURRENCY) — callers beyond the cap
+    wait here rather than piling up simultaneous browser contexts.
+    """
+    async with _concurrency:
+        await _ensure_browser()
+        yield _browser
 
 
 async def shutdown_playwright():

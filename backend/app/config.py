@@ -84,7 +84,11 @@ class Settings(BaseSettings):
     AWS_SES_FROM_EMAIL: str = ""
 
     # ── Scraping ──────────────────────────────────────────────────────────────
-    SCRAPER_CONCURRENCY: int = 5
+    # Max concurrent Playwright browser sessions process-wide. Each live-price
+    # scraper (Blinkit/Zepto/BigBasket/Instamart/Flipkart/Amazon/JioMart) opens
+    # a real Chromium context; uncapped fan-out across platforms + concurrent
+    # requests was blowing past the 512MB instance limit. Keep this low.
+    SCRAPER_CONCURRENCY: int = 2
     PROXY_ROTATION_ENABLED: bool = False
     PROXY_LIST: str = ""
     SCRAPE_USER_AGENT_ROTATION: bool = True
