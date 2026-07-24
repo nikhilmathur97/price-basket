@@ -45,8 +45,6 @@ jobs:
           EC2_USER_SECRET: ${{ secrets.EC2_USER }}
         run: |
           echo "$EC2_SSH_KEY" > /tmp/deploy_key
-          echo "DEBUG: key line count: $(wc -l < /tmp/deploy_key)"
-          echo "DEBUG: key fingerprint: $(ssh-keygen -lf /tmp/deploy_key 2>&1)"
           chmod 600 /tmp/deploy_key
 
           # Default to ec2-user if secret is empty
@@ -55,7 +53,7 @@ jobs:
             RESOLVED_USER="ec2-user"
           fi
 
-          ssh -vvv -i /tmp/deploy_key \
+          ssh -i /tmp/deploy_key \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=10 \
