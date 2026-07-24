@@ -47,6 +47,11 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
     Includes ALL platform prices (available and unavailable) so the frontend
     can render "Unavailable" badges. cheapest/fastest/best_value are derived
     only from available prices.
+
+    Image promotion: when a product has no image_url or thumbnail_url stored
+    in the products table (common for scraped products), we promote the first
+    available platform_image_url from its price rows up to image_url so the
+    home page ProductCard always has an image to display.
     """
     intelligence = intelligence_service.build_snapshot(product, prices)
 
@@ -69,6 +74,25 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
         )
         for pp in prices
     ]
+
+    # ── Image promotion ───────────────────────────────────────────────────────
+    # Scrapers store images on PlatformPrice.platform_image_url but often leave
+    # Product.image_url / Product.thumbnail_url as NULL.  The home page
+    # ProductCard cascades image_url → thumbnail_url → platform_image_url, so
+    # when both product-level fields are NULL the card has to fall all the way
+    # through to the platform_image_url fallback — which works, but only after
+    # the <Image> onError fires once (causing a visible blank flash).
+    #
+    # Fix: if the product has no image at all, promote the first non-empty
+    # platform_image_url into the serialised image_url field so the frontend
+    # gets a usable image on the very first render, with zero flicker.
+    promoted_image_url = product.image_url
+    promoted_thumbnail_url = product.thumbnail_url
+    if not promoted_image_url and not promoted_thumbnail_url:
+        for pp in price_outs:
+            if pp.platform_image_url and pp.platform_image_url.strip():
+                promoted_image_url = pp.platform_image_url
+                break
 
     # Highlight platforms derived from available prices only
     available_outs = [p for p in price_outs if p.is_available]
@@ -96,8 +120,15 @@ def _enrich(product: Product, prices: List[PlatformPrice]) -> ProductWithPrices:
     best_value = min(available_outs, key=bv_score, default=None) if available_outs else None
     eta_values = [p.delivery_time_minutes for p in available_outs if p.delivery_time_minutes]
 
+    # Build the base product dict and override image fields with promoted values
+    # so the frontend always receives a usable image_url (never null when a
+    # platform_image_url is available).
+    product_dict = ProductOut.model_validate(product).model_dump()
+    product_dict["image_url"] = promoted_image_url
+    product_dict["thumbnail_url"] = promoted_thumbnail_url
+
     return ProductWithPrices(
-        **ProductOut.model_validate(product).model_dump(),
+        **product_dict,
         platform_prices=price_outs,
         cheapest_platform=cheapest.platform if cheapest else None,
         fastest_platform=fastest.platform if fastest else None,
@@ -193,7 +224,11 @@ async def featured_products(
     limit: int = Query(default=60, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    cache_key = f"featured:v2:{limit}"
+    # v3: bumped to bust stale cache entries that have null image_url.
+    # The _enrich() function now promotes platform_image_url → image_url when
+    # the product-level image fields are NULL, so old v2 entries (without the
+    # promotion) must not be served.
+    cache_key = f"featured:v3:{limit}"
     cached = await cache_get(cache_key)
     if cached:
         # Return raw JSON string directly — avoids double-serialisation overhead
@@ -287,7 +322,8 @@ async def search_products(
             detail="Search query cannot be empty. Provide at least one character or omit the 'q' parameter.",
         )
     # ── Cache key: hash all query params so identical searches are instant ────
-    cache_key = "search:v1:" + hashlib.md5(
+    # v2: bumped to bust stale entries without promoted image_url.
+    cache_key = "search:v2:" + hashlib.md5(
         f"{q}|{category_slug}|{platform_slug}|{min_price}|{max_price}|{sort}|{page}|{page_size}".encode()
     ).hexdigest()
     cached = await cache_get(cache_key)
@@ -413,7 +449,8 @@ async def bulk_products(
     results: dict[str, str] = {}
     missing_ids: List[uuid.UUID] = []
     for pid in valid_ids:
-        cached = await cache_get(f"product:v1:{pid}")
+        # v2: bumped to bust stale entries without promoted image_url.
+        cached = await cache_get(f"product:v2:{pid}")
         if cached:
             results[str(pid)] = cached
         else:
@@ -436,7 +473,7 @@ async def bulk_products(
             enriched = _enrich(product, product.platform_prices)
             serialised = enriched.model_dump_json()
             # Populate Redis cache (same TTL as single-product endpoint)
-            await cache_set(f"product:v1:{product.id}", serialised, 120)
+            await cache_set(f"product:v2:{product.id}", serialised, 120)
             results[str(product.id)] = serialised
 
     # Reassemble in request order, skip any not found
@@ -472,7 +509,8 @@ async def get_product(
     db: AsyncSession = Depends(get_db),
 ):
     # ── Cache hit: return instantly, refresh in background ────────────────────
-    cache_key = f"product:v1:{product_id}"
+    # v2: bumped to bust stale entries without promoted image_url.
+    cache_key = f"product:v2:{product_id}"
     cached = await cache_get(cache_key)
     if cached:
         # Always schedule a background refresh so cache stays fresh
