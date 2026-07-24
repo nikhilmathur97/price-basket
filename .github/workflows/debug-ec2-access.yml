@@ -1,0 +1,65 @@
+name: "debug: EC2 SSH access diagnosis (temporary)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: "Diagnose SSH via EC2 Instance Connect"
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ap-south-1
+      INSTANCE_ID: i-0dce266e7a22c5ffe
+      INSTANCE_AZ: ap-south-1a
+      INSTANCE_IP: 13.207.216.99
+    steps:
+      - name: Install AWS CLI
+        run: |
+          curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          sudo /tmp/aws/install --update
+
+      - name: Generate ephemeral key + push via EC2 Instance Connect
+        run: |
+          ssh-keygen -t ed25519 -N "" -f /tmp/ephemeral_key -q
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id "$INSTANCE_ID" \
+            --instance-os-user ec2-user \
+            --ssh-public-key file:///tmp/ephemeral_key.pub \
+            --availability-zone "$INSTANCE_AZ"
+          chmod 600 /tmp/ephemeral_key
+
+      - name: SSH in and diagnose access-control config
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i /tmp/ephemeral_key ec2-user@$INSTANCE_IP '
+            echo "=== whoami / uptime ==="; whoami; uptime
+            echo ""
+            echo "=== sshd_config Match/AllowUsers/DenyUsers/AllowGroups/DenyGroups ==="
+            sudo grep -inE "^(Match|AllowUsers|DenyUsers|AllowGroups|DenyGroups)" /etc/ssh/sshd_config || echo "(none found)"
+            echo ""
+            echo "=== fail2ban ==="
+            sudo fail2ban-client status 2>/dev/null || echo "fail2ban not installed/running"
+            sudo fail2ban-client status sshd 2>/dev/null
+            echo ""
+            echo "=== /etc/hosts.allow ==="
+            cat /etc/hosts.allow 2>/dev/null || echo "(missing)"
+            echo "=== /etc/hosts.deny ==="
+            cat /etc/hosts.deny 2>/dev/null || echo "(missing)"
+            echo ""
+            echo "=== iptables INPUT chain ==="
+            sudo iptables -L INPUT -n --line-numbers 2>/dev/null | head -40 || echo "(iptables unavailable)"
+            echo ""
+            echo "=== nftables (if used) ==="
+            sudo nft list ruleset 2>/dev/null | head -40 || echo "(nft unavailable)"
+            echo ""
+            echo "=== authorized_keys fingerprints ==="
+            while IFS= read -r line; do echo "$line" | ssh-keygen -lf /dev/stdin 2>/dev/null; done < ~/.ssh/authorized_keys
+            echo ""
+            echo "=== sshd -T relevant directives ==="
+            sudo sshd -T 2>/dev/null | grep -iE "allowusers|denyusers|allowgroups|denygroups|maxauthtries|maxstartups" || echo "(sshd -T failed)"
+          '
