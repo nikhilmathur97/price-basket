@@ -106,11 +106,34 @@ def extract_brand(name: str) -> str:
     return ""
 
 
+_UOM_ALIASES = {
+    "gram": "g", "grams": "g", "gm": "g", "gms": "g",
+    "kilogram": "kg", "kilograms": "kg",
+    "millilitre": "ml", "milliliter": "ml", "millilitres": "ml", "milliliters": "ml",
+    "litre": "L", "liter": "L", "litres": "L", "liters": "L",
+    "piece": "pcs", "pieces": "pcs", "pc": "pcs",
+}
+
+
+def normalize_unit(unit: str) -> str:
+    """Normalize platform enum-style units (e.g. 'zepto unitOfMeasure' = '46
+    MILLILITRE', bigbasket 'w' = '2 KILOGRAM') into a compact display form
+    ('46 ml', '2 kg'). Already-compact units like '500 g' pass through unchanged.
+    """
+    if not unit:
+        return unit
+    return re.sub(
+        r"[A-Za-z]+",
+        lambda m: _UOM_ALIASES.get(m.group(0).lower(), m.group(0)),
+        unit,
+    )
+
+
 def extract_weight_grams(unit: str) -> Optional[int]:
     """Parse weight in grams from unit string like '500g', '1kg', '200ml'."""
     if not unit:
         return None
-    u = unit.lower().strip()
+    u = normalize_unit(unit).lower().strip()
     m = re.search(r"([\d.]+)\s*kg", u)
     if m:
         return int(float(m.group(1)) * 1000)
@@ -205,7 +228,7 @@ async def scrape_blinkit_bulk(query: str, category_slug: str) -> List[ScrapedPro
             mrp_text = d.get("mrp", {}).get("text", "")
             price = _parse_num(price_text)
             mrp = _parse_num(mrp_text) or price
-            unit = d.get("variant", {}).get("text", "")
+            unit = normalize_unit(d.get("variant", {}).get("text", ""))
             image = d.get("image", {}).get("url", "")
             if not image:
                 items = d.get("media_container", {}).get("items", [])
@@ -313,7 +336,7 @@ async def scrape_zepto_bulk(query: str, category_slug: str) -> List[ScrapedProdu
                         image = path if path.startswith("http") else f"https://cdn.zeptonow.com/production/{path}"
                 qty = variant.get("quantity", "")
                 uom = variant.get("unitOfMeasure", "")
-                unit = f"{qty} {uom}".strip() if (qty or uom) else ""
+                unit = normalize_unit(f"{qty} {uom}".strip()) if (qty or uom) else ""
                 pid = str(pr.get("productId") or product.get("id") or "")
                 url = f"https://www.zeptonow.com/product/{pid}" if pid else ""
                 disc_pct, disc_label = calc_discount(price, mrp or price)
@@ -420,7 +443,7 @@ async def scrape_instamart_bulk(query: str, category_slug: str) -> List[ScrapedP
                         if image_ids:
                             image = f"https://instamart-media-assets.swiggy.com/swiggy/image/upload/fl_lossy,f_auto,q_auto,h_200,w_200/{image_ids[0]}"
                         pid = str(v.get("skuId", "") or v.get("spinId", ""))
-                        unit = v.get("quantityDescription", "") or v.get("unit_quantity", "")
+                        unit = normalize_unit(v.get("quantityDescription", "") or v.get("unit_quantity", ""))
                         break
                 disc_pct, disc_label = calc_discount(price or 0, mrp or price or 0)
                 if name and price and price > 0:
@@ -525,7 +548,7 @@ async def scrape_bigbasket_bulk(query: str, category_slug: str) -> List[ScrapedP
                     image = img_obj
                 avail = p.get("availability", {})
                 in_stock = avail.get("avail_status", "001") == "001" if isinstance(avail, dict) else True
-                unit = p.get("w", "")
+                unit = normalize_unit(p.get("w", ""))
                 disc_pct, disc_label = calc_discount(price or 0, mrp or price or 0)
                 if name and price and price > 0:
                     products.append(ScrapedProduct(
