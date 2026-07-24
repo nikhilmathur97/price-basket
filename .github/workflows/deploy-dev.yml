@@ -6,8 +6,12 @@ name: "1. Deploy → dev.pricebasket.in"
 # Required GitHub Secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  — Vercel deploy
 #   EC2_HOST     — EC2 public IP or hostname
-#   EC2_USER     — EC2 SSH username ("ec2-user" for Amazon Linux)
-#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents of github-actions deploy key)
+#   EC2_USER     — EC2 SSH username ("ubuntu" — this box is Ubuntu, not Amazon Linux)
+#   EC2_SSH_KEY  — EC2 private SSH key (PEM contents of github-actions deploy key,
+#                  must be present in ubuntu's ~/.ssh/authorized_keys on the instance)
+#
+# The app runs via Docker Compose at /opt/pricebasket/repo (postgres/redis/api/worker
+# containers behind Caddy) — NOT a systemd service. See docker-compose.yml at repo root.
 #
 # Note: EC2 Security Group must allow port 22 inbound from 0.0.0.0/0 (or GitHub Actions IPs)
 
@@ -47,10 +51,10 @@ jobs:
           echo "$EC2_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
-          # Default to ec2-user if secret is empty
-          RESOLVED_USER="${EC2_USER_SECRET:-ec2-user}"
+          # Default to ubuntu if secret is empty (this box is Ubuntu)
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
           if [ -z "$RESOLVED_USER" ]; then
-            RESOLVED_USER="ec2-user"
+            RESOLVED_USER="ubuntu"
           fi
 
           ssh -i /tmp/deploy_key \
@@ -60,13 +64,15 @@ jobs:
             -o ServerAliveCountMax=3 \
             "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
           set -e
-          cd /opt/pricebasket
+          cd /opt/pricebasket/repo
           git fetch origin
           git checkout dev
-          git pull origin dev
-          pip3 install -r backend/requirements.txt -q
+          # Force the working tree to match origin/dev exactly — the server must
+          # never carry hand-edits git doesn't know about (that's what caused
+          # docker-compose.yml and a Dockerfile fix to be invisible to CI).
+          git reset --hard origin/dev
 
-          # Sync SMTP config from SSM (if available)
+          # Sync SMTP config from SSM into the compose env file (if available)
           if command -v aws &>/dev/null; then
             SMTP_HOST=$(aws ssm get-parameter --name /pricebasket/smtp/host     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
             SMTP_PORT=$(aws ssm get-parameter --name /pricebasket/smtp/port     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
@@ -74,14 +80,14 @@ jobs:
             SMTP_PASS=$(aws ssm get-parameter --name /pricebasket/smtp/password --with-decryption --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
             SMTP_FROM=$(aws ssm get-parameter --name /pricebasket/smtp/from     --region ap-south-1 --query Parameter.Value --output text 2>/dev/null) || true
             if [ -n "$SMTP_HOST" ]; then
-              grep -v "^SMTP_" backend/.env > /tmp/env_clean
+              grep -v "^SMTP_" /opt/pricebasket/.env > /tmp/env_clean
               { echo "SMTP_HOST=$SMTP_HOST"; echo "SMTP_PORT=$SMTP_PORT"; echo "SMTP_USER=$SMTP_USER"; echo "SMTP_PASSWORD=$SMTP_PASS"; echo "SMTP_FROM=$SMTP_FROM"; } >> /tmp/env_clean
-              mv /tmp/env_clean backend/.env
+              mv /tmp/env_clean /opt/pricebasket/.env
               echo "✅ SMTP synced from SSM"
             fi
           fi
 
-          sudo systemctl restart pricebasket-api.service
+          docker compose up -d --build api worker
           echo "✅ Backend deployed and restarted"
           ENDSSH
           rm -f /tmp/deploy_key
