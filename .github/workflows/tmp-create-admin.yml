@@ -1,0 +1,60 @@
+name: "Ops: one-off create-admin (temporary)"
+
+# TEMPORARY — to be removed after use. Runs the create-admin API call against
+# the EC2 backend via SSH (this runner can reach the box; local dev sandboxes
+# sometimes can't). Password is passed as a masked workflow_dispatch input,
+# never committed to a file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      admin_email:
+        description: "Admin email to create/promote"
+        required: true
+      admin_password:
+        description: "Password to set"
+        required: true
+
+jobs:
+  create-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password in logs
+        run: echo "::add-mask::${{ inputs.admin_password }}"
+
+      - name: SSH → create-admin via seed-key endpoint
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
+          ADMIN_EMAIL: ${{ inputs.admin_email }}
+          ADMIN_PASSWORD: ${{ inputs.admin_password }}
+        run: |
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            "${RESOLVED_USER}@${EC2_HOST}" \
+            ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" bash -s << 'ENDSSH'
+          set -e
+          SEED_KEY=$(grep '^SEED_SECRET=' /opt/pricebasket/.env | sed 's/^SEED_SECRET=//' | tr -d '"'"'"' \r\n')
+          if [ -z "$SEED_KEY" ]; then
+            echo "❌ SEED_SECRET not found or empty in /opt/pricebasket/.env"
+            exit 1
+          fi
+          echo "Seed key found (len=${#SEED_KEY}), calling create-admin..."
+          HTTP_CODE=$(curl -sS -o /tmp/resp.json -w "%{http_code}" -X POST https://pricebasket.in/api/v1/setup/create-admin \
+            -H "Content-Type: application/json" \
+            -H "x-seed-key: $SEED_KEY" \
+            -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"full_name\":\"Admin\"}")
+          echo "HTTP status: $HTTP_CODE"
+          cat /tmp/resp.json
+          echo ""
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            exit 1
+          fi
+          ENDSSH
+          rm -f /tmp/deploy_key
