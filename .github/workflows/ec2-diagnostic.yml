@@ -1,0 +1,48 @@
+name: "Debug: EC2 worker diagnostic (temporary)"
+
+# Manual, read-only diagnostic — checks whether the worker container is up
+# and whether refresh_all_prices / refresh_product_price are actually running.
+# Delete this workflow after use.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: "Check worker container + logs"
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH → inspect containers and worker logs
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
+        run: |
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
+          if [ -z "$RESOLVED_USER" ]; then
+            RESOLVED_USER="ubuntu"
+          fi
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
+          set -e
+          cd /opt/pricebasket/repo
+          echo "=== git log (last 3) ==="
+          git log -3 --oneline
+          echo
+          echo "=== docker compose ps ==="
+          docker compose ps
+          echo
+          echo "=== worker logs (last 200 lines) ==="
+          docker compose logs worker --tail=200
+          echo
+          echo "=== api logs (last 50 lines) ==="
+          docker compose logs api --tail=50
+          ENDSSH
+          rm -f /tmp/deploy_key
