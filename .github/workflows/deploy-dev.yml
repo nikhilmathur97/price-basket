@@ -66,11 +66,12 @@ jobs:
           set -e
           cd /opt/pricebasket/repo
           git fetch origin
-          git checkout dev
           # Force the working tree to match origin/dev exactly — the server must
           # never carry hand-edits git doesn't know about (that's what caused
           # docker-compose.yml and a Dockerfile fix to be invisible to CI).
+          git checkout -f dev
           git reset --hard origin/dev
+          git clean -fd
 
           # Sync SMTP config from SSM into the compose env file (if available)
           if command -v aws &>/dev/null; then
