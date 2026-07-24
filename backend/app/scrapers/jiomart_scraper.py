@@ -16,7 +16,7 @@ Confirmed DOM selectors (May 2026):
   MRP:   [class*="line-through"] or [class*="strike"] or [id*="price_label"]
   Image: img[src*="jiostatic"] or img[src*="jiomart"]
 
-Fallback: if live scraping fails, return an estimated price via fallback_pricer.
+If live scraping fails, returns None (no price shown for this platform).
 """
 
 import asyncio
@@ -211,10 +211,7 @@ class JioMartScraper(BaseScraper):
         except Exception as exc:
             log.warning("jiomart_playwright_failed", query=query, error=str(exc))
 
-        # Fallback to estimated price
-        log.info("jiomart_using_fallback", query=query)
-        from app.scrapers.fallback_pricer import get_estimated_price
-        return get_estimated_price("jiomart", query, product_id)
+        return None
 
     async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
         from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies

@@ -13,7 +13,7 @@ Confirmed response structure (May 2026):
 
 NOTE: Price is in sku.variations[0].price, NOT in sku.price directly.
 
-Fallback: if live scraping fails, return an estimated price via fallback_pricer.
+If live scraping fails, returns None (no price shown for this platform).
 """
 
 import asyncio
@@ -226,10 +226,7 @@ class InstamartScraper(BaseScraper):
         except Exception as exc:
             log.warning("instamart_playwright_failed", query=query, error=str(exc))
 
-        # Fallback to estimated price
-        log.info("instamart_using_fallback", query=query)
-        from app.scrapers.fallback_pricer import get_estimated_price
-        return get_estimated_price("instamart", query, product_id)
+        return None
 
     async def _fetch_playwright(self, query: str) -> Optional[PriceData]:
         from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies

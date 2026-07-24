@@ -6,7 +6,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Cart, CartItem, FlatOptimizationResult } from "@/types";
 import { api } from "@/services/api";
-import { MOCK_PRODUCTS } from "@/lib/mockData";
 
 /** Notify the Flutter native shell about the current cart item count. */
 function _notifyFlutterCartCount(count: number) {
@@ -15,18 +14,6 @@ function _notifyFlutterCartCount(count: number) {
       JSON.stringify({ type: "cart_count", count })
     );
   }
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function makeMockCart(items: CartItem[]): Cart {
-  return {
-    id: "mock-cart",
-    items,
-    total_items: items.reduce((s, i) => s + i.quantity, 0),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
 }
 
 interface CartState {
@@ -79,38 +66,6 @@ export const useCartStore = create<CartState>()(
       },
 
       addItem: async (productId, quantity = 1, platformId) => {
-        // ── Mock / demo product: local-only cart, no API call ──────────────────
-        if (!UUID_RE.test(productId)) {
-          const mock = MOCK_PRODUCTS.find((p) => p.id === productId);
-          if (!mock) return;
-          const pp = platformId
-            ? mock.platform_prices.find((p) => p.platform.id === platformId)
-            : [...mock.platform_prices].sort((a, b) => a.price - b.price)[0];
-          const current = get().cart;
-          const existing = current?.items.find((i) => i.product.id === productId);
-          const updatedItems: CartItem[] = existing
-            ? (current?.items ?? []).map((i) =>
-                i.product.id === productId
-                  ? { ...i, quantity: Math.min(i.quantity + quantity, 100) }
-                  : i
-              )
-            : [
-                ...(current?.items ?? []),
-                {
-                  id: `mock_${productId}`,
-                  product: mock,
-                  selected_platform: pp?.platform ?? null,
-                  quantity,
-                  snapshot_price: pp?.price ?? null,
-                  added_at: new Date().toISOString(),
-                },
-              ];
-          const updated = makeMockCart(updatedItems);
-          set({ cart: updated, totalItems: updated.total_items });
-          _notifyFlutterCartCount(updated.total_items);
-          return;
-        }
-        // ── Real product: call API ─────────────────────────────────────────────
         try {
           const { data } = await api.addToCart({
             product_id: productId,
@@ -127,19 +82,6 @@ export const useCartStore = create<CartState>()(
       },
 
       updateItem: async (itemId, quantity) => {
-        // Mock item: local update
-        if (itemId.startsWith("mock_")) {
-          const current = get().cart;
-          if (!current) return;
-          const updatedItems =
-            quantity <= 0
-              ? current.items.filter((i) => i.id !== itemId)
-              : current.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
-          const updated = makeMockCart(updatedItems);
-          set({ cart: updated, totalItems: updated.total_items });
-          _notifyFlutterCartCount(updated.total_items);
-          return;
-        }
         // Optimistic update so badge/count reflects the change immediately
         const prev = get().cart;
         if (prev) {
@@ -166,16 +108,6 @@ export const useCartStore = create<CartState>()(
       },
 
       removeItem: async (itemId) => {
-        // Mock item: local remove
-        if (itemId.startsWith("mock_")) {
-          const current = get().cart;
-          if (!current) return;
-          const updatedItems = current.items.filter((i) => i.id !== itemId);
-          const updated = makeMockCart(updatedItems);
-          set({ cart: updated, totalItems: updated.total_items });
-          _notifyFlutterCartCount(updated.total_items);
-          return;
-        }
         // Optimistic remove for real items
         const prev = get().cart;
         if (prev) {

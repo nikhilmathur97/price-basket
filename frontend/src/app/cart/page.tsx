@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/services/api";
-import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type {
   ProductWithPrices,
   CartItem,
@@ -535,14 +534,8 @@ export default function CartPage() {
       const realIds = productIds.filter((id) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
       );
-      const mockIds = productIds.filter((id) => !realIds.includes(id));
 
-      const entries: [string, ProductWithPrices][] = mockIds
-        .map((id) => {
-          const m = MOCK_PRODUCTS.find((p) => p.id === id);
-          return m ? ([id, m] as [string, ProductWithPrices]) : null;
-        })
-        .filter(Boolean) as [string, ProductWithPrices][];
+      const entries: [string, ProductWithPrices][] = [];
 
       if (realIds.length > 0) {
         try {
@@ -756,9 +749,7 @@ export default function CartPage() {
           </p>
           <AnimatePresence mode="popLayout">
             {cart.items.map((item) => {
-              const pw =
-                productsMap?.[item.product.id] ??
-                MOCK_PRODUCTS.find((p) => p.id === item.product.id);
+              const pw = productsMap?.[item.product.id];
               return (
                 <CartItemRow
                   key={item.id}

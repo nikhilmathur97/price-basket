@@ -14,7 +14,7 @@ Confirmed working patterns (May 2026):
   ASIN:  data-asin="B0936V88H6"
   Title: <span class="a-size-base-plus ...">Product Name</span>
 
-Fallback: if live scraping fails, return an estimated price via fallback_pricer.
+If live scraping fails, returns None (no price shown for this platform).
 """
 import asyncio
 import re
@@ -143,10 +143,7 @@ class AmazonScraper(BaseScraper):
         except Exception as exc:
             log.warning("amazon_scrape_error", query=query, error=str(exc))
 
-        # Fallback to estimated price
-        log.info("amazon_using_fallback", query=query)
-        from app.scrapers.fallback_pricer import get_estimated_price
-        return get_estimated_price("amazon", query, product_id)
+        return None
 
     async def _scrape_playwright(self, query: str) -> Optional[PriceData]:
         from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies
