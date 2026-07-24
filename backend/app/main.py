@@ -29,17 +29,34 @@ log = structlog.get_logger(__name__)
 
 
 async def _auto_mark_featured() -> None:
-    """If no products have is_featured=True, mark the first 60 active ones so the homepage always shows products."""
+    """Mark every active product that has at least one priced platform listing as
+    is_featured=True. Runs on every startup so a DB migration/restore (e.g. moving
+    hosts) that leaves is_featured unset never leaves the homepage looking empty —
+    previously this only ran when featured_count was exactly 0, so it silently
+    stopped self-healing once a handful of products were featured.
+    """
     try:
+        from app.models.price import PlatformPrice
+
         async with AsyncSessionLocal() as db:
-            featured_count = await db.scalar(
-                select(func.count()).select_from(Product).where(Product.is_featured.is_(True))
+            subq = (
+                select(PlatformPrice.product_id)
+                .where(PlatformPrice.is_available.is_(True))
+                .distinct()
+                .scalar_subquery()
             )
-            if featured_count == 0:
-                subq = select(Product.id).where(Product.is_active.is_(True)).order_by(Product.created_at.desc()).limit(60).scalar_subquery()
-                await db.execute(update(Product).where(Product.id.in_(subq)).values(is_featured=True))
-                await db.commit()
-                log.info("Auto-marked active products as featured for homepage")
+            result = await db.execute(
+                update(Product)
+                .where(
+                    Product.is_active.is_(True),
+                    Product.is_featured.is_(False),
+                    Product.id.in_(subq),
+                )
+                .values(is_featured=True)
+            )
+            await db.commit()
+            if result.rowcount:
+                log.info("Auto-marked active products as featured for homepage", count=result.rowcount)
     except Exception:
         log.warning("_auto_mark_featured failed — non-fatal, continuing startup")
 
@@ -49,7 +66,7 @@ async def _warm_featured_cache() -> None:
     try:
         from app.models.price import PlatformPrice
         from sqlalchemy.orm import selectinload
-        cache_key = "featured:v2:60"
+        cache_key = "featured:v3:60"
         cached = await cache_get(cache_key)
         if cached:
             log.info("featured_cache_already_warm")

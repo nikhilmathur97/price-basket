@@ -17,7 +17,6 @@ import { api, trackEvent, extractApiError } from "@/services/api";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { MOCK_PRODUCTS } from "@/lib/mockData";
 import type { ProductWithPrices, PriceAlert } from "@/types";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { PageLoader } from "@/components/PageLoader";
@@ -307,12 +306,6 @@ export default function ProductDetailClient() {
   // Real-time WS subscription for real products (safe no-op for mock)
   useWebSocket(isUUID && id ? [id] : []);
 
-  // ── Mock product lookup (non-UUID IDs) ─────────────────────────────────
-  const mockProduct = useMemo(
-    () => (!isUUID && id ? MOCK_PRODUCTS.find((p) => p.id === id) ?? null : null),
-    [id, isUUID],
-  );
-
   // ── API fetch for real UUID products ──────────────────────────────────
   const { data: apiProduct, isLoading, isError, error: queryError } = useQuery<ProductWithPrices>({
     queryKey: ["product", id],
@@ -329,7 +322,7 @@ export default function ProductDetailClient() {
     (queryError as any)?.response?.status ?? null;
 
   // Unified product reference
-  const product: ProductWithPrices | null = isUUID ? (apiProduct ?? null) : mockProduct;
+  const product: ProductWithPrices | null = apiProduct ?? null;
 
   // Set mounted after first client render — unlocks cart-state rendering
   useEffect(() => { setMounted(true); }, []);
@@ -465,7 +458,7 @@ export default function ProductDetailClient() {
   if (isUUID && isLoading) return <PageLoader message="Fetching prices" />;
 
   // ── Error state ────────────────────────────────────────────────────────
-  if ((isUUID && (isError || !apiProduct)) || (!isUUID && !mockProduct)) {
+  if (isError || !apiProduct) {
     const isServerError = apiErrorStatus !== null && apiErrorStatus >= 500;
     return (
       <div className="max-w-lg mx-auto px-4 py-24 text-center">

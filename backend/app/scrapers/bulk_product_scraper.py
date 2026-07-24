@@ -875,12 +875,19 @@ async def save_products_to_db(products: List[ScrapedProduct]) -> dict:
                         existing.brand = sp.brand
                     if sp.image_url and not existing.image_url:
                         existing.image_url = sp.image_url
+                    # Always sync thumbnail_url from image_url when thumbnail is missing.
+                    # The home page ProductCard cascades image_url → thumbnail_url →
+                    # platform_image_url. Without thumbnail_url the card falls through
+                    # to platform_image_url which causes a blank flash on first render.
+                    if sp.image_url and not existing.thumbnail_url:
+                        existing.thumbnail_url = sp.image_url
                     if sp.unit and not existing.unit:
                         existing.unit = sp.unit
                     if sp.weight_grams and not existing.weight_grams:
                         existing.weight_grams = sp.weight_grams
                     if cat_id and not existing.category_id:
                         existing.category_id = cat_id
+                    existing.is_featured = True   # ensure it appears on home page
                     existing.updated_at = now
                     product_id = existing.id
                     stats["products_updated"] += 1
@@ -893,9 +900,12 @@ async def save_products_to_db(products: List[ScrapedProduct]) -> dict:
                         unit=sp.unit or None,
                         weight_grams=sp.weight_grams,
                         image_url=sp.image_url or None,
+                        # thumbnail_url mirrors image_url so the home page ProductCard
+                        # always has a usable image on the very first render.
+                        thumbnail_url=sp.image_url or None,
                         tags=[sp.category_slug] if sp.category_slug else None,
                         is_active=True,
-                        is_featured=False,
+                        is_featured=True,   # scraped products should appear on home page
                     )
                     db.add(new_product)
                     await db.flush()

@@ -207,6 +207,7 @@ class PriceEngine:
                             delivery_time_minutes=price_data.delivery_time_minutes,
                             platform_product_id=price_data.platform_product_id,
                             platform_product_url=price_data.platform_product_url,
+                            platform_image_url=price_data.platform_image_url,
                             last_updated=now,
                             source=price_data.source,
                         )
@@ -221,6 +222,7 @@ class PriceEngine:
                                 delivery_time_minutes=price_data.delivery_time_minutes,
                                 platform_product_id=price_data.platform_product_id,
                                 platform_product_url=price_data.platform_product_url,
+                                platform_image_url=price_data.platform_image_url,
                                 last_updated=now,
                                 source=price_data.source,
                             ),

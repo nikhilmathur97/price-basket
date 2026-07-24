@@ -14,7 +14,7 @@ Confirmed working patterns (May 2026):
   CSS class: <div class="Nx9bqj">₹269</div>
   JSON-LD:   offers.price
 
-Fallback: if live scraping fails, return an estimated price via fallback_pricer.
+If live scraping fails, returns None (no price shown for this platform).
 """
 import asyncio
 import json
@@ -175,10 +175,7 @@ class FlipkartScraper(BaseScraper):
         except Exception as exc:
             log.warning("flipkart_scrape_error", query=query, error=str(exc))
 
-        # Fallback to estimated price
-        log.info("flipkart_using_fallback", query=query)
-        from app.scrapers.fallback_pricer import get_estimated_price
-        return get_estimated_price("flipkart", query, product_id)
+        return None
 
     async def _scrape_playwright(self, query: str) -> Optional[PriceData]:
         from app.scrapers.playwright_pool import get_browser, new_stealth_context, save_cookies
