@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     PRICE_REFRESH_INTERVAL: int = 300
+    # Only re-queue a product if its freshest price row is older than this, or it
+    # has none at all. Without this, refresh_all_prices re-enqueued all products
+    # every PRICE_REFRESH_INTERVAL regardless of SCRAPER_CONCURRENCY, so the queue
+    # grew unbounded and most products never actually got re-scraped.
+    PRICE_STALE_THRESHOLD: int = 1800
 
     # ── JWT ───────────────────────────────────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"

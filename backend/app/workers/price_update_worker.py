@@ -48,12 +48,28 @@ def send_price_alerts():
 # ── Async implementations ─────────────────────────────────────────────────────
 
 async def _refresh_all():
-    from sqlalchemy import select
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func, select
+    from app.config import settings
     from app.database import AsyncSessionLocal
+    from app.models.price import PlatformPrice
     from app.models.product import Product
 
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.PRICE_STALE_THRESHOLD)
+
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Product.id).where(Product.is_active == True))  # noqa
+        # Products with no price rows at all — always due for a first scrape.
+        never_scraped = select(Product.id).where(
+            Product.is_active == True,  # noqa: E712
+            ~Product.id.in_(select(PlatformPrice.product_id).distinct().scalar_subquery()),
+        )
+        # Products whose freshest price row has aged past the staleness cutoff.
+        stale = (
+            select(PlatformPrice.product_id)
+            .group_by(PlatformPrice.product_id)
+            .having(func.max(PlatformPrice.last_updated) < cutoff)
+        )
+        result = await db.execute(never_scraped.union(stale))
         product_ids: List[uuid.UUID] = [row[0] for row in result]
 
     log.info("queuing_price_refreshes", count=len(product_ids))
