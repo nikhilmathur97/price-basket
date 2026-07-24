@@ -13,8 +13,12 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium (needed for scraping)
-RUN python3 -m playwright install chromium --with-deps
+# Install Playwright Chromium (needed for scraping).
+# Installed as root (build time) but the app runs as appuser (runtime) — point
+# both at a shared, world-readable path so appuser can actually find the browser.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN python3 -m playwright install chromium --with-deps && \
+    chmod -R a+rX /ms-playwright
 
 # Cache-bust arg — pass --build-arg CACHE_BUST=$(date +%s) to force re-copy of migrations
 ARG CACHE_BUST=1
