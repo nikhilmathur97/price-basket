@@ -10,7 +10,10 @@ name: "2. Promote dev → Production (pricebasket.in)"
 #   5. Runs Lighthouse SEO audit
 #
 # Required GitHub Secrets:
-#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_PROD (must be the "frontend"
+#   project's ID, NOT the same VERCEL_PROJECT_ID deploy-dev.yml uses for the
+#   separate "price-basket" dev project — mixing these up silently deploys to
+#   the wrong Vercel project and never touches pricebasket.in)
 #   GH_PAT                — Personal Access Token with repo + workflow scopes
 #                           (GITHUB_TOKEN cannot push workflow file changes)
 #   INDEXNOW_KEY          — for instant indexing (optional)
@@ -82,7 +85,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
         run: |
           # The Vercel project has rootDirectory="frontend" set on vercel.com.
           # Running vercel build/deploy from inside frontend/ doubles it to frontend/frontend/.
@@ -100,7 +103,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
         run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
 
       - name: Install frontend dependencies
@@ -112,7 +115,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
         run: vercel build --prod --token=$VERCEL_TOKEN
 
       - name: Deploy → pricebasket.in
@@ -121,7 +124,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
         run: |
           # --archive=tgz bundles all files into one tarball upload (avoids 5000-file free-tier limit)
           URL=$(vercel deploy --prebuilt --prod --archive=tgz --token=$VERCEL_TOKEN)
