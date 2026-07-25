@@ -1545,3 +1545,42 @@ async def fix_catalog_mismatches(
         "changes": fixed,
         "skipped_details": skipped,
     }
+
+
+# ── Backfill missing images ────────────────────────────────────────────────────
+
+@router.post("/backfill-images")
+async def backfill_missing_images(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """
+    Enqueue an immediate price/image refresh for every active product that has
+    no image anywhere (Product.image_url, Product.thumbnail_url, and every
+    PlatformPrice.platform_image_url all null). HTTP equivalent of
+    scripts/backfill_missing_images.py, for environments where a shell into
+    the box isn't available. The refresh_product_price task re-scrapes the
+    product live, which populates platform_image_url for the frontend's
+    image_url → thumbnail_url → platform_image_url fallback chain.
+    """
+    has_platform_image = (
+        select(PlatformPrice.product_id)
+        .where(PlatformPrice.platform_image_url.isnot(None))
+        .distinct()
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(Product.id).where(
+            Product.is_active == True,  # noqa: E712
+            Product.image_url.is_(None),
+            Product.thumbnail_url.is_(None),
+            ~Product.id.in_(has_platform_image),
+        )
+    )
+    product_ids = [row[0] for row in result]
+
+    from app.workers.price_update_worker import refresh_product_price
+    for pid in product_ids:
+        refresh_product_price.apply_async(args=[str(pid)], queue="prices")
+
+    return {"enqueued": len(product_ids)}

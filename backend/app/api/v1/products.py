@@ -224,11 +224,10 @@ async def featured_products(
     limit: int = Query(default=60, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    # v3: bumped to bust stale cache entries that have null image_url.
-    # The _enrich() function now promotes platform_image_url → image_url when
-    # the product-level image fields are NULL, so old v2 entries (without the
-    # promotion) must not be served.
-    cache_key = f"featured:v3:{limit}"
+    # v4: bumped to bust stale cache entries that included image-less products.
+    # The query now excludes products with no image anywhere (product fields
+    # AND every platform price image null), so old v3 entries must not be served.
+    cache_key = f"featured:v4:{limit}"
     cached = await cache_get(cache_key)
     if cached:
         # Return raw JSON string directly — avoids double-serialisation overhead
@@ -238,11 +237,26 @@ async def featured_products(
             headers={"X-Cache": "HIT", "Cache-Control": "public, max-age=60, s-maxage=60"},
         )
 
+    # Products with no image anywhere (product fields AND every platform price's
+    # image both null) would render a placeholder cart icon on the card — exclude
+    # them from the home page rather than show a broken-looking product.
+    has_platform_image = (
+        select(PlatformPrice.product_id)
+        .where(PlatformPrice.platform_image_url.isnot(None))
+        .distinct()
+        .scalar_subquery()
+    )
+    has_image = or_(
+        Product.image_url.isnot(None),
+        Product.thumbnail_url.isnot(None),
+        Product.id.in_(has_platform_image),
+    )
+
     # Fetch more than needed so we can interleave categories for balanced home page
     fetch_limit = min(limit * 6, 600)
     result = await db.execute(
         select(Product)
-        .where(Product.is_active == True, Product.is_featured == True)  # noqa: E712
+        .where(Product.is_active == True, Product.is_featured == True, has_image)  # noqa: E712
         .options(
             selectinload(Product.category),
             selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
@@ -276,7 +290,7 @@ async def featured_products(
     if not products:
         result = await db.execute(
             select(Product)
-            .where(Product.is_active == True)  # noqa: E712
+            .where(Product.is_active == True, has_image)  # noqa: E712
             .options(
                 selectinload(Product.category),
                 selectinload(Product.platform_prices).selectinload(PlatformPrice.platform),
