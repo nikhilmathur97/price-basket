@@ -21,12 +21,22 @@ jobs:
           chmod 600 /tmp/deploy_key
           RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
 
+          # Dockerfile.worker only COPYs app/, migrations/, alembic.ini — scripts/
+          # never makes it into the image, and `python -` (stdin) leaves __file__
+          # undefined, which the script relies on. Copy it into the container as
+          # a real file via `docker compose cp` and run it with an explicit
+          # PYTHONPATH instead of guessing at WORKDIR-based import resolution.
+          B64=$(base64 -w0 backend/scripts/backfill_missing_images.py)
+
           ssh -i /tmp/deploy_key \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
-            "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
+            "${RESOLVED_USER}@${EC2_HOST}" "
           set -e
+          echo '${B64}' | base64 -d > /tmp/backfill_missing_images.py
           cd /opt/pricebasket/repo
-          docker compose exec -T worker python -m scripts.backfill_missing_images
-          ENDSSH
+          docker compose cp /tmp/backfill_missing_images.py worker:/tmp/backfill_missing_images.py
+          docker compose exec -T -e PYTHONPATH=/app worker python /tmp/backfill_missing_images.py
+          rm -f /tmp/backfill_missing_images.py
+          "
           rm -f /tmp/deploy_key
