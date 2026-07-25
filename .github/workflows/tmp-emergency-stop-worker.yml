@@ -31,7 +31,12 @@ jobs:
           echo "===== queue depth AFTER stop ====="
           docker compose exec -T redis redis-cli -n 1 llen prices < /dev/null
 
-          echo "===== full worker logs (last 500 lines) ====="
-          docker compose logs worker --tail 500 < /dev/null
+          echo "===== purging poisoned queues ====="
+          docker compose exec -T redis redis-cli -n 1 del prices < /dev/null
+          docker compose exec -T redis redis-cli -n 1 del notifications < /dev/null
+          docker compose exec -T redis redis-cli -n 1 del celery < /dev/null
+
+          echo "===== queue depth AFTER purge ====="
+          docker compose exec -T redis redis-cli -n 1 llen prices < /dev/null
           ENDSSH
           rm -f /tmp/deploy_key
