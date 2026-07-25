@@ -64,12 +64,12 @@ const CATEGORY_META: Record<string, {
     tags: ["Ready to Eat", "Sealed Pack", "Crispy"],
     rating: 4.2, reviewCount: 8740,
   },
-  "bakery": {
+  "bakery-biscuits": {
     shelf: "Best before 3–7 days",
     tags: ["Freshly Baked", "No Artificial Colour", "Soft & Fresh"],
     rating: 4.1, reviewCount: 2310,
   },
-  "staples": {
+  "atta-rice-dal": {
     shelf: "Best before 12 months",
     tags: ["Premium Quality", "Free of Impurities", "Stone Ground"],
     rating: 4.4, reviewCount: 5621,

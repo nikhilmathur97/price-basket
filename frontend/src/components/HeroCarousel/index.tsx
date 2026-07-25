@@ -89,7 +89,7 @@ const SLIDES: Slide[] = [
     tag: "🌾 Kitchen Essentials",
     title: "Rice, Dal, Oil & Atta\nat unbeatable prices",
     subtitle: "Track everyday staples & get alerts when prices drop",
-    cta: { label: "Shop Staples →", href: "/search?category=staples" },
+    cta: { label: "Shop Staples →", href: "/search?category=atta-rice-dal" },
     chips: [
       { icon: "📦", text: "Bulk savings" },
       { icon: "🔔", text: "Price alerts" },
