@@ -40,6 +40,8 @@ services:
     mem_limit: 4g
     env_file:
       - /opt/pricebasket/.env
+    volumes:
+      - celerybeat-data:/app/beat-data
     depends_on:
       - redis
       - postgres
@@ -47,3 +49,4 @@ services:
 volumes:
   redis-data:
   postgres-data:
+  celerybeat-data:
