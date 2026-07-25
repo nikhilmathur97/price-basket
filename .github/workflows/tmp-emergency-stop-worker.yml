@@ -23,15 +23,15 @@ jobs:
             "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
           cd /opt/pricebasket/repo
           echo "===== queue depth BEFORE stop ====="
-          docker compose exec -T redis redis-cli -n 1 llen prices
+          docker compose exec -T redis redis-cli -n 1 llen prices < /dev/null
 
           echo "===== stopping worker container ====="
-          docker compose stop worker
+          docker compose stop worker < /dev/null
 
           echo "===== queue depth AFTER stop ====="
-          docker compose exec -T redis redis-cli -n 1 llen prices
+          docker compose exec -T redis redis-cli -n 1 llen prices < /dev/null
 
           echo "===== full worker logs (last 500 lines) ====="
-          docker compose logs worker --tail 500
+          docker compose logs worker --tail 500 < /dev/null
           ENDSSH
           rm -f /tmp/deploy_key
