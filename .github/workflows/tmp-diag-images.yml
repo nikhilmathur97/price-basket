@@ -1,8 +1,9 @@
 name: "Ops: read-only image-backfill diagnostic (temporary)"
 
-# TEMPORARY, READ-ONLY — to be removed after use. Inspects worker container
-# health, Celery queue depth, and recent logs to debug why some products
-# never get an image after refresh_product_price is enqueued.
+# TEMPORARY, READ-ONLY — to be removed once the queue-consumption fix is
+# confirmed and the backlog has drained. Inspects Celery queue depth only;
+# does not restart or modify anything beyond what deploy-dev.yml already does
+# on every dev push.
 
 on:
   workflow_dispatch:
@@ -11,7 +12,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH → inspect worker/queue state
+      - name: SSH → check queue depth
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
@@ -29,14 +30,12 @@ jobs:
           echo "===== docker compose ps ====="
           docker compose ps
           echo ""
-          echo "===== celery queue depth (redis list 'prices') ====="
-          docker compose exec -T redis redis-cli -n 1 llen prices || true
-          docker compose exec -T redis redis-cli llen prices || true
+          echo "===== queue depths ====="
+          echo -n "prices: "; docker compose exec -T redis redis-cli -n 1 llen prices
+          echo -n "notifications: "; docker compose exec -T redis redis-cli -n 1 llen notifications
+          echo -n "celery (default): "; docker compose exec -T redis redis-cli -n 1 llen celery
           echo ""
-          echo "===== worker logs (last 150 lines) ====="
-          docker compose logs worker --tail 150
-          echo ""
-          echo "===== worker logs grep for our test product / errors ====="
-          docker compose logs worker --tail 3000 | grep -iE "817f533e|scrape_failed|price_persist_failed|Traceback|amazon_using|bigbasket_using|refresh_product_price" | tail -100
+          echo "===== worker logs (last 60 lines) ====="
+          docker compose logs worker --tail 60
           ENDSSH
           rm -f /tmp/deploy_key
