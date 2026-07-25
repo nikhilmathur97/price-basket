@@ -122,14 +122,14 @@ const CAT_COLORS: Record<string, { bg: string; ring: string; text: string }> = {
   "fruits-vegetables": { bg: "#FFF3E0", ring: "#FFCC80", text: "#E65100" },
   "dairy-breakfast":   { bg: "#E3F2FD", ring: "#90CAF9", text: "#1565C0" },
   "snacks-drinks":     { bg: "#F3E5F5", ring: "#CE93D8", text: "#6A1B9A" },
-  "bakery":            { bg: "#FBE9E7", ring: "#FFAB91", text: "#BF360C" },
+  "bakery-biscuits":   { bg: "#FBE9E7", ring: "#FFAB91", text: "#BF360C" },
   "household":         { bg: "#E0F2F1", ring: "#80CBC4", text: "#00695C" },
   "personal-care":     { bg: "#FCE4EC", ring: "#F48FB1", text: "#880E4F" },
   "chicken-meat":      { bg: "#FFF8E1", ring: "#FFE082", text: "#F57F17" },
   "frozen-foods":      { bg: "#E8F5E9", ring: "#A5D6A7", text: "#2E7D32" },
   "baby-care":         { bg: "#F8BBD9", ring: "#F48FB1", text: "#880E4F" },
   "pet-care":          { bg: "#EFEBE9", ring: "#BCAAA4", text: "#4E342E" },
-  "staples":           { bg: "#FFFDE7", ring: "#FFF176", text: "#F57F17" },
+  "atta-rice-dal":     { bg: "#FFFDE7", ring: "#FFF176", text: "#F57F17" },
   "oils-spices":       { bg: "#FFF3E0", ring: "#FFCC80", text: "#BF360C" },
 };
 

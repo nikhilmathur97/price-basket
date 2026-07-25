@@ -17,11 +17,11 @@ const CATEGORY_SLUGS = [
   "fruits-vegetables",
   "dairy-breakfast",
   "snacks-drinks",
-  "staples",
+  "atta-rice-dal",
   "household",
   "personal-care",
   "oils-spices",
-  "bakery",
+  "bakery-biscuits",
 ];
 
 // High-intent product SEO pages — each targets a specific buyer-intent keyword
