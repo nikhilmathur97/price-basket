@@ -11,6 +11,8 @@ jobs:
   backfill:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: SSH → run backfill_missing_images inside worker container
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
