@@ -28,9 +28,21 @@ COPY alembic.ini .
 # Strip macOS AppleDouble resource fork files (._*) that corrupt Python imports
 RUN find /app -name "._*" -delete && find /app -name ".DS_Store" -delete
 
+# Beat schedule persistence dir — mounted as a named volume in docker-compose.yml.
+# Without this, the schedule file lives in the ephemeral container layer, so every
+# `docker compose up -d --build` (any deploy) wipes it. Beat then thinks periodic
+# tasks have never run and fires them immediately on startup — with refresh_all_prices
+# fanning out one task per product every time it runs, repeated restarts compound
+# into a runaway queue (confirmed: 6.4K -> 2M+ tasks across a handful of same-day deploys).
+RUN mkdir -p /app/beat-data
+
 # Non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Beat + worker combined (same as Render config)
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--beat", "--loglevel=info", "--concurrency=2"]
+# Beat + worker combined (same as Render config).
+# -Q explicitly lists every queue tasks get routed to (celery_app.py task_routes
+# sends price refreshes to "prices" and alerts to "notifications"). Without -Q,
+# Celery only consumes the implicit default "celery" queue — every routed task
+# would pile up in Redis forever, un-consumed, no matter how long the worker runs.
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--beat", "--loglevel=info", "--concurrency=2", "-Q", "celery,prices,notifications", "--schedule=/app/beat-data/celerybeat-schedule"]
