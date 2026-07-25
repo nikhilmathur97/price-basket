@@ -32,5 +32,9 @@ RUN find /app -name "._*" -delete && find /app -name ".DS_Store" -delete
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Beat + worker combined (same as Render config)
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--beat", "--loglevel=info", "--concurrency=2"]
+# Beat + worker combined (same as Render config).
+# -Q explicitly lists every queue tasks get routed to (celery_app.py task_routes
+# sends price refreshes to "prices" and alerts to "notifications"). Without -Q,
+# Celery only consumes the implicit default "celery" queue — every routed task
+# would pile up in Redis forever, un-consumed, no matter how long the worker runs.
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--beat", "--loglevel=info", "--concurrency=2", "-Q", "celery,prices,notifications"]
