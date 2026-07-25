@@ -1,0 +1,30 @@
+name: "Ops: read-only queue-depth diagnostic (temporary)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH → check queue depth
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
+        run: |
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            "${RESOLVED_USER}@${EC2_HOST}" 'bash -s' << 'ENDSSH'
+          cd /opt/pricebasket/repo
+          echo "===== docker compose ps ====="
+          docker compose ps < /dev/null
+          echo "===== queue depth ====="
+          docker compose exec -T redis redis-cli -n 1 llen prices < /dev/null
+          ENDSSH
+          rm -f /tmp/deploy_key
