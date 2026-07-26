@@ -101,6 +101,7 @@ class UserOut(BaseModel):
     pincode: Optional[str] = None
     is_admin: bool
     created_at: datetime
+    deletion_requested_at: Optional[datetime] = None
 
 
 class UserUpdate(BaseModel):

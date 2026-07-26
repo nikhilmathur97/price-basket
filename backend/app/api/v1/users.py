@@ -1,5 +1,6 @@
 """Users API — profile management."""
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,20 @@ async def update_profile(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(current_user, field, value)
     await db.flush()
+    return current_user
+
+
+@router.post("/me/request-deletion", response_model=UserOut)
+async def request_account_deletion(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Flag this account for deletion. Deactivates it immediately; an admin
+    reviews the request and performs the actual data erasure."""
+    if current_user.deletion_requested_at is None:
+        current_user.deletion_requested_at = datetime.now(timezone.utc)
+    current_user.is_active = False
+    await db.commit()
     return current_user
 
 

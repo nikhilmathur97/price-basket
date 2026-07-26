@@ -60,6 +60,10 @@ class User(Base):
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # Set when the user requests their account be deleted (self-service, profile page).
+    # Admin reviews and performs the actual erasure via DELETE /admin/users/{id}.
+    deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     # Relationships
     carts = relationship("Cart", back_populates="user", cascade="all, delete-orphan")
     wishlists = relationship("Wishlist", back_populates="user", cascade="all, delete-orphan")
