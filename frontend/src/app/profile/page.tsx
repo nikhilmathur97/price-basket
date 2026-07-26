@@ -8,12 +8,62 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/store/authStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import toast from "react-hot-toast";
-import { Camera, Mail, Phone, MapPin, ShieldCheck, Calendar, Save } from "lucide-react";
+import { Camera, Mail, Phone, MapPin, ShieldCheck, Calendar, Save, AlertTriangle, X } from "lucide-react";
+
+function DeleteAccountModal({
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-surface-900">Request account deletion?</h2>
+            <p className="text-sm text-surface-500 mt-1">
+              Your account will be deactivated immediately and you&apos;ll be signed out.
+              Our team will review your request and permanently erase your data. This cannot be undone.
+            </p>
+          </div>
+          <button onClick={onCancel} className="text-surface-400 hover:text-surface-600 shrink-0">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl border border-surface-200 text-sm font-medium text-surface-700 hover:bg-surface-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60"
+          >
+            {loading ? "Submitting…" : "Request deletion"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isAuthenticated, hasHydrated, isValidatingSession, user: authUser, setUser } = useAuthStore();
+  const { isAuthenticated, hasHydrated, isValidatingSession, user: authUser, setUser, logout } = useAuthStore();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // useRequireAuth handles the redirect to /auth/login?next=/profile when the
   // user is not authenticated. The inline useEffect below is kept as a fallback.
@@ -58,6 +108,21 @@ export default function ProfilePage() {
     onError: () => toast.error("Failed to update profile"),
   });
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => (await api.requestAccountDeletion()).data,
+    onSuccess: () => {
+      toast.success("Deletion request submitted. You've been signed out.");
+      setShowDeleteModal(false);
+      logout();
+      router.replace("/");
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Failed to submit deletion request");
+      setShowDeleteModal(false);
+    },
+  });
+
   const avatarSrc = useMemo(() => {
     if (user?.avatar_url) return user.avatar_url;
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name ?? user?.email ?? "User")}&background=ea580c&color=fff`;
@@ -78,6 +143,14 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      {showDeleteModal && (
+        <DeleteAccountModal
+          loading={deleteAccountMutation.isPending}
+          onConfirm={() => deleteAccountMutation.mutate()}
+          onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+
       <div className="card p-6">
         <div className="flex flex-col sm:flex-row gap-5 sm:items-center">
           <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-surface-200 bg-surface-50">
@@ -185,6 +258,27 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card p-6 border border-red-100">
+        <h2 className="font-bold text-surface-900 mb-1">Danger Zone</h2>
+        {user?.deletion_requested_at ? (
+          <p className="text-sm text-amber-600">
+            Deletion requested on {new Date(user.deletion_requested_at).toLocaleDateString()}. Our team will process it shortly.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-surface-500 mb-4">
+              Permanently delete your account and all associated data (cart, wishlist, alerts).
+            </p>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold"
+            >
+              Delete My Account
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -135,6 +135,7 @@ export const api = {
     notification_email?: boolean;
     notification_push?: boolean;
   }) => apiClient.patch("/users/me", data),
+  requestAccountDeletion: () => apiClient.post("/users/me/request-deletion", {}),
 
   // Products
   getCategories: () => apiClient.get("/products/categories"),

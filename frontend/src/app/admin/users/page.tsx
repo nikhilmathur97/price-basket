@@ -23,6 +23,7 @@ type AdminUser = {
   avatar_url: string | null;
   created_at: string;
   last_login_at: string | null;
+  deletion_requested_at: string | null;
 };
 
 function DeleteConfirmModal({
@@ -120,7 +121,17 @@ export default function AdminUsersPage() {
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-surface-100 flex items-center justify-between">
           <h2 className="font-bold text-surface-900">User Signup List</h2>
-          <span className="text-sm text-surface-500">Total: {data?.total ?? 0}</span>
+          <div className="flex items-center gap-3 text-sm text-surface-500">
+            {(() => {
+              const pending = (data?.items ?? []).filter((u) => u.deletion_requested_at).length;
+              return pending > 0 ? (
+                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                  {pending} deletion request{pending === 1 ? "" : "s"}
+                </span>
+              ) : null;
+            })()}
+            <span>Total: {data?.total ?? 0}</span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -169,6 +180,14 @@ export default function AdminUsersPage() {
                       <span className={`px-2 py-0.5 rounded-full text-xs ${u.is_verified ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
                         {u.is_verified ? "Verified" : "Unverified"}
                       </span>
+                      {u.deletion_requested_at && (
+                        <span
+                          title={`Requested ${new Date(u.deletion_requested_at).toLocaleString()}`}
+                          className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold"
+                        >
+                          Deletion Requested
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">{new Date(u.created_at).toLocaleString()}</td>

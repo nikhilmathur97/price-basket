@@ -554,6 +554,7 @@ async def list_users(
                 "avatar_url": u.avatar_url,
                 "created_at": u.created_at,
                 "last_login_at": u.last_login_at,
+                "deletion_requested_at": u.deletion_requested_at,
             }
         )
 
