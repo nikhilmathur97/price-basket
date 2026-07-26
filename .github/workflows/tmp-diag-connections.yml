@@ -1,0 +1,31 @@
+name: "Ops: read-only DB connection + queue diagnostic (temporary)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH → check pg connections + celery queue depth
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
+        run: |
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            "${RESOLVED_USER}@${EC2_HOST}" '
+          set -e
+          cd /opt/pricebasket/repo
+          echo "── pg_stat_activity count + max_connections ──"
+          docker compose exec -T postgres psql -U pricebasket -d pricebasket_db -c "SELECT count(*) AS total_connections FROM pg_stat_activity;" -c "SHOW max_connections;"
+          echo "── connections by state ──"
+          docker compose exec -T postgres psql -U pricebasket -d pricebasket_db -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;"
+          echo "── celery queue depths (redis) ──"
+          docker compose exec -T redis redis-cli -n 1 LLEN prices || true
+          docker compose exec -T redis redis-cli -n 1 LLEN notifications || true
+          '
+          rm -f /tmp/deploy_key
