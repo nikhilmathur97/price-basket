@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.workers.competitor_intel_worker",
         "app.workers.review_worker",
         "app.workers.loyalty_worker",
+        "app.workers.organic_growth_worker",
     ],
 )
 
@@ -94,6 +95,11 @@ celery_app.conf.update(
         "reconcile-loyalty-nightly": {
             "task": "app.workers.loyalty_worker.reconcile_streaks_and_badges",
             "schedule": crontab(hour=2, minute=0),
+        },
+        # Organic Growth Agent.
+        "generate-reddit-quora-drafts": {
+            "task": "app.workers.organic_growth_worker.generate_reddit_quora_drafts",
+            "schedule": crontab(hour=9, minute=0),
         },
     },
 )

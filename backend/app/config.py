@@ -184,6 +184,10 @@ class Settings(BaseSettings):
     DAILY_STREAK_BONUS_COINS: int = 5
     BADGE_BONUS_COINS: int = 20
 
+    # AI-GOS Phase 2 — Organic Growth Agent (Reddit/Quora drafts, internal linking,
+    # headline A/B variants, trending topics, extra daily social slot).
+    ORGANIC_GROWTH_ENABLED: bool = False
+
     # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
     INDEXNOW_KEY: str = ""
 
