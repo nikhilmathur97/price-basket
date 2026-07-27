@@ -102,3 +102,20 @@ async def _check_trending_topics():
         created = await check_trends_and_inject(db)
         await db.commit()
         log.info("trending_topics_checked", created=created)
+
+
+@celery_app.task(name="app.workers.organic_growth_worker.post_daily_tip_social")
+def post_daily_tip_social():
+    if not settings.ORGANIC_GROWTH_ENABLED:
+        log.info("organic_growth_disabled")
+        return
+    _run_async(_post_daily_tip_social())
+
+
+async def _post_daily_tip_social():
+    from app.services.organic_growth_service import generate_daily_tip
+    from app.services.social_poster import broadcast_tip
+
+    tip = await generate_daily_tip()
+    results = await broadcast_tip(tip)
+    log.info("daily_tip_posted", results=results)

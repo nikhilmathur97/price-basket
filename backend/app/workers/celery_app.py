@@ -114,5 +114,11 @@ celery_app.conf.update(
             "task": "app.workers.organic_growth_worker.check_trending_topics",
             "schedule": crontab(minute=0, hour="*/4"),
         },
+        # Extra daily social slot — purely additive alongside the existing
+        # 10:00/18:00 deal posts in marketing_worker.py.
+        "post-daily-tip-social": {
+            "task": "app.workers.organic_growth_worker.post_daily_tip_social",
+            "schedule": crontab(hour=14, minute=0),
+        },
     },
 )
