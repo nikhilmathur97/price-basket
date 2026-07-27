@@ -22,6 +22,7 @@ from app.models.loyalty import (
     LoyaltyTransaction,
     LoyaltyBadge,
 )
+from app.models.content_headline_test import HeadlineVariant
 
 __all__ = [
     "User",
@@ -50,4 +51,5 @@ __all__ = [
     "LoyaltyAccount",
     "LoyaltyTransaction",
     "LoyaltyBadge",
+    "HeadlineVariant",
 ]

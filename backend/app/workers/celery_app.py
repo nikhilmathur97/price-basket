@@ -101,5 +101,14 @@ celery_app.conf.update(
             "task": "app.workers.organic_growth_worker.generate_reddit_quora_drafts",
             "schedule": crontab(hour=9, minute=0),
         },
+        "run-internal-linking": {
+            "task": "app.workers.organic_growth_worker.run_internal_linking",
+            "schedule": crontab(hour=8, minute=0),
+        },
+        # Runs 15 min after the 06:30 daily content job so a fresh post exists.
+        "generate-headline-variants": {
+            "task": "app.workers.organic_growth_worker.generate_headline_variants",
+            "schedule": crontab(hour=6, minute=45),
+        },
     },
 )
