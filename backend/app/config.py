@@ -164,6 +164,9 @@ class Settings(BaseSettings):
     CONTENT_AUTOMATION_ENABLED: bool = False
     SOCIAL_AUTOMATION_ENABLED: bool = False
 
+    # AI-GOS Phase 1 — Executive Reports AI (daily/weekly/monthly business summary).
+    EXEC_REPORTS_ENABLED: bool = False
+
     # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
     INDEXNOW_KEY: str = ""
 

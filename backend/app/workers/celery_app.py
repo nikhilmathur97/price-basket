@@ -11,6 +11,7 @@ celery_app = Celery(
     include=[
         "app.workers.price_update_worker",
         "app.workers.marketing_worker",
+        "app.workers.executive_worker",
     ],
 )
 
@@ -54,6 +55,23 @@ celery_app.conf.update(
         "post-deal-social-evening": {
             "task": "app.workers.marketing_worker.post_daily_deal_social",
             "schedule": crontab(hour=18, minute=0),
+        },
+        # Executive/CEO Reports AI — after the daily content job so it can see
+        # today's published-content count.
+        "generate-executive-report-daily": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=7, minute=0),
+            "kwargs": {"period": "daily"},
+        },
+        "generate-executive-report-weekly": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=7, minute=30, day_of_week=1),
+            "kwargs": {"period": "weekly"},
+        },
+        "generate-executive-report-monthly": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=8, minute=0, day_of_month=1),
+            "kwargs": {"period": "monthly"},
         },
     },
 )

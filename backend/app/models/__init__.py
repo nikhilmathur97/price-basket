@@ -12,6 +12,7 @@ from app.models.marketing import (
     MarketingGoal,
     MarketingSchedule,
 )
+from app.models.executive_report import ExecutiveReport
 
 __all__ = [
     "User",
@@ -32,4 +33,5 @@ __all__ = [
     "MarketingAnalytics",
     "MarketingGoal",
     "MarketingSchedule",
+    "ExecutiveReport",
 ]
