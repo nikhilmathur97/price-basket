@@ -83,6 +83,12 @@ async def register(
     user = await create_user(
         db, body.email, body.password, body.full_name, mobile_number=body.mobile_number,
     )
+
+    if body.referral_code and settings.REFERRAL_LOYALTY_ENABLED:
+        from app.services.referral_service import redeem_code
+
+        await redeem_code(db, body.referral_code, user.id)
+
     raw_refresh = create_refresh_token_str()
     await store_refresh_token(
         db, user.id, raw_refresh,

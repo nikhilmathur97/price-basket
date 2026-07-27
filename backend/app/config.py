@@ -177,6 +177,13 @@ class Settings(BaseSettings):
     GOOGLE_PLAY_PACKAGE_NAME: str = ""
     GOOGLE_REVIEWS_SERVICE_ACCOUNT_JSON: str = ""  # service account JSON (or path) for both APIs above
 
+    # AI-GOS Phase 1 — Referral + Loyalty AI. Coin amounts are placeholder defaults,
+    # tune after seeing real dev data.
+    REFERRAL_LOYALTY_ENABLED: bool = False
+    REFERRAL_BONUS_COINS: int = 50
+    DAILY_STREAK_BONUS_COINS: int = 5
+    BADGE_BONUS_COINS: int = 20
+
     # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
     INDEXNOW_KEY: str = ""
 

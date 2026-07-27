@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home, Database, ShoppingBag, Activity, LayoutGrid, TrendingUp, Search, Megaphone, Crown, Radar, MessageSquareWarning } from "lucide-react";
+import { ShieldCheck, Users, Receipt, MessageSquare, Store, BarChart3, Home, Database, ShoppingBag, Activity, LayoutGrid, TrendingUp, Search, Megaphone, Crown, Radar, MessageSquareWarning, Gift } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
   { href: "/admin/competitor-intel", label: "Competitor Intel", icon: Radar },
   { href: "/admin/reviews", label: "Reviews", icon: MessageSquareWarning },
+  { href: "/admin/loyalty", label: "Referral & Loyalty", icon: Gift },
   { href: "/admin/seo", label: "SEO Health", icon: Search },
   { href: "/admin/catalog", label: "Catalog", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },

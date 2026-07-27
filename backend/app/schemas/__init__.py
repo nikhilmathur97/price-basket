@@ -28,6 +28,7 @@ class UserRegister(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
     mobile_number: Optional[str] = Field(default=None, description="Optional contact number")
+    referral_code: Optional[str] = Field(default=None, description="Optional referral code from another user")
 
     @field_validator("mobile_number")
     @classmethod

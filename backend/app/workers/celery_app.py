@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.workers.executive_worker",
         "app.workers.competitor_intel_worker",
         "app.workers.review_worker",
+        "app.workers.loyalty_worker",
     ],
 )
 
@@ -84,6 +85,15 @@ celery_app.conf.update(
         "scan-reviews": {
             "task": "app.workers.review_worker.scan_reviews",
             "schedule": crontab(minute=0, hour="*/4"),
+        },
+        # Referral + Loyalty AI.
+        "process-referral-conversions": {
+            "task": "app.workers.loyalty_worker.process_referral_conversions",
+            "schedule": 900,  # every 15 min
+        },
+        "reconcile-loyalty-nightly": {
+            "task": "app.workers.loyalty_worker.reconcile_streaks_and_badges",
+            "schedule": crontab(hour=2, minute=0),
         },
     },
 )
