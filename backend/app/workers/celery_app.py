@@ -110,5 +110,9 @@ celery_app.conf.update(
             "task": "app.workers.organic_growth_worker.generate_headline_variants",
             "schedule": crontab(hour=6, minute=45),
         },
+        "check-trending-topics": {
+            "task": "app.workers.organic_growth_worker.check_trending_topics",
+            "schedule": crontab(minute=0, hour="*/4"),
+        },
     },
 )

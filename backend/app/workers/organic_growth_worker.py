@@ -84,3 +84,21 @@ async def _generate_headline_variants():
             log.info("headline_variants_generated", slug=latest_slug, test_id=str(variant.id))
         except ValueError as exc:
             log.info("headline_variants_skip", reason=str(exc))
+
+
+@celery_app.task(name="app.workers.organic_growth_worker.check_trending_topics")
+def check_trending_topics():
+    if not settings.ORGANIC_GROWTH_ENABLED:
+        log.info("organic_growth_disabled")
+        return
+    _run_async(_check_trending_topics())
+
+
+async def _check_trending_topics():
+    from app.database import AsyncSessionLocal
+    from app.services.trending_topic_service import check_trends_and_inject
+
+    async with AsyncSessionLocal() as db:
+        created = await check_trends_and_inject(db)
+        await db.commit()
+        log.info("trending_topics_checked", created=created)

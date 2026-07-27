@@ -63,6 +63,7 @@ google-genai>=1.0.0,<2.0           # Gemini API for marketing agent streaming
 anthropic>=0.28.0,<1.0             # Claude fallback for marketing agents
 praw>=7.7.0,<8.0                   # Reddit posting via PRAW
 google-auth>=2.35.0,<3.0           # Service-account auth for Review Management AI (Business Profile + Play Developer APIs)
+pytrends>=4.9.0,<5.0               # Unofficial Google Trends API for the Trending Topic Injector (degrades to a static fallback list)
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 pytest==8.2.1
