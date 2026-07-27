@@ -14,6 +14,7 @@ from app.models.marketing import (
 )
 from app.models.executive_report import ExecutiveReport
 from app.models.competitor_intel import CompetitorInsight
+from app.models.review import Review
 
 __all__ = [
     "User",
@@ -36,4 +37,5 @@ __all__ = [
     "MarketingSchedule",
     "ExecutiveReport",
     "CompetitorInsight",
+    "Review",
 ]

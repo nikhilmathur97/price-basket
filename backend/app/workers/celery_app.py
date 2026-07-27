@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.workers.marketing_worker",
         "app.workers.executive_worker",
         "app.workers.competitor_intel_worker",
+        "app.workers.review_worker",
     ],
 )
 
@@ -78,6 +79,11 @@ celery_app.conf.update(
         "analyze-competitor-trends": {
             "task": "app.workers.competitor_intel_worker.analyze_competitor_trends",
             "schedule": crontab(hour=5, minute=30),
+        },
+        # Review Management AI — every 4 hours: ingest + draft, never auto-post.
+        "scan-reviews": {
+            "task": "app.workers.review_worker.scan_reviews",
+            "schedule": crontab(minute=0, hour="*/4"),
         },
     },
 )

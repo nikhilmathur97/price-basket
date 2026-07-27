@@ -170,6 +170,13 @@ class Settings(BaseSettings):
     # AI-GOS Phase 1 — Competitor Intelligence AI (price-trend analysis over existing PriceHistory).
     COMPETITOR_INTEL_ENABLED: bool = False
 
+    # AI-GOS Phase 1 — Review Management AI.
+    REVIEW_MANAGEMENT_ENABLED: bool = False
+    ADMIN_ALERT_EMAIL: str = ""  # escalation inbox; falls back to SMTP_USER when empty
+    GOOGLE_BUSINESS_ACCOUNT_ID: str = ""
+    GOOGLE_PLAY_PACKAGE_NAME: str = ""
+    GOOGLE_REVIEWS_SERVICE_ACCOUNT_JSON: str = ""  # service account JSON (or path) for both APIs above
+
     # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
     INDEXNOW_KEY: str = ""
 

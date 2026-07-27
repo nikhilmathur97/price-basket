@@ -59,6 +59,14 @@ class NotificationService:
                 },
             )
 
+    async def send_admin_alert(self, subject: str, body_html: str) -> None:
+        """Generic escalation email to the configured admin/support inbox."""
+        to = settings.ADMIN_ALERT_EMAIL or settings.SMTP_USER
+        if not to or not settings.SMTP_USER:
+            log.warning("admin_alert_skipped_no_email", subject=subject)
+            return
+        await self._send_email(to=to, subject=subject, body=body_html)
+
     async def _send_email(self, to: str, subject: str, body: str) -> None:
         try:
             msg = MIMEMultipart("alternative")
