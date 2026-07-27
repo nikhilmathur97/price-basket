@@ -1,0 +1,120 @@
+name: "AI-GOS: Set feature flags on dev backend"
+
+# Manually-triggered only — never runs on push. Flips the AI-GOS Phase 1/2
+# feature flags on the shared EC2 backend (see docker-compose.yml / .env at
+# /opt/pricebasket/.env) and restarts api+worker so they take effect, since
+# a plain `restart` does not reload env_file contents.
+#
+# Reuses the same EC2_HOST / EC2_USER / EC2_SSH_KEY secrets as
+# deploy-dev.yml — no new secrets required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      exec_reports_enabled:
+        description: "EXEC_REPORTS_ENABLED"
+        type: boolean
+        default: true
+      competitor_intel_enabled:
+        description: "COMPETITOR_INTEL_ENABLED"
+        type: boolean
+        default: true
+      review_management_enabled:
+        description: "REVIEW_MANAGEMENT_ENABLED"
+        type: boolean
+        default: true
+      referral_loyalty_enabled:
+        description: "REFERRAL_LOYALTY_ENABLED"
+        type: boolean
+        default: true
+      organic_growth_enabled:
+        description: "ORGANIC_GROWTH_ENABLED"
+        type: boolean
+        default: true
+      run_executive_report_now:
+        description: "Also fire one immediate Executive Report (daily) run instead of waiting for 07:00 IST"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  set-flags:
+    name: "SSH → set flags, restart, run Executive Report"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check EC2 secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ] || [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠ EC2_HOST / EC2_SSH_KEY not set — cannot reach the backend"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: SSH → update flags + restart + run Executive Report
+        if: steps.check.outputs.skip != 'true'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER_SECRET: ${{ secrets.EC2_USER }}
+          EXEC_REPORTS_ENABLED: ${{ inputs.exec_reports_enabled }}
+          COMPETITOR_INTEL_ENABLED: ${{ inputs.competitor_intel_enabled }}
+          REVIEW_MANAGEMENT_ENABLED: ${{ inputs.review_management_enabled }}
+          REFERRAL_LOYALTY_ENABLED: ${{ inputs.referral_loyalty_enabled }}
+          ORGANIC_GROWTH_ENABLED: ${{ inputs.organic_growth_enabled }}
+          RUN_EXEC_REPORT_NOW: ${{ inputs.run_executive_report_now }}
+        run: |
+          echo "$EC2_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          RESOLVED_USER="${EC2_USER_SECRET:-ubuntu}"
+          if [ -z "$RESOLVED_USER" ]; then
+            RESOLVED_USER="ubuntu"
+          fi
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            "${RESOLVED_USER}@${EC2_HOST}" \
+            "EXEC_REPORTS_ENABLED='${EXEC_REPORTS_ENABLED}' COMPETITOR_INTEL_ENABLED='${COMPETITOR_INTEL_ENABLED}' REVIEW_MANAGEMENT_ENABLED='${REVIEW_MANAGEMENT_ENABLED}' REFERRAL_LOYALTY_ENABLED='${REFERRAL_LOYALTY_ENABLED}' ORGANIC_GROWTH_ENABLED='${ORGANIC_GROWTH_ENABLED}' RUN_EXEC_REPORT_NOW='${RUN_EXEC_REPORT_NOW}' bash -s" << 'ENDSSH'
+          set -e
+          ENV_FILE=/opt/pricebasket/.env
+
+          set_flag() {
+            key="$1"; value="$2"
+            if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+              sed -i "s/^${key}=.*/${key}=${value}/" "$ENV_FILE"
+            else
+              echo "${key}=${value}" >> "$ENV_FILE"
+            fi
+          }
+
+          set_flag EXEC_REPORTS_ENABLED "$EXEC_REPORTS_ENABLED"
+          set_flag COMPETITOR_INTEL_ENABLED "$COMPETITOR_INTEL_ENABLED"
+          set_flag REVIEW_MANAGEMENT_ENABLED "$REVIEW_MANAGEMENT_ENABLED"
+          set_flag REFERRAL_LOYALTY_ENABLED "$REFERRAL_LOYALTY_ENABLED"
+          set_flag ORGANIC_GROWTH_ENABLED "$ORGANIC_GROWTH_ENABLED"
+          echo "✅ Flags updated in $ENV_FILE"
+
+          cd /opt/pricebasket/repo
+          docker compose up -d api worker
+          echo "✅ api + worker recreated with new env"
+
+          if [ "$RUN_EXEC_REPORT_NOW" = "true" ]; then
+            sleep 10  # let the worker container finish booting
+            docker compose exec -T worker celery -A app.workers.celery_app call \
+              app.workers.executive_worker.generate_executive_report \
+              --kwargs='{"period": "daily"}' \
+              && echo "✅ Executive Report (daily) task queued" \
+              || echo "⚠ Could not queue Executive Report task — check worker logs manually"
+          fi
+
+          echo "--- worker logs (tail) ---"
+          docker compose logs --tail=40 worker
+          ENDSSH
+          rm -f /tmp/deploy_key
