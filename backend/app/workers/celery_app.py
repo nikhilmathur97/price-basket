@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.workers.price_update_worker",
         "app.workers.marketing_worker",
         "app.workers.executive_worker",
+        "app.workers.competitor_intel_worker",
     ],
 )
 
@@ -72,6 +73,11 @@ celery_app.conf.update(
             "task": "app.workers.executive_worker.generate_executive_report",
             "schedule": crontab(hour=8, minute=0, day_of_month=1),
             "kwargs": {"period": "monthly"},
+        },
+        # Competitor Intelligence AI — daily, analyzes the rolling PriceHistory window.
+        "analyze-competitor-trends": {
+            "task": "app.workers.competitor_intel_worker.analyze_competitor_trends",
+            "schedule": crontab(hour=5, minute=30),
         },
     },
 )
