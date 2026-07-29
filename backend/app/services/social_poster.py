@@ -196,3 +196,18 @@ async def broadcast_deal(
     }
     log.info("broadcast_deal_done", product=deal.slug, results=results)
     return results
+
+
+async def broadcast_tip(tip_text: str, image_url: Optional[str] = None) -> dict:
+    """Post a standalone savings tip/comparison fact (not tied to one deal) to
+    every configured channel. Same per-channel graceful-degradation as
+    broadcast_deal — safe to call before any social credentials are set."""
+    results = {
+        "telegram": await post_to_telegram(tip_text, None),
+        "facebook": await post_to_facebook(tip_text, image_url),
+        "instagram": await post_to_instagram(tip_text, image_url),
+        "twitter": await post_to_twitter(tip_text),
+        "whatsapp": await post_to_whatsapp(tip_text),
+    }
+    log.info("broadcast_tip_done", results=results)
+    return results

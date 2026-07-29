@@ -164,6 +164,30 @@ class Settings(BaseSettings):
     CONTENT_AUTOMATION_ENABLED: bool = False
     SOCIAL_AUTOMATION_ENABLED: bool = False
 
+    # AI-GOS Phase 1 — Executive Reports AI (daily/weekly/monthly business summary).
+    EXEC_REPORTS_ENABLED: bool = False
+
+    # AI-GOS Phase 1 — Competitor Intelligence AI (price-trend analysis over existing PriceHistory).
+    COMPETITOR_INTEL_ENABLED: bool = False
+
+    # AI-GOS Phase 1 — Review Management AI.
+    REVIEW_MANAGEMENT_ENABLED: bool = False
+    ADMIN_ALERT_EMAIL: str = ""  # escalation inbox; falls back to SMTP_USER when empty
+    GOOGLE_BUSINESS_ACCOUNT_ID: str = ""
+    GOOGLE_PLAY_PACKAGE_NAME: str = ""
+    GOOGLE_REVIEWS_SERVICE_ACCOUNT_JSON: str = ""  # service account JSON (or path) for both APIs above
+
+    # AI-GOS Phase 1 — Referral + Loyalty AI. Coin amounts are placeholder defaults,
+    # tune after seeing real dev data.
+    REFERRAL_LOYALTY_ENABLED: bool = False
+    REFERRAL_BONUS_COINS: int = 50
+    DAILY_STREAK_BONUS_COINS: int = 5
+    BADGE_BONUS_COINS: int = 20
+
+    # AI-GOS Phase 2 — Organic Growth Agent (Reddit/Quora drafts, internal linking,
+    # headline A/B variants, trending topics, extra daily social slot).
+    ORGANIC_GROWTH_ENABLED: bool = False
+
     # IndexNow (Bing/Yandex instant indexing) — generate any GUID as the key.
     INDEXNOW_KEY: str = ""
 

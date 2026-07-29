@@ -11,6 +11,11 @@ celery_app = Celery(
     include=[
         "app.workers.price_update_worker",
         "app.workers.marketing_worker",
+        "app.workers.executive_worker",
+        "app.workers.competitor_intel_worker",
+        "app.workers.review_worker",
+        "app.workers.loyalty_worker",
+        "app.workers.organic_growth_worker",
     ],
 )
 
@@ -54,6 +59,66 @@ celery_app.conf.update(
         "post-deal-social-evening": {
             "task": "app.workers.marketing_worker.post_daily_deal_social",
             "schedule": crontab(hour=18, minute=0),
+        },
+        # Executive/CEO Reports AI — after the daily content job so it can see
+        # today's published-content count.
+        "generate-executive-report-daily": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=7, minute=0),
+            "kwargs": {"period": "daily"},
+        },
+        "generate-executive-report-weekly": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=7, minute=30, day_of_week=1),
+            "kwargs": {"period": "weekly"},
+        },
+        "generate-executive-report-monthly": {
+            "task": "app.workers.executive_worker.generate_executive_report",
+            "schedule": crontab(hour=8, minute=0, day_of_month=1),
+            "kwargs": {"period": "monthly"},
+        },
+        # Competitor Intelligence AI — daily, analyzes the rolling PriceHistory window.
+        "analyze-competitor-trends": {
+            "task": "app.workers.competitor_intel_worker.analyze_competitor_trends",
+            "schedule": crontab(hour=5, minute=30),
+        },
+        # Review Management AI — every 4 hours: ingest + draft, never auto-post.
+        "scan-reviews": {
+            "task": "app.workers.review_worker.scan_reviews",
+            "schedule": crontab(minute=0, hour="*/4"),
+        },
+        # Referral + Loyalty AI.
+        "process-referral-conversions": {
+            "task": "app.workers.loyalty_worker.process_referral_conversions",
+            "schedule": 900,  # every 15 min
+        },
+        "reconcile-loyalty-nightly": {
+            "task": "app.workers.loyalty_worker.reconcile_streaks_and_badges",
+            "schedule": crontab(hour=2, minute=0),
+        },
+        # Organic Growth Agent.
+        "generate-reddit-quora-drafts": {
+            "task": "app.workers.organic_growth_worker.generate_reddit_quora_drafts",
+            "schedule": crontab(hour=9, minute=0),
+        },
+        "run-internal-linking": {
+            "task": "app.workers.organic_growth_worker.run_internal_linking",
+            "schedule": crontab(hour=8, minute=0),
+        },
+        # Runs 15 min after the 06:30 daily content job so a fresh post exists.
+        "generate-headline-variants": {
+            "task": "app.workers.organic_growth_worker.generate_headline_variants",
+            "schedule": crontab(hour=6, minute=45),
+        },
+        "check-trending-topics": {
+            "task": "app.workers.organic_growth_worker.check_trending_topics",
+            "schedule": crontab(minute=0, hour="*/4"),
+        },
+        # Extra daily social slot — purely additive alongside the existing
+        # 10:00/18:00 deal posts in marketing_worker.py.
+        "post-daily-tip-social": {
+            "task": "app.workers.organic_growth_worker.post_daily_tip_social",
+            "schedule": crontab(hour=14, minute=0),
         },
     },
 )

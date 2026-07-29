@@ -12,6 +12,17 @@ from app.models.marketing import (
     MarketingGoal,
     MarketingSchedule,
 )
+from app.models.executive_report import ExecutiveReport
+from app.models.competitor_intel import CompetitorInsight
+from app.models.review import Review
+from app.models.loyalty import (
+    ReferralCode,
+    ReferralConversion,
+    LoyaltyAccount,
+    LoyaltyTransaction,
+    LoyaltyBadge,
+)
+from app.models.content_headline_test import HeadlineVariant
 
 __all__ = [
     "User",
@@ -32,4 +43,13 @@ __all__ = [
     "MarketingAnalytics",
     "MarketingGoal",
     "MarketingSchedule",
+    "ExecutiveReport",
+    "CompetitorInsight",
+    "Review",
+    "ReferralCode",
+    "ReferralConversion",
+    "LoyaltyAccount",
+    "LoyaltyTransaction",
+    "LoyaltyBadge",
+    "HeadlineVariant",
 ]

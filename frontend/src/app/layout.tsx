@@ -25,11 +25,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices | Save ₹500/Month",
+    default: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices",
     template: "%s | PriceBasket",
   },
   description:
-    "Compare Blinkit, Zepto, Swiggy Instamart, BigBasket & JioMart grocery prices in real-time. Find the cheapest quick-commerce app & save ₹500/month. Free, no app needed.",
+    "Compare Blinkit, Zepto, Instamart, BigBasket & JioMart grocery prices in real-time. Find the cheapest quick-commerce app and save ₹500/month. Free.",
   verification: {
     google: process.env.NEXT_PUBLIC_GSC_VERIFICATION ?? undefined,
   },
