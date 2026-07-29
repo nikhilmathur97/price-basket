@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "How to Save Money on Groceries in India 2026 — 10 Proven Tips | PriceBasket",
+  title: "Save Money on Groceries 2026 — 10 Proven Tips",
   description:
-    "Save ₹500–₹2,000/month on groceries in India. Compare Blinkit, Zepto, BigBasket prices. Set price alerts. Use cart optimizer. 10 proven tips to cut your grocery bill.",
+    "Save ₹500–₹2,000/month on groceries in India. Compare Blinkit, Zepto, BigBasket prices, set price alerts, and use the cart optimizer. 10 proven tips.",
   keywords: [
     "how to save money on groceries india",
     "save money groceries india 2026",

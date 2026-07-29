@@ -10,9 +10,15 @@ import { extractApiError } from "@/services/api";
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<PageLoader message="Searching products" />}>
-      <SearchResults />
-    </Suspense>
+    <>
+      {/* Always server-rendered so crawlers see heading structure before client data fetching resolves */}
+      <h1 className="sr-only">Search Grocery Products — Compare Prices</h1>
+      <h2 className="sr-only">Compare Prices Across Blinkit, Zepto, Instamart, BigBasket & JioMart</h2>
+      <h2 className="sr-only">Sort by Price, Relevance or Delivery Speed</h2>
+      <Suspense fallback={<PageLoader message="Searching products" />}>
+        <SearchResults />
+      </Suspense>
+    </>
   );
 }
 
@@ -84,13 +90,13 @@ function SearchResults() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-xl font-bold text-surface-900">
+          <h2 className="text-xl font-bold text-surface-900">
             {query
               ? `Results for "${query}"`
               : categorySlug
               ? `${categorySlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`
               : "All Products"}
-          </h1>
+          </h2>
           {results && (
             <p className="text-sm text-surface-400 mt-0.5">
               {results.total.toLocaleString()} products found

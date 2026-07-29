@@ -18,7 +18,7 @@ const HeroCarousel = dynamic(
 );
 
 export const metadata: Metadata = {
-  title: "PriceBasket — Compare Blinkit, Zepto & BigBasket Prices",
+  title: "Compare Blinkit, Zepto & BigBasket Prices | PriceBasket",
   description:
     "Compare Blinkit vs Zepto, BigBasket, Swiggy Instamart & JioMart grocery prices in real-time. Find the cheapest quick-commerce app & save ₹500/month. Free.",
   keywords: [

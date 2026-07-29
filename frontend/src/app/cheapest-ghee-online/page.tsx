@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Ghee Online India 2026 — Blinkit vs Zepto vs BigBasket Ghee Price | PriceBasket",
+  title: "Cheapest Ghee Online Price 2026 — Compare & Save",
   description:
-    "Compare ghee prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest Amul, Patanjali, Mother Dairy ghee online. 500ml, 1L ghee price comparison. Free.",
+    "Compare ghee prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Amul, Patanjali, Mother Dairy — find the cheapest ghee online in India. Free.",
   keywords: [
     "cheapest ghee online india",
     "ghee price comparison india",

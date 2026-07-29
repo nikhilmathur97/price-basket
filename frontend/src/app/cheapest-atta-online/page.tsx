@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Cheapest Atta Online India 2026 — Blinkit vs Zepto vs BigBasket Atta Price | PriceBasket",
+  title: "Cheapest Atta Online Price 2026 — Compare & Save",
   description:
-    "Compare atta prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Find cheapest 5kg, 10kg atta online in India. Aashirvaad, Pillsbury, BB Royal atta price comparison. Free.",
+    "Compare atta prices across Blinkit, Zepto, BigBasket, JioMart, Instamart. Aashirvaad, Pillsbury, BB Royal — find the cheapest atta online in India. Free.",
   keywords: [
     "cheapest atta online india",
     "atta price comparison india",
