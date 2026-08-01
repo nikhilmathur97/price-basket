@@ -27,6 +27,7 @@ from app.services.auth_service import (
     create_access_token,
     create_refresh_token_str,
     get_user_by_email,
+    get_user_by_mobile,
     get_user_by_id,
     create_user,
     rotate_refresh_token,
@@ -79,6 +80,9 @@ async def register(
 ):
     if await get_user_by_email(db, body.email):
         raise HTTPException(status_code=409, detail="Email already registered")
+
+    if await get_user_by_mobile(db, body.mobile_number):
+        raise HTTPException(status_code=409, detail="Mobile number already registered")
 
     user = await create_user(
         db, body.email, body.password, body.full_name, mobile_number=body.mobile_number,

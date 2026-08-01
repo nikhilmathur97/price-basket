@@ -27,14 +27,12 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
-    mobile_number: Optional[str] = Field(default=None, description="Optional contact number")
+    mobile_number: str = Field(description="Contact number, required and unique")
     referral_code: Optional[str] = Field(default=None, description="Optional referral code from another user")
 
     @field_validator("mobile_number")
     @classmethod
-    def _valid_mobile(cls, v: Optional[str]) -> Optional[str]:
-        if v is None or v == "":
-            return None
+    def _valid_mobile(cls, v: str) -> str:
         if not _MOBILE_RE.match(v):
             raise ValueError("Mobile number must be exactly 10 digits")
         return v

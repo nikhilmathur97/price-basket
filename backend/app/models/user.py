@@ -22,7 +22,9 @@ class User(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
     hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
-    # mobile_number is the primary login identifier; indexed + unique via partial index in migration.
+    # Required + unique at signup (enforced in UserRegister schema); column stays
+    # nullable for legacy accounts created before this was mandatory. Not used
+    # for login or OTP verification.
     mobile_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     phone: Mapped[Optional[str]] = mapped_column(String(20))

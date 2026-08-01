@@ -93,7 +93,10 @@ class Settings(BaseSettings):
     # scraper (Blinkit/Zepto/BigBasket/Instamart/Flipkart/Amazon/JioMart) opens
     # a real Chromium context; uncapped fan-out across platforms + concurrent
     # requests was blowing past the 512MB instance limit. Keep this low.
-    SCRAPER_CONCURRENCY: int = 2
+    # Raised 2 -> 3 (2026-07) to reduce catalog staleness; watch box memory
+    # before raising further — bulk backfills should prefer the httpx-based
+    # scripts/seed_and_scrape_all.py path instead of raising this further.
+    SCRAPER_CONCURRENCY: int = 3
     PROXY_ROTATION_ENABLED: bool = False
     PROXY_LIST: str = ""
     SCRAPE_USER_AGENT_ROTATION: bool = True

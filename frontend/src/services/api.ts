@@ -110,8 +110,8 @@ apiClient.interceptors.response.use(
 // ── API helpers ────────────────────────────────────────────────────────────────
 
 export const api = {
-  // ── Auth (email + password primary; mobile is an optional profile field) ──
-  register: (data: { email: string; password: string; full_name: string; mobile_number?: string }) =>
+  // ── Auth (email + password; both email and mobile_number are required and unique) ──
+  register: (data: { email: string; password: string; full_name: string; mobile_number: string }) =>
     apiClient.post("/auth/register", data),
   login: (data: { email: string; password: string }) =>
     apiClient.post("/auth/login", data),

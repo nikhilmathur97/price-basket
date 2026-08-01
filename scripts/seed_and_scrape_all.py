@@ -7,8 +7,11 @@ Steps:
   1. Seed 9 platforms   (Blinkit, Zepto, BigBasket, Instamart, Amazon, Flipkart, JioMart, Myntra, Nykaa)
   2. Seed 12 categories
   3. Scrape Blinkit for 250+ products across all categories  (primary product source)
-  4. Concurrently scrape every other platform for cross-platform prices
-  5. Upsert everything into PostgreSQL
+  4. Concurrently scrape every other platform for cross-platform prices, including
+     Flipkart Minutes (via the real Playwright-based FlipkartScraper — its search
+     results are bot-protected and can't be fetched with a plain httpx GET)
+  5. Upsert everything into PostgreSQL — existing products/categories/images are
+     never overwritten, only gaps are filled, so re-running this is always safe
 
 Usage:
     cd price-basket
@@ -781,6 +784,44 @@ async def fetch_amazon(client: httpx.AsyncClient, query: str) -> Optional[dict]:
         return None
 
 
+# ── Flipkart Minutes scraping ─────────────────────────────────────────────────
+# Unlike the platforms above, Flipkart requires real JS rendering (bot-protected
+# search results) — reuse the existing, working Playwright-based FlipkartScraper
+# instead of a fragile httpx re-implementation. This is heavier (a real Chromium
+# context per call), so it must run on its own conservative concurrency lane,
+# never inside the light httpx `sem` used for the other platforms.
+
+async def fetch_flipkart(client: httpx.AsyncClient, query: str) -> Optional[dict]:
+    try:
+        from app.scrapers.flipkart_scraper import FlipkartScraper
+    except Exception as e:
+        print(f"    ⚠  Flipkart scraper unavailable: {e}")
+        return None
+
+    try:
+        price_data = await FlipkartScraper().fetch_price(uuid.uuid4(), product_name=query)
+    except Exception as e:
+        print(f"    ⚠  Flipkart error for '{query}': {type(e).__name__}: {e}")
+        return None
+
+    if not price_data or not price_data.price or price_data.price <= 0:
+        return None
+
+    price = float(price_data.price)
+    mrp   = float(price_data.original_price) if price_data.original_price else price
+
+    return {
+        "price":        price,
+        "mrp":          mrp if mrp > price else price,
+        "discount_pct": float(price_data.discount_percent or 0.0),
+        "is_available": bool(price_data.is_available),
+        "pid":          price_data.platform_product_id,
+        "url":          price_data.platform_product_url,
+        "image_url":    price_data.platform_image_url,
+        "delivery_mins": price_data.delivery_time_minutes or 10,
+    }
+
+
 # ── DB helpers ───────────────────────────────────────────────────────────────
 
 async def upsert_platform(db: AsyncSession, data: dict) -> Platform:
@@ -934,12 +975,21 @@ async def main():
         total_prices   = 0
         seen_slugs: set[str] = set()
 
-        # Semaphore to avoid hammering any single platform
-        sem = asyncio.Semaphore(3)
+        # Semaphore to avoid hammering any single platform (light httpx calls only)
+        sem = asyncio.Semaphore(5)
+        # Flipkart uses a real Chromium context per call (bot-protected site) —
+        # kept on its own, much more conservative lane so it never competes with
+        # or gets starved by the fast httpx platforms above, and to limit memory
+        # pressure from concurrent browser sessions on the box.
+        flipkart_sem = asyncio.Semaphore(1)
 
         async def scrape_platform(client, fn, query, slug):
             async with sem:
                 await asyncio.sleep(0.3)
+                return slug, await fn(client, query)
+
+        async def scrape_platform_heavy(client, fn, query, slug):
+            async with flipkart_sem:
                 return slug, await fn(client, query)
 
         async with httpx.AsyncClient(follow_redirects=True) as client:
@@ -984,6 +1034,7 @@ async def main():
                                 scrape_platform(client, fetch_instamart,  item["name"], "instamart"),
                                 scrape_platform(client, fetch_jiomart,    item["name"], "jiomart"),
                                 scrape_platform(client, fetch_amazon,     item["name"], "amazon"),
+                                scrape_platform_heavy(client, fetch_flipkart, item["name"], "flipkart"),
                             ]
                             results = await asyncio.gather(*tasks, return_exceptions=True)
 

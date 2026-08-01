@@ -16,7 +16,10 @@ function getSignupErrorMessage(err: any): string {
   if (!err?.response) return "Cannot reach server — please try again in a few seconds.";
   const status: number = err.response.status;
   const detail = err.response?.data?.detail;
-  if (status === 409) return "Email already registered. Try signing in instead.";
+  if (status === 409) {
+    if (typeof detail === "string" && /mobile/i.test(detail)) return detail;
+    return "Email already registered. Try signing in instead.";
+  }
   if (status === 503) return typeof detail === "string" ? detail : "Server is starting up — please wait and try again.";
   if (status === 502) return "Service unavailable — please try again in a few seconds.";
   if (status === 500) return "Server error — please try again or contact support.";
@@ -67,7 +70,8 @@ export default function SignupPage() {
     const email = form.email.trim().toLowerCase();
 
     if (!trimmedName) { toast.error("Full name is required"); return; }
-    if (mobile && !/^\d{10}$/.test(mobile)) { toast.error("Enter a valid 10-digit mobile number"); return; }
+    if (!mobile) { toast.error("Mobile number is required"); return; }
+    if (!/^\d{10}$/.test(mobile)) { toast.error("Enter a valid 10-digit mobile number"); return; }
     if (!email) { toast.error("Email address is required"); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("Enter a valid email address"); return; }
     if (form.password !== form.confirm) { toast.error("Passwords do not match"); return; }
@@ -86,7 +90,7 @@ export default function SignupPage() {
         full_name: trimmedName,
         email,
         password: form.password,
-        mobile_number: mobile || undefined,
+        mobile_number: mobile,
       });
       setAccessToken(data.access_token);
       let user = data.user;
@@ -185,10 +189,10 @@ export default function SignupPage() {
               </p>
             </div>
 
-            {/* Mobile Number (optional) */}
+            {/* Mobile Number (required) */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">
-                Mobile Number
+                Mobile Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-500 font-medium select-none">
@@ -197,6 +201,7 @@ export default function SignupPage() {
                 <input
                   type="tel"
                   inputMode="numeric"
+                  required
                   maxLength={10}
                   value={form.mobile_number}
                   onChange={(e) =>
@@ -207,9 +212,6 @@ export default function SignupPage() {
                              focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <p className="text-xs text-surface-400 mt-1">
-                Optional — for order updates
-              </p>
             </div>
 
             {/* Password */}
