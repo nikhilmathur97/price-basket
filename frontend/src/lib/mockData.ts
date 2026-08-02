@@ -93,14 +93,14 @@ const C = (id: number) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=160&h=160&fit=crop`;
 
 export const MOCK_CATEGORIES: Category[] = [
-  { id: "cat-1",  slug: "fruits-vegetables", name: "Fruits & Veggies",  icon: "🥦", image_url: C(4163411),  display_order: 1  },  // onions & fresh produce
-  { id: "cat-2",  slug: "dairy-breakfast",   name: "Dairy & Breakfast", icon: "🥛", image_url: C(33653802), display_order: 2  },  // eggs in carton
-  { id: "cat-3",  slug: "snacks-drinks",     name: "Snacks & Drinks",   icon: "🍿", image_url: C(7033644),  display_order: 3  },  // chips in bag
-  { id: "cat-4",  slug: "bakery-biscuits",   name: "Bakery & Biscuits", icon: "🍞", image_url: C(3851050),  display_order: 4  },  // sourdough loaf on board
-  { id: "cat-5",  slug: "household",         name: "Household",         icon: "🧹", image_url: C(4239034),  display_order: 5  },  // cleaning product bottles
-  { id: "cat-6",  slug: "personal-care",     name: "Personal Care",     icon: "🧴", image_url: C(7440056),  display_order: 6  },  // shampoo bottles
+  { id: "cat-1",  slug: "fruits-vegetables", name: "Fruits & Veggies",  icon: "🥦", image_url: C(5719966),  display_order: 1  },  // broccoli, pepper & eggplant, pale bg
+  { id: "cat-2",  slug: "dairy-breakfast",   name: "Dairy & Breakfast", icon: "🥛", image_url: C(14534512), display_order: 2  },  // fresh milk cartons close-up
+  { id: "cat-3",  slug: "snacks-drinks",     name: "Snacks & Drinks",   icon: "🍿", image_url: C(479628),   display_order: 3  },  // stacked wavy chips on white
+  { id: "cat-4",  slug: "bakery-biscuits",   name: "Bakery & Biscuits", icon: "🍞", image_url: C(9421475),  display_order: 4  },  // jam-filled butter cookies
+  { id: "cat-5",  slug: "household",         name: "Household",         icon: "🧹", image_url: C(5217885),  display_order: 5  },  // orange cleaning bottle, white bg
+  { id: "cat-6",  slug: "personal-care",     name: "Personal Care",     icon: "🧴", image_url: C(7319145),  display_order: 6  },  // white pump lotion bottle
   { id: "cat-10", slug: "atta-rice-dal",     name: "Atta, Rice & Dal",  icon: "🌾", image_url: C(31555432), display_order: 7  },  // uncooked rice in bowl
-  { id: "cat-11", slug: "oils-spices",       name: "Oils & Spices",     icon: "🫙", image_url: C(2802527),  display_order: 8  },  // colorful spices
+  { id: "cat-11", slug: "oils-spices",       name: "Oils & Spices",     icon: "🫙", image_url: C(3737651),  display_order: 8  },  // glass oil bottle
 ];
 
 // ── Grouped by category ────────────────────────────────────────────────────
